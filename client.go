@@ -9,14 +9,17 @@ type LDAP struct {
 
 	user     string
 	password string
+
+	isActiveDirectory bool
 }
 
-func New(server, baseDN, user, password string) LDAP {
+func New(server, baseDN, user, password string, isActiveDirectory bool) LDAP {
 	return LDAP{
 		server,
 		baseDN,
 		user,
 		password,
+		isActiveDirectory,
 	}
 }
 

@@ -79,5 +79,5 @@ func getWorkingLdap() (LDAP, error) {
 		return LDAP{}, errors.New("LDAP_READ_PASSWORD not set")
 	}
 
-	return New(server, baseDN, readUser, readPassword), nil
+	return New(server, baseDN, readUser, readPassword, false), nil
 }
