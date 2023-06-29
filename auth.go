@@ -1,11 +1,17 @@
 package ldap
 
 import (
+	"errors"
+	"strings"
+
 	"github.com/go-ldap/ldap/v3"
 	"golang.org/x/text/encoding/unicode"
 )
 
-var utf16le = unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM)
+var (
+	utf16le                       = unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM)
+	ErrActiveDirectoryMustBeLDAPS = errors.New("ActiveDirectory servers must be connected to via LDAPS to change passwords")
+)
 
 func (l LDAP) CheckPasswordForSAMAccountName(sAMAccountName, password string) (*User, error) {
 	c, err := l.getConnection()
@@ -46,6 +52,10 @@ func (l *LDAP) ChangePasswordForSAMAccountName(sAMAccountName, oldPassword, newP
 	user, err := l.FindUserBySAMAccountName(sAMAccountName)
 	if err != nil {
 		return err
+	}
+
+	if l.isActiveDirectory && !strings.HasPrefix(l.server, "ldaps://") {
+		return ErrActiveDirectoryMustBeLDAPS
 	}
 
 	if err := c.Bind(user.DN, oldPassword); err != nil {
