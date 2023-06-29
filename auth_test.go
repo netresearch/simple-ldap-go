@@ -58,26 +58,26 @@ func TestAuthWithInvalidCredentials(t *testing.T) {
 	}
 }
 
-func getWorkingLdap() (LDAP, error) {
+func getWorkingLdap() (*LDAP, error) {
 	server, found := os.LookupEnv("LDAP_SERVER")
 	if !found {
-		return LDAP{}, errors.New("LDAP_SERVER not set")
+		return nil, errors.New("LDAP_SERVER not set")
 	}
 
 	baseDN, found := os.LookupEnv("LDAP_BASE_DN")
 	if !found {
-		return LDAP{}, errors.New("LDAP_BASE_DN not set")
+		return nil, errors.New("LDAP_BASE_DN not set")
 	}
 
 	readUser, found := os.LookupEnv("LDAP_READ_USER")
 	if !found {
-		return LDAP{}, errors.New("LDAP_READ_USER not set")
+		return nil, errors.New("LDAP_READ_USER not set")
 	}
 
 	readPassword, found := os.LookupEnv("LDAP_READ_PASSWORD")
 	if !found {
-		return LDAP{}, errors.New("LDAP_READ_PASSWORD not set")
+		return nil, errors.New("LDAP_READ_PASSWORD not set")
 	}
 
-	return New(server, baseDN, readUser, readPassword, false), nil
+	return New(server, baseDN, readUser, readPassword, false)
 }

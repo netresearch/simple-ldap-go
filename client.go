@@ -13,14 +13,22 @@ type LDAP struct {
 	isActiveDirectory bool
 }
 
-func New(server, baseDN, user, password string, isActiveDirectory bool) LDAP {
-	return LDAP{
+func New(server, baseDN, user, password string, isActiveDirectory bool) (*LDAP, error) {
+	l := &LDAP{
 		server,
 		baseDN,
 		user,
 		password,
 		isActiveDirectory,
 	}
+
+	c, err := l.getConnection()
+	if err != nil {
+		return nil, err
+	}
+	c.Close()
+
+	return l, nil
 }
 
 func (l LDAP) getConnection() (*ldap.Conn, error) {
