@@ -1,6 +1,6 @@
 # Simple LDAP Go
 
-This package has been extracted from [netresearch/raybeam](https://github.com/netresearch/raybeam) and is for providing a simple API around [go-ldap/ldap/v3](https://github.com/go-ldap/ldap/v3).
+This package has been extracted from [netresearch/raybeam](https://github.com/netresearch/raybeam) and is for providing a simple API around [go-ldap/ldap/v3](https://github.com/go-ldap/ldap).
 
 ## License
 
