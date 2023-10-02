@@ -19,7 +19,7 @@ type User struct {
 	Groups         []string
 }
 
-func (l LDAP) FindUserBySAMAccountName(sAMAccountName string) (user *User, err error) {
+func (l *LDAP) FindUserBySAMAccountName(sAMAccountName string) (user *User, err error) {
 	c, err := l.getConnection()
 	if err != nil {
 		return nil, err
