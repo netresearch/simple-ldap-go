@@ -138,3 +138,45 @@ func (l *LDAP) FindUsers() (users []User, err error) {
 
 	return
 }
+
+func (l *LDAP) AddUserToGroup(dn, groupDN string) error {
+	c, err := l.getConnection()
+	if err != nil {
+		return err
+	}
+	defer c.Close()
+
+	return c.Modify(&ldap.ModifyRequest{
+		DN: dn,
+		Changes: []ldap.Change{
+			{
+				Operation: ldap.AddAttribute,
+				Modification: ldap.PartialAttribute{
+					Type: "memberOf",
+					Vals: []string{groupDN},
+				},
+			},
+		},
+	})
+}
+
+func (l *LDAP) RemoveUserFromGroup(dn, groupDN string) error {
+	c, err := l.getConnection()
+	if err != nil {
+		return err
+	}
+	defer c.Close()
+
+	return c.Modify(&ldap.ModifyRequest{
+		DN: dn,
+		Changes: []ldap.Change{
+			{
+				Operation: ldap.DeleteAttribute,
+				Modification: ldap.PartialAttribute{
+					Type: "memberOf",
+					Vals: []string{groupDN},
+				},
+			},
+		},
+	})
+}
