@@ -1,0 +1,141 @@
+package ldap
+
+import (
+	"errors"
+	"fmt"
+
+	"github.com/go-ldap/ldap/v3"
+)
+
+var ErrComputerNotFound = errors.New("computer not found")
+
+type Computer struct {
+	CN             string
+	DN             string
+	SAMAccountName string
+	Enabled        bool
+	// Groups is a list of CNs
+	Groups []string
+}
+
+func (l *LDAP) FindComputerByDN(dn string) (computer *Computer, err error) {
+	c, err := l.getConnection()
+	if err != nil {
+		return nil, err
+	}
+	defer c.Close()
+
+	r, err := c.Search(&ldap.SearchRequest{
+		BaseDN:       dn,
+		Scope:        ldap.ScopeBaseObject,
+		DerefAliases: ldap.NeverDerefAliases,
+		Filter:       "(objectClass=computer)",
+		Attributes:   []string{"memberOf", "cn", "sAMAccountName", "userAccountControl"},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if len(r.Entries) == 0 {
+		return nil, ErrComputerNotFound
+	}
+
+	if len(r.Entries) > 1 {
+		return nil, ErrDNDuplicated
+	}
+
+	enabled, err := parseObjectEnabled(r.Entries[0].GetAttributeValue("userAccountControl"))
+	if err != nil {
+		return nil, err
+	}
+
+	computer = &Computer{
+		CN:             r.Entries[0].GetAttributeValue("cn"),
+		DN:             r.Entries[0].DN,
+		SAMAccountName: r.Entries[0].GetAttributeValue("sAMAccountName"),
+		Enabled:        enabled,
+		Groups:         r.Entries[0].GetAttributeValues("memberOf"),
+	}
+
+	return
+}
+
+func (l *LDAP) FindComputerBySAMAccountName(sAMAccountName string) (computer *Computer, err error) {
+	c, err := l.getConnection()
+	if err != nil {
+		return nil, err
+	}
+	defer c.Close()
+
+	r, err := c.Search(&ldap.SearchRequest{
+		BaseDN:       l.baseDN,
+		Scope:        ldap.ScopeWholeSubtree,
+		DerefAliases: ldap.NeverDerefAliases,
+		Filter:       fmt.Sprintf("(&(objectClass=computer)(sAMAccountName=%s))", ldap.EscapeFilter(sAMAccountName)),
+		Attributes:   []string{"memberOf", "cn", "sAMAccountName", "userAccountControl"},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if len(r.Entries) == 0 {
+		return nil, ErrComputerNotFound
+	}
+
+	if len(r.Entries) > 1 {
+		return nil, ErrSAMAccountNameDuplicated
+	}
+
+	enabled, err := parseObjectEnabled(r.Entries[0].GetAttributeValue("userAccountControl"))
+	if err != nil {
+		return nil, err
+	}
+
+	computer = &Computer{
+		CN:             r.Entries[0].GetAttributeValue("cn"),
+		DN:             r.Entries[0].DN,
+		SAMAccountName: r.Entries[0].GetAttributeValue("sAMAccountName"),
+		Enabled:        enabled,
+		Groups:         r.Entries[0].GetAttributeValues("memberOf"),
+	}
+
+	return
+}
+
+func (l *LDAP) FindComputers() (computers []Computer, err error) {
+	c, err := l.getConnection()
+	if err != nil {
+		return nil, err
+	}
+	defer c.Close()
+
+	r, err := c.Search(&ldap.SearchRequest{
+		BaseDN:       l.baseDN,
+		Scope:        ldap.ScopeWholeSubtree,
+		DerefAliases: ldap.NeverDerefAliases,
+		Filter:       "(objectClass=computer)",
+		Attributes:   []string{"cn", "memberOf", "sAMAccountName", "userAccountControl"},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	for _, entry := range r.Entries {
+		enabled, err := parseObjectEnabled(entry.GetAttributeValue("userAccountControl"))
+		if err != nil {
+			continue
+		}
+
+		computer := Computer{
+			CN:             entry.GetAttributeValue("cn"),
+			DN:             entry.DN,
+			SAMAccountName: entry.GetAttributeValue("sAMAccountName"),
+			Enabled:        enabled,
+			Groups:         entry.GetAttributeValues("memberOf"),
+		}
+
+		computers = append(computers, computer)
+	}
+
+	return
+}
