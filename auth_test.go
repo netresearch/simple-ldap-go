@@ -23,8 +23,8 @@ func TestAuthWithReaduser(t *testing.T) {
 		return
 	}
 
-	if !strings.EqualFold(user.CN, wantCN) {
-		t.Errorf("expected CN %q, got %q", wantCN, user.CN)
+	if !strings.EqualFold(user.CN(), wantCN) {
+		t.Errorf("expected CN %q, got %q", wantCN, user.CN())
 	}
 
 	if !strings.EqualFold(user.SAMAccountName, wantSAMAccountName) {

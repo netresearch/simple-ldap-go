@@ -9,41 +9,9 @@ import (
 var ErrGroupNotFound = errors.New("group not found")
 
 type Group struct {
-	CN string
-	DN string
+	Object
 	// Members is a list of DNs
 	Members []string
-}
-
-func (l *LDAP) FindGroups() (groups []Group, err error) {
-	c, err := l.getConnection()
-	if err != nil {
-		return nil, err
-	}
-	defer c.Close()
-
-	r, err := c.Search(&ldap.SearchRequest{
-		BaseDN:       l.baseDN,
-		Scope:        ldap.ScopeWholeSubtree,
-		DerefAliases: ldap.NeverDerefAliases,
-		Filter:       "(objectClass=group)",
-		Attributes:   []string{"cn", "member"},
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	for _, entry := range r.Entries {
-		group := Group{
-			CN:      entry.GetAttributeValue("cn"),
-			DN:      entry.DN,
-			Members: entry.GetAttributeValues("member"),
-		}
-
-		groups = append(groups, group)
-	}
-
-	return
 }
 
 func (l *LDAP) FindGroupByDN(dn string) (group *Group, err error) {
@@ -73,9 +41,38 @@ func (l *LDAP) FindGroupByDN(dn string) (group *Group, err error) {
 	}
 
 	group = &Group{
-		CN:      r.Entries[0].GetAttributeValue("cn"),
-		DN:      r.Entries[0].DN,
+		Object:  objectFromEntry(r.Entries[0]),
 		Members: r.Entries[0].GetAttributeValues("member"),
+	}
+
+	return
+}
+
+func (l *LDAP) FindGroups() (groups []Group, err error) {
+	c, err := l.getConnection()
+	if err != nil {
+		return nil, err
+	}
+	defer c.Close()
+
+	r, err := c.Search(&ldap.SearchRequest{
+		BaseDN:       l.baseDN,
+		Scope:        ldap.ScopeWholeSubtree,
+		DerefAliases: ldap.NeverDerefAliases,
+		Filter:       "(objectClass=group)",
+		Attributes:   []string{"cn", "member"},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	for _, entry := range r.Entries {
+		group := Group{
+			Object:  objectFromEntry(entry),
+			Members: entry.GetAttributeValues("member"),
+		}
+
+		groups = append(groups, group)
 	}
 
 	return

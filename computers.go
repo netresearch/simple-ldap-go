@@ -10,8 +10,7 @@ import (
 var ErrComputerNotFound = errors.New("computer not found")
 
 type Computer struct {
-	CN             string
-	DN             string
+	Object
 	SAMAccountName string
 	Enabled        bool
 	// Groups is a list of CNs
@@ -50,8 +49,7 @@ func (l *LDAP) FindComputerByDN(dn string) (computer *Computer, err error) {
 	}
 
 	computer = &Computer{
-		CN:             r.Entries[0].GetAttributeValue("cn"),
-		DN:             r.Entries[0].DN,
+		Object:         objectFromEntry(r.Entries[0]),
 		SAMAccountName: r.Entries[0].GetAttributeValue("sAMAccountName"),
 		Enabled:        enabled,
 		Groups:         r.Entries[0].GetAttributeValues("memberOf"),
@@ -92,8 +90,7 @@ func (l *LDAP) FindComputerBySAMAccountName(sAMAccountName string) (computer *Co
 	}
 
 	computer = &Computer{
-		CN:             r.Entries[0].GetAttributeValue("cn"),
-		DN:             r.Entries[0].DN,
+		Object:         objectFromEntry(r.Entries[0]),
 		SAMAccountName: r.Entries[0].GetAttributeValue("sAMAccountName"),
 		Enabled:        enabled,
 		Groups:         r.Entries[0].GetAttributeValues("memberOf"),
@@ -127,8 +124,7 @@ func (l *LDAP) FindComputers() (computers []Computer, err error) {
 		}
 
 		computer := Computer{
-			CN:             entry.GetAttributeValue("cn"),
-			DN:             entry.DN,
+			Object:         objectFromEntry(entry),
 			SAMAccountName: entry.GetAttributeValue("sAMAccountName"),
 			Enabled:        enabled,
 			Groups:         entry.GetAttributeValues("memberOf"),

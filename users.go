@@ -13,8 +13,7 @@ var (
 )
 
 type User struct {
-	CN             string
-	DN             string
+	Object
 	SAMAccountName string
 	Enabled        bool
 	// Groups is a list of CNs
@@ -53,8 +52,7 @@ func (l *LDAP) FindUserByDN(dn string) (user *User, err error) {
 	}
 
 	user = &User{
-		CN:             r.Entries[0].GetAttributeValue("cn"),
-		DN:             r.Entries[0].DN,
+		Object:         objectFromEntry(r.Entries[0]),
 		SAMAccountName: r.Entries[0].GetAttributeValue("sAMAccountName"),
 		Enabled:        enabled,
 		Groups:         r.Entries[0].GetAttributeValues("memberOf"),
@@ -95,8 +93,7 @@ func (l *LDAP) FindUserBySAMAccountName(sAMAccountName string) (user *User, err 
 	}
 
 	user = &User{
-		CN:             r.Entries[0].GetAttributeValue("cn"),
-		DN:             r.Entries[0].DN,
+		Object:         objectFromEntry(r.Entries[0]),
 		SAMAccountName: r.Entries[0].GetAttributeValue("sAMAccountName"),
 		Enabled:        enabled,
 		Groups:         r.Entries[0].GetAttributeValues("memberOf"),
@@ -130,8 +127,7 @@ func (l *LDAP) FindUsers() (users []User, err error) {
 		}
 
 		user := User{
-			CN:             entry.GetAttributeValue("cn"),
-			DN:             entry.DN,
+			Object:         objectFromEntry(entry),
 			SAMAccountName: entry.GetAttributeValue("sAMAccountName"),
 			Enabled:        enabled,
 			Groups:         entry.GetAttributeValues("memberOf"),

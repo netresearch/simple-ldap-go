@@ -25,7 +25,7 @@ func (l LDAP) CheckPasswordForSAMAccountName(sAMAccountName, password string) (*
 		return nil, err
 	}
 
-	err = c.Bind(user.DN, password)
+	err = c.Bind(user.DN(), password)
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +58,7 @@ func (l *LDAP) ChangePasswordForSAMAccountName(sAMAccountName, oldPassword, newP
 		return ErrActiveDirectoryMustBeLDAPS
 	}
 
-	if err := c.Bind(user.DN, oldPassword); err != nil {
+	if err := c.Bind(user.DN(), oldPassword); err != nil {
 		return err
 	}
 
@@ -76,7 +76,7 @@ func (l *LDAP) ChangePasswordForSAMAccountName(sAMAccountName, oldPassword, newP
 	// If the Modify request contains a delete operation containing a value Vdel for unicodePwd followed
 	// by an add operation containing a value Vadd for unicodePwd, the server considers the request
 	// to be a request to change the password. [...]. Vdel is the old password, while Vadd is the new password.
-	modifyRequest := ldap.NewModifyRequest(user.DN, nil)
+	modifyRequest := ldap.NewModifyRequest(user.DN(), nil)
 	modifyRequest.Add("unicodePwd", []string{newEncoded})
 	modifyRequest.Delete("unicodePwd", []string{oldEncoded})
 
