@@ -13,7 +13,7 @@ var (
 	ErrActiveDirectoryMustBeLDAPS = errors.New("ActiveDirectory servers must be connected to via LDAPS to change passwords")
 )
 
-func (l LDAP) CheckPasswordForSAMAccountName(sAMAccountName, password string) (*User, error) {
+func (l *LDAP) CheckPasswordForSAMAccountName(sAMAccountName, password string) (*User, error) {
 	c, err := l.getConnection()
 	if err != nil {
 		return nil, err
@@ -21,6 +21,26 @@ func (l LDAP) CheckPasswordForSAMAccountName(sAMAccountName, password string) (*
 	defer c.Close()
 
 	user, err := l.FindUserBySAMAccountName(sAMAccountName)
+	if err != nil {
+		return nil, err
+	}
+
+	err = c.Bind(user.DN(), password)
+	if err != nil {
+		return nil, err
+	}
+
+	return user, nil
+}
+
+func (l *LDAP) CheckPasswordForDN(dn, password string) (*User, error) {
+	c, err := l.getConnection()
+	if err != nil {
+		return nil, err
+	}
+	defer c.Close()
+
+	user, err := l.FindUserByDN(dn)
 	if err != nil {
 		return nil, err
 	}

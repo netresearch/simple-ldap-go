@@ -38,6 +38,10 @@ func New(config Config, user, password string) (*LDAP, error) {
 	return l, nil
 }
 
+func (l *LDAP) WithCredentials(dn, password string) (*LDAP, error) {
+	return New(l.config, dn, password)
+}
+
 func (l LDAP) getConnection() (*ldap.Conn, error) {
 	c, err := ldap.DialURL(l.config.Server)
 	if err != nil {
