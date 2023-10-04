@@ -79,5 +79,11 @@ func getWorkingLdap() (*LDAP, error) {
 		return nil, errors.New("LDAP_READ_PASSWORD not set")
 	}
 
-	return New(server, baseDN, readUser, readPassword, false)
+	config := Config{
+		Server:            server,
+		BaseDN:            baseDN,
+		IsActiveDirectory: true,
+	}
+
+	return New(config, readUser, readPassword)
 }

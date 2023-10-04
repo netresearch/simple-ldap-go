@@ -69,7 +69,7 @@ func (l *LDAP) FindUserBySAMAccountName(sAMAccountName string) (user *User, err 
 	defer c.Close()
 
 	r, err := c.Search(&ldap.SearchRequest{
-		BaseDN:       l.baseDN,
+		BaseDN:       l.config.BaseDN,
 		Scope:        ldap.ScopeWholeSubtree,
 		DerefAliases: ldap.NeverDerefAliases,
 		Filter:       fmt.Sprintf("(&(objectClass=user)(sAMAccountName=%s))", ldap.EscapeFilter(sAMAccountName)),
@@ -110,7 +110,7 @@ func (l *LDAP) FindUsers() (users []User, err error) {
 	defer c.Close()
 
 	r, err := c.Search(&ldap.SearchRequest{
-		BaseDN:       l.baseDN,
+		BaseDN:       l.config.BaseDN,
 		Scope:        ldap.ScopeWholeSubtree,
 		DerefAliases: ldap.NeverDerefAliases,
 		Filter:       "(objectClass=user)",

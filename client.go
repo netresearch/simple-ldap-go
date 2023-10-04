@@ -6,26 +6,27 @@ import (
 	"github.com/go-ldap/ldap/v3"
 )
 
-type LDAP struct {
-	server string
+type Config struct {
+	Server string
+	BaseDN string
 
-	baseDN string
+	IsActiveDirectory bool
+}
+
+type LDAP struct {
+	config Config
 
 	user     string
 	password string
-
-	isActiveDirectory bool
 }
 
 var ErrDNDuplicated = errors.New("DN is not unique")
 
-func New(server, baseDN, user, password string, isActiveDirectory bool) (*LDAP, error) {
+func New(config Config, user, password string) (*LDAP, error) {
 	l := &LDAP{
-		server,
-		baseDN,
+		config,
 		user,
 		password,
-		isActiveDirectory,
 	}
 
 	c, err := l.getConnection()
@@ -38,7 +39,7 @@ func New(server, baseDN, user, password string, isActiveDirectory bool) (*LDAP, 
 }
 
 func (l LDAP) getConnection() (*ldap.Conn, error) {
-	c, err := ldap.DialURL(l.server)
+	c, err := ldap.DialURL(l.config.Server)
 	if err != nil {
 		return nil, err
 	}

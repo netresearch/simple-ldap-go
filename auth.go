@@ -54,7 +54,7 @@ func (l *LDAP) ChangePasswordForSAMAccountName(sAMAccountName, oldPassword, newP
 		return err
 	}
 
-	if l.isActiveDirectory && !strings.HasPrefix(l.server, "ldaps://") {
+	if l.config.IsActiveDirectory && !strings.HasPrefix(l.config.Server, "ldaps://") {
 		return ErrActiveDirectoryMustBeLDAPS
 	}
 

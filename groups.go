@@ -56,7 +56,7 @@ func (l *LDAP) FindGroups() (groups []Group, err error) {
 	defer c.Close()
 
 	r, err := c.Search(&ldap.SearchRequest{
-		BaseDN:       l.baseDN,
+		BaseDN:       l.config.BaseDN,
 		Scope:        ldap.ScopeWholeSubtree,
 		DerefAliases: ldap.NeverDerefAliases,
 		Filter:       "(objectClass=group)",

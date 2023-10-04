@@ -70,7 +70,7 @@ func (l *LDAP) FindComputerBySAMAccountName(sAMAccountName string) (computer *Co
 	defer c.Close()
 
 	r, err := c.Search(&ldap.SearchRequest{
-		BaseDN:       l.baseDN,
+		BaseDN:       l.config.BaseDN,
 		Scope:        ldap.ScopeWholeSubtree,
 		DerefAliases: ldap.NeverDerefAliases,
 		Filter:       fmt.Sprintf("(&(objectClass=computer)(sAMAccountName=%s))", ldap.EscapeFilter(sAMAccountName)),
@@ -113,7 +113,7 @@ func (l *LDAP) FindComputers() (computers []Computer, err error) {
 	defer c.Close()
 
 	r, err := c.Search(&ldap.SearchRequest{
-		BaseDN:       l.baseDN,
+		BaseDN:       l.config.BaseDN,
 		Scope:        ldap.ScopeWholeSubtree,
 		DerefAliases: ldap.NeverDerefAliases,
 		Filter:       "(objectClass=computer)",
