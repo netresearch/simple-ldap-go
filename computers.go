@@ -13,6 +13,8 @@ type Computer struct {
 	Object
 	SAMAccountName string
 	Enabled        bool
+	OS             string
+	OSVersion      string
 	// Groups is a list of CNs
 	Groups []string
 }
@@ -29,7 +31,7 @@ func (l *LDAP) FindComputerByDN(dn string) (computer *Computer, err error) {
 		Scope:        ldap.ScopeBaseObject,
 		DerefAliases: ldap.NeverDerefAliases,
 		Filter:       "(objectClass=computer)",
-		Attributes:   []string{"memberOf", "cn", "sAMAccountName", "userAccountControl"},
+		Attributes:   []string{"memberOf", "cn", "sAMAccountName", "userAccountControl", "operatingSystem", "operatingSystemVersion"},
 	})
 	if err != nil {
 		return nil, err
@@ -52,6 +54,8 @@ func (l *LDAP) FindComputerByDN(dn string) (computer *Computer, err error) {
 		Object:         objectFromEntry(r.Entries[0]),
 		SAMAccountName: r.Entries[0].GetAttributeValue("sAMAccountName"),
 		Enabled:        enabled,
+		OS:             r.Entries[0].GetAttributeValue("operatingSystem"),
+		OSVersion:      r.Entries[0].GetAttributeValue("operatingSystemVersion"),
 		Groups:         r.Entries[0].GetAttributeValues("memberOf"),
 	}
 
@@ -70,7 +74,7 @@ func (l *LDAP) FindComputerBySAMAccountName(sAMAccountName string) (computer *Co
 		Scope:        ldap.ScopeWholeSubtree,
 		DerefAliases: ldap.NeverDerefAliases,
 		Filter:       fmt.Sprintf("(&(objectClass=computer)(sAMAccountName=%s))", ldap.EscapeFilter(sAMAccountName)),
-		Attributes:   []string{"memberOf", "cn", "sAMAccountName", "userAccountControl"},
+		Attributes:   []string{"memberOf", "cn", "sAMAccountName", "userAccountControl", "operatingSystem", "operatingSystemVersion"},
 	})
 	if err != nil {
 		return nil, err
@@ -93,6 +97,8 @@ func (l *LDAP) FindComputerBySAMAccountName(sAMAccountName string) (computer *Co
 		Object:         objectFromEntry(r.Entries[0]),
 		SAMAccountName: r.Entries[0].GetAttributeValue("sAMAccountName"),
 		Enabled:        enabled,
+		OS:             r.Entries[0].GetAttributeValue("operatingSystem"),
+		OSVersion:      r.Entries[0].GetAttributeValue("operatingSystemVersion"),
 		Groups:         r.Entries[0].GetAttributeValues("memberOf"),
 	}
 
@@ -111,7 +117,7 @@ func (l *LDAP) FindComputers() (computers []Computer, err error) {
 		Scope:        ldap.ScopeWholeSubtree,
 		DerefAliases: ldap.NeverDerefAliases,
 		Filter:       "(objectClass=computer)",
-		Attributes:   []string{"cn", "memberOf", "sAMAccountName", "userAccountControl"},
+		Attributes:   []string{"cn", "memberOf", "sAMAccountName", "userAccountControl", "operatingSystem", "operatingSystemVersion"},
 	})
 	if err != nil {
 		return nil, err
@@ -127,6 +133,8 @@ func (l *LDAP) FindComputers() (computers []Computer, err error) {
 			Object:         objectFromEntry(entry),
 			SAMAccountName: entry.GetAttributeValue("sAMAccountName"),
 			Enabled:        enabled,
+			OS:             entry.GetAttributeValue("operatingSystem"),
+			OSVersion:      entry.GetAttributeValue("operatingSystemVersion"),
 			Groups:         entry.GetAttributeValues("memberOf"),
 		}
 
