@@ -1,6 +1,10 @@
 package ldap
 
-import "github.com/go-ldap/ldap/v3"
+import (
+	"errors"
+
+	"github.com/go-ldap/ldap/v3"
+)
 
 type LDAP struct {
 	server string
@@ -12,6 +16,8 @@ type LDAP struct {
 
 	isActiveDirectory bool
 }
+
+var ErrDNDuplicated = errors.New("DN is not unique")
 
 func New(server, baseDN, user, password string, isActiveDirectory bool) (*LDAP, error) {
 	l := &LDAP{
