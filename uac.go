@@ -39,7 +39,7 @@ type UAC struct {
 	InterdomainTrustAccount            bool
 	WorkstationTrustAccount            bool
 	ServerTrustAccount                 bool
-	DontExpirePassword                 bool
+	NoPasswordExpiration               bool
 	MNSLogonAccount                    bool
 	SmartCardRequired                  bool
 	TrustedForDelegation               bool
@@ -64,7 +64,7 @@ func UACFromUint32(v uint32) UAC {
 		InterdomainTrustAccount:            v&0x800 != 0,
 		WorkstationTrustAccount:            v&0x1000 != 0,
 		ServerTrustAccount:                 v&0x2000 != 0,
-		DontExpirePassword:                 v&0x10000 != 0,
+		NoPasswordExpiration:               v&0x10000 != 0,
 		MNSLogonAccount:                    v&0x20000 != 0,
 		SmartCardRequired:                  v&0x40000 != 0,
 		TrustedForDelegation:               v&0x80000 != 0,
@@ -127,7 +127,7 @@ func (u *UAC) Uint32() uint32 {
 		v |= 0x2000
 	}
 
-	if u.DontExpirePassword {
+	if u.NoPasswordExpiration {
 		v |= 0x10000
 	}
 
