@@ -24,8 +24,10 @@ package ldap
   ADS_UF_TRUSTED_TO_AUTHENTICATE_FOR_DELEGATION = 0x1000000
 */
 
+// UAC represents the User Account Control flags for a user.
+// https://learn.microsoft.com/en-us/windows/win32/adschema/a-useraccountcontrol
 type UAC struct {
-	Script                             bool
+	LogonScript                        bool
 	AccountDisabled                    bool
 	HomeDirRequired                    bool
 	Lockout                            bool
@@ -48,10 +50,36 @@ type UAC struct {
 	TrustedToAuthenticateForDelegation bool
 }
 
+func UACFromUint32(v uint32) UAC {
+	return UAC{
+		LogonScript:                        v&0x1 != 0,
+		AccountDisabled:                    v&0x2 != 0,
+		HomeDirRequired:                    v&0x8 != 0,
+		Lockout:                            v&0x10 != 0,
+		PasswordNotRequired:                v&0x20 != 0,
+		PasswordCantChange:                 v&0x40 != 0,
+		EncryptedTextPasswordAllowed:       v&0x80 != 0,
+		TempDuplicateAccount:               v&0x100 != 0,
+		NormalAccount:                      v&0x200 != 0,
+		InterdomainTrustAccount:            v&0x800 != 0,
+		WorkstationTrustAccount:            v&0x1000 != 0,
+		ServerTrustAccount:                 v&0x2000 != 0,
+		DontExpirePassword:                 v&0x10000 != 0,
+		MNSLogonAccount:                    v&0x20000 != 0,
+		SmartCardRequired:                  v&0x40000 != 0,
+		TrustedForDelegation:               v&0x80000 != 0,
+		NotDelegated:                       v&0x100000 != 0,
+		UseDESKeyOnly:                      v&0x200000 != 0,
+		DontRequirePreauth:                 v&0x400000 != 0,
+		PasswordExpired:                    v&0x800000 != 0,
+		TrustedToAuthenticateForDelegation: v&0x1000000 != 0,
+	}
+}
+
 func (u *UAC) Uint32() uint32 {
 	var v uint32 = 0
 
-	if u.Script {
+	if u.LogonScript {
 		v |= 0x1
 	}
 
