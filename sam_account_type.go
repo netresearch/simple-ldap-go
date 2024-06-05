@@ -5,16 +5,16 @@ package ldap
 type SamAccountType uint32
 
 const (
-	SAM_DOMAIN_OBJECT             SamAccountType = 0x0
-	SAM_GROUP_OBJECT              SamAccountType = 0x10000000
-	SAM_NON_SECURITY_GROUP_OBJECT SamAccountType = 0x10000001
-	SAM_ALIAS_OBJECT              SamAccountType = 0x20000000
-	SAM_NON_SECURITY_ALIAS_OBJECT SamAccountType = 0x20000001
-	SAM_USER_OBJECT               SamAccountType = 0x30000000
-	SAM_NORMAL_USER_ACCOUNT       SamAccountType = 0x30000000
-	SAM_MACHINE_ACCOUNT           SamAccountType = 0x30000001
-	SAM_TRUST_ACCOUNT             SamAccountType = 0x30000002
-	SAM_APP_BASIC_GROUP           SamAccountType = 0x40000000
-	SAM_APP_QUERY_GROUP           SamAccountType = 0x40000001
-	SAM_ACCOUNT_TYPE_MAX          SamAccountType = 0x7fffffff
+	SamDomainObject           SamAccountType = 0x0
+	SamGroupObject            SamAccountType = 0x10000000
+	SamNonSecurityGroupObject SamAccountType = 0x10000001
+	SamAliasObject            SamAccountType = 0x20000000
+	SamNonSecurityAliasObject SamAccountType = 0x20000001
+	SamUserObject             SamAccountType = 0x30000000
+	SamNormalUserAccount      SamAccountType = 0x30000000
+	SamMachineAccount         SamAccountType = 0x30000001
+	SamTrustAccount           SamAccountType = 0x30000002
+	SamAppBasicGroup          SamAccountType = 0x40000000
+	SamAppQueryGroup          SamAccountType = 0x40000001
+	SamAccountTypeMax         SamAccountType = 0x7fffffff
 )
