@@ -20,7 +20,7 @@ type Computer struct {
 }
 
 func (l *LDAP) FindComputerByDN(dn string) (computer *Computer, err error) {
-	c, err := l.getConnection()
+	c, err := l.GetConnection()
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +63,7 @@ func (l *LDAP) FindComputerByDN(dn string) (computer *Computer, err error) {
 }
 
 func (l *LDAP) FindComputerBySAMAccountName(sAMAccountName string) (computer *Computer, err error) {
-	c, err := l.getConnection()
+	c, err := l.GetConnection()
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +106,7 @@ func (l *LDAP) FindComputerBySAMAccountName(sAMAccountName string) (computer *Co
 }
 
 func (l *LDAP) FindComputers() (computers []Computer, err error) {
-	c, err := l.getConnection()
+	c, err := l.GetConnection()
 	if err != nil {
 		return nil, err
 	}

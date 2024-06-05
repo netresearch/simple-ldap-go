@@ -15,7 +15,7 @@ type Group struct {
 }
 
 func (l *LDAP) FindGroupByDN(dn string) (group *Group, err error) {
-	c, err := l.getConnection()
+	c, err := l.GetConnection()
 	if err != nil {
 		return nil, err
 	}
@@ -49,7 +49,7 @@ func (l *LDAP) FindGroupByDN(dn string) (group *Group, err error) {
 }
 
 func (l *LDAP) FindGroups() (groups []Group, err error) {
-	c, err := l.getConnection()
+	c, err := l.GetConnection()
 	if err != nil {
 		return nil, err
 	}

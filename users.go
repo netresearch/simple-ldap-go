@@ -21,7 +21,7 @@ type User struct {
 }
 
 func (l *LDAP) FindUserByDN(dn string) (user *User, err error) {
-	c, err := l.getConnection()
+	c, err := l.GetConnection()
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +62,7 @@ func (l *LDAP) FindUserByDN(dn string) (user *User, err error) {
 }
 
 func (l *LDAP) FindUserBySAMAccountName(sAMAccountName string) (user *User, err error) {
-	c, err := l.getConnection()
+	c, err := l.GetConnection()
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +103,7 @@ func (l *LDAP) FindUserBySAMAccountName(sAMAccountName string) (user *User, err 
 }
 
 func (l *LDAP) FindUsers() (users []User, err error) {
-	c, err := l.getConnection()
+	c, err := l.GetConnection()
 	if err != nil {
 		return nil, err
 	}
@@ -140,7 +140,7 @@ func (l *LDAP) FindUsers() (users []User, err error) {
 }
 
 func (l *LDAP) AddUserToGroup(dn, groupDN string) error {
-	c, err := l.getConnection()
+	c, err := l.GetConnection()
 	if err != nil {
 		return err
 	}
@@ -161,7 +161,7 @@ func (l *LDAP) AddUserToGroup(dn, groupDN string) error {
 }
 
 func (l *LDAP) RemoveUserFromGroup(dn, groupDN string) error {
-	c, err := l.getConnection()
+	c, err := l.GetConnection()
 	if err != nil {
 		return err
 	}

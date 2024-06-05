@@ -14,7 +14,7 @@ var (
 )
 
 func (l *LDAP) CheckPasswordForSAMAccountName(sAMAccountName, password string) (*User, error) {
-	c, err := l.getConnection()
+	c, err := l.GetConnection()
 	if err != nil {
 		return nil, err
 	}
@@ -34,7 +34,7 @@ func (l *LDAP) CheckPasswordForSAMAccountName(sAMAccountName, password string) (
 }
 
 func (l *LDAP) CheckPasswordForDN(dn, password string) (*User, error) {
-	c, err := l.getConnection()
+	c, err := l.GetConnection()
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +63,7 @@ func encodePassword(password string) (string, error) {
 }
 
 func (l *LDAP) ChangePasswordForSAMAccountName(sAMAccountName, oldPassword, newPassword string) (err error) {
-	c, err := l.getConnection()
+	c, err := l.GetConnection()
 	if err != nil {
 		return err
 	}
