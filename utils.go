@@ -1,7 +1,9 @@
 package ldap
 
 import (
+	"fmt"
 	"strconv"
+	"time"
 )
 
 func parseObjectEnabled(userAccountControl string) (bool, error) {
@@ -18,4 +20,22 @@ func parseObjectEnabled(userAccountControl string) (bool, error) {
 	}
 
 	return true, nil
+}
+
+// convertAccountExpires converts the time.Time to the accountExpires value.
+// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-adls/acdfe32c-ce53-4073-b9b4-40d1130038dc
+func convertAccountExpires(target *time.Time) string {
+	if target == nil {
+		return fmt.Sprintf("%d", accountExpiresNever)
+	}
+
+	remaining := target.Sub(accountExpiresBase)
+
+	/*
+	   This value represents the number of 100-nanosecond intervals since January 1, 1601 (UTC).
+	   A value of 0 or 0x7FFFFFFFFFFFFFFF (9223372036854775807) indicates that the account never expires.
+	*/
+	ns := remaining.Nanoseconds() / 100
+
+	return fmt.Sprintf("%d", ns)
 }

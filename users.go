@@ -3,6 +3,7 @@ package ldap
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/go-ldap/ldap/v3"
 )
@@ -10,6 +11,9 @@ import (
 var (
 	ErrUserNotFound             = errors.New("user not found")
 	ErrSAMAccountNameDuplicated = errors.New("sAMAccountName is not unique")
+
+	accountExpiresBase         = time.Date(1601, 1, 1, 0, 0, 0, 0, time.UTC)
+	accountExpiresNever uint64 = 0x7FFFFFFFFFFFFFFF
 )
 
 type User struct {
@@ -163,5 +167,69 @@ func (l *LDAP) RemoveUserFromGroup(dn, groupDN string) error {
 	req.Delete("member", []string{dn})
 
 	return c.Modify(req)
+}
 
+type FullUser struct {
+	CN             string
+	SAMAccountName *string
+	FirstName      string
+	LastName       string
+	DisplayName    *string
+	Description    *string
+	Email          *string
+	ObjectClasses  []string
+	Groups         []string
+	// AccountExpires represents the expiration date of the user's account.
+	// When set to nil, the account never expires.
+	//
+	AccountExpires     *time.Time
+	UserAccountControl UAC
+	SAMAccountType     SamAccountType
+}
+
+func (l *LDAP) CreateUser(user FullUser, password string) error {
+	if user.ObjectClasses == nil {
+		user.ObjectClasses = []string{"top", "person", "organizationalPerson", "user"}
+	}
+
+	if user.DisplayName == nil {
+		user.DisplayName = &user.CN
+	}
+
+	expires := convertAccountExpires(user.AccountExpires)
+	uac := user.UserAccountControl.Uint32()
+
+	c, err := l.GetConnection()
+	if err != nil {
+		return err
+	}
+	defer c.Close()
+
+	dn := ldap.EscapeDN("CN=" + ldap.EscapeDN(user.CN) + "," + l.config.BaseDN)
+
+	req := ldap.NewAddRequest(dn, nil)
+	req.Attribute("objectClass", user.ObjectClasses)
+	req.Attribute("cn", []string{user.CN})
+	req.Attribute("displayName", []string{*user.DisplayName})
+	req.Attribute("name", []string{user.FirstName + " " + user.LastName})
+	req.Attribute("givenName", []string{user.FirstName})
+	req.Attribute("sn", []string{user.LastName})
+	req.Attribute("memberOf", user.Groups)
+	req.Attribute("accountExpires", []string{expires})
+	req.Attribute("userAccountControl", []string{fmt.Sprintf("%d", uac)})
+	req.Attribute("sAMAccountType", []string{fmt.Sprintf("%d", user.SAMAccountType)})
+
+	if user.SAMAccountName != nil {
+		req.Attribute("sAMAccountName", []string{*user.SAMAccountName})
+	}
+
+	if user.Description != nil {
+		req.Attribute("description", []string{*user.Description})
+	}
+
+	if user.Email != nil {
+		req.Attribute("mail", []string{*user.Email})
+	}
+
+	return c.Add(req)
 }
