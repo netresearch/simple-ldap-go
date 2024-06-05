@@ -146,18 +146,10 @@ func (l *LDAP) AddUserToGroup(dn, groupDN string) error {
 	}
 	defer c.Close()
 
-	return c.Modify(&ldap.ModifyRequest{
-		DN: groupDN,
-		Changes: []ldap.Change{
-			{
-				Operation: ldap.AddAttribute,
-				Modification: ldap.PartialAttribute{
-					Type: "member",
-					Vals: []string{dn},
-				},
-			},
-		},
-	})
+	req := ldap.NewModifyRequest(groupDN, nil)
+	req.Add("member", []string{dn})
+
+	return c.Modify(req)
 }
 
 func (l *LDAP) RemoveUserFromGroup(dn, groupDN string) error {
@@ -167,16 +159,9 @@ func (l *LDAP) RemoveUserFromGroup(dn, groupDN string) error {
 	}
 	defer c.Close()
 
-	return c.Modify(&ldap.ModifyRequest{
-		DN: groupDN,
-		Changes: []ldap.Change{
-			{
-				Operation: ldap.DeleteAttribute,
-				Modification: ldap.PartialAttribute{
-					Type: "member",
-					Vals: []string{dn},
-				},
-			},
-		},
-	})
+	req := ldap.NewModifyRequest(groupDN, nil)
+	req.Delete("member", []string{dn})
+
+	return c.Modify(req)
+
 }
