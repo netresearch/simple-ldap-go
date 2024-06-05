@@ -1,5 +1,7 @@
 package ldap
 
+import "strings"
+
 /*
   ADS_UF_SCRIPT = 0x1,
   ADS_UF_ACCOUNTDISABLE = 0x2,
@@ -164,4 +166,94 @@ func (u *UAC) Uint32() uint32 {
 	}
 
 	return v
+}
+
+func (u UAC) String() string {
+	s := strings.Builder{}
+
+	if u.LogonScript {
+		s.WriteString("LogonScript, ")
+	}
+
+	if u.AccountDisabled {
+		s.WriteString("AccountDisabled, ")
+	}
+
+	if u.HomeDirRequired {
+		s.WriteString("HomeDirRequired, ")
+	}
+
+	if u.Lockout {
+		s.WriteString("Lockout, ")
+	}
+
+	if u.PasswordNotRequired {
+		s.WriteString("PasswordNotRequired, ")
+	}
+
+	if u.PasswordCantChange {
+		s.WriteString("PasswordCantChange, ")
+	}
+
+	if u.EncryptedTextPasswordAllowed {
+		s.WriteString("EncryptedTextPasswordAllowed, ")
+	}
+
+	if u.TempDuplicateAccount {
+		s.WriteString("TempDuplicateAccount, ")
+	}
+
+	if u.NormalAccount {
+		s.WriteString("NormalAccount, ")
+	}
+
+	if u.InterdomainTrustAccount {
+		s.WriteString("InterdomainTrustAccount, ")
+	}
+
+	if u.WorkstationTrustAccount {
+		s.WriteString("WorkstationTrustAccount, ")
+	}
+
+	if u.ServerTrustAccount {
+		s.WriteString("ServerTrustAccount, ")
+	}
+
+	if u.NoPasswordExpiration {
+		s.WriteString("NoPasswordExpiration, ")
+	}
+
+	if u.MNSLogonAccount {
+		s.WriteString("MNSLogonAccount, ")
+	}
+
+	if u.SmartCardRequired {
+		s.WriteString("SmartCardRequired, ")
+	}
+
+	if u.TrustedForDelegation {
+		s.WriteString("TrustedForDelegation, ")
+	}
+
+	if u.NotDelegated {
+		s.WriteString("NotDelegated, ")
+	}
+
+	if u.UseDESKeyOnly {
+		s.WriteString("UseDESKeyOnly, ")
+	}
+
+	if u.DontRequirePreauth {
+		s.WriteString("DontRequirePreauth, ")
+	}
+
+	if u.PasswordExpired {
+		s.WriteString("PasswordExpired, ")
+	}
+
+	if u.TrustedToAuthenticateForDelegation {
+		s.WriteString("TrustedToAuthenticateForDelegation, ")
+	}
+
+	return strings.TrimSuffix(s.String(), ", ")
 }
