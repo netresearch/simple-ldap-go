@@ -11,6 +11,8 @@ type Config struct {
 	BaseDN string
 
 	IsActiveDirectory bool
+
+	DialOptions []ldap.DialOpt
 }
 
 type LDAP struct {
@@ -43,7 +45,12 @@ func (l *LDAP) WithCredentials(dn, password string) (*LDAP, error) {
 }
 
 func (l LDAP) GetConnection() (*ldap.Conn, error) {
-	c, err := ldap.DialURL(l.config.Server)
+	dialOpts := make([]ldap.DialOpt, 0)
+	if l.config.DialOptions != nil {
+		dialOpts = l.config.DialOptions
+	}
+
+	c, err := ldap.DialURL(l.config.Server, dialOpts...)
 	if err != nil {
 		return nil, err
 	}
