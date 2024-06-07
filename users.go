@@ -174,6 +174,7 @@ type FullUser struct {
 	SAMAccountName *string
 	FirstName      string
 	LastName       string
+	DisplayName    *string
 	Description    *string
 	Email          *string
 	ObjectClasses  []string
@@ -187,6 +188,10 @@ type FullUser struct {
 func (l *LDAP) CreateUser(user FullUser, password string) (string, error) {
 	if user.ObjectClasses == nil {
 		user.ObjectClasses = []string{"top", "person", "organizationalPerson", "user"}
+	}
+
+	if user.DisplayName == nil {
+		user.DisplayName = &user.CN
 	}
 
 	c, err := l.GetConnection()
@@ -209,6 +214,7 @@ func (l *LDAP) CreateUser(user FullUser, password string) (string, error) {
 	req.Attribute("name", []string{user.FirstName + " " + user.LastName})
 	req.Attribute("givenName", []string{user.FirstName})
 	req.Attribute("sn", []string{user.LastName})
+	req.Attribute("displayName", []string{*user.DisplayName})
 	req.Attribute("accountExpires", []string{convertAccountExpires(user.AccountExpires)})
 	req.Attribute("userAccountControl", []string{fmt.Sprintf("%d", user.UserAccountControl.Uint32())})
 
