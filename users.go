@@ -180,9 +180,9 @@ type FullUser struct {
 	Groups         []string
 	// AccountExpires represents the expiration date of the user's account.
 	// When set to nil, the account never expires.
-	//
 	AccountExpires     *time.Time
 	UserAccountControl UAC
+	Path               *string
 }
 
 func (l *LDAP) CreateUser(user FullUser, password string) error {
@@ -200,7 +200,13 @@ func (l *LDAP) CreateUser(user FullUser, password string) error {
 	}
 	defer c.Close()
 
-	dn := fmt.Sprintf("CN=%s,%s", ldap.EscapeDN(user.CN), l.config.BaseDN)
+	baseDN := ""
+	if user.Path != nil {
+		baseDN = *user.Path + ","
+	}
+	baseDN += l.config.BaseDN
+
+	dn := fmt.Sprintf("CN=%s,%s", ldap.EscapeDN(user.CN), baseDN)
 
 	req := ldap.NewAddRequest(dn, nil)
 	req.Attribute("objectClass", user.ObjectClasses)
