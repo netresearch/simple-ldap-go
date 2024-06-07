@@ -78,7 +78,7 @@ func UACFromUint32(v uint32) UAC {
 	}
 }
 
-func (u *UAC) Uint32() uint32 {
+func (u UAC) Uint32() uint32 {
 	var v uint32 = 0
 
 	if u.LogonScript {
