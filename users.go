@@ -177,7 +177,6 @@ type FullUser struct {
 	Description    *string
 	Email          *string
 	ObjectClasses  []string
-	Groups         []string
 	// AccountExpires represents the expiration date of the user's account.
 	// When set to nil, the account never expires.
 	AccountExpires     *time.Time
@@ -185,18 +184,14 @@ type FullUser struct {
 	Path               *string
 }
 
-func (l *LDAP) CreateUser(user FullUser, password string) error {
+func (l *LDAP) CreateUser(user FullUser, password string) (string, error) {
 	if user.ObjectClasses == nil {
 		user.ObjectClasses = []string{"top", "person", "organizationalPerson", "user"}
 	}
 
-	if user.Groups == nil {
-		user.Groups = make([]string, 0)
-	}
-
 	c, err := l.GetConnection()
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer c.Close()
 
@@ -214,9 +209,6 @@ func (l *LDAP) CreateUser(user FullUser, password string) error {
 	req.Attribute("name", []string{user.FirstName + " " + user.LastName})
 	req.Attribute("givenName", []string{user.FirstName})
 	req.Attribute("sn", []string{user.LastName})
-	for _, group := range user.Groups {
-		req.Attribute("memberOf", []string{group})
-	}
 	req.Attribute("accountExpires", []string{convertAccountExpires(user.AccountExpires)})
 	req.Attribute("userAccountControl", []string{fmt.Sprintf("%d", user.UserAccountControl.Uint32())})
 
@@ -232,5 +224,5 @@ func (l *LDAP) CreateUser(user FullUser, password string) error {
 		req.Attribute("mail", []string{*user.Email})
 	}
 
-	return c.Add(req)
+	return dn, c.Add(req)
 }
