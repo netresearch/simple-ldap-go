@@ -174,7 +174,6 @@ type FullUser struct {
 	SAMAccountName *string
 	FirstName      string
 	LastName       string
-	DisplayName    *string
 	Description    *string
 	Email          *string
 	ObjectClasses  []string
@@ -184,7 +183,6 @@ type FullUser struct {
 	//
 	AccountExpires     *time.Time
 	UserAccountControl UAC
-	SAMAccountType     SamAccountType
 }
 
 func (l *LDAP) CreateUser(user FullUser, password string) error {
@@ -192,12 +190,9 @@ func (l *LDAP) CreateUser(user FullUser, password string) error {
 		user.ObjectClasses = []string{"top", "person", "organizationalPerson", "user"}
 	}
 
-	if user.DisplayName == nil {
-		user.DisplayName = &user.CN
+	if user.Groups == nil {
+		user.Groups = make([]string, 0)
 	}
-
-	expires := convertAccountExpires(user.AccountExpires)
-	uac := user.UserAccountControl.Uint32()
 
 	c, err := l.GetConnection()
 	if err != nil {
@@ -205,19 +200,19 @@ func (l *LDAP) CreateUser(user FullUser, password string) error {
 	}
 	defer c.Close()
 
-	dn := ldap.EscapeDN("CN=" + ldap.EscapeDN(user.CN) + "," + l.config.BaseDN)
+	dn := fmt.Sprintf("CN=%s,%s", ldap.EscapeDN(user.CN), l.config.BaseDN)
 
 	req := ldap.NewAddRequest(dn, nil)
 	req.Attribute("objectClass", user.ObjectClasses)
 	req.Attribute("cn", []string{user.CN})
-	req.Attribute("displayName", []string{*user.DisplayName})
 	req.Attribute("name", []string{user.FirstName + " " + user.LastName})
 	req.Attribute("givenName", []string{user.FirstName})
 	req.Attribute("sn", []string{user.LastName})
-	req.Attribute("memberOf", user.Groups)
-	req.Attribute("accountExpires", []string{expires})
-	req.Attribute("userAccountControl", []string{fmt.Sprintf("%d", uac)})
-	req.Attribute("sAMAccountType", []string{fmt.Sprintf("%d", user.SAMAccountType)})
+	for _, group := range user.Groups {
+		req.Attribute("memberOf", []string{group})
+	}
+	req.Attribute("accountExpires", []string{convertAccountExpires(user.AccountExpires)})
+	req.Attribute("userAccountControl", []string{fmt.Sprintf("%d", user.UserAccountControl.Uint32())})
 
 	if user.SAMAccountName != nil {
 		req.Attribute("sAMAccountName", []string{*user.SAMAccountName})
