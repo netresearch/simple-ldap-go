@@ -232,3 +232,13 @@ func (l *LDAP) CreateUser(user FullUser, password string) (string, error) {
 
 	return dn, c.Add(req)
 }
+
+func (l *LDAP) DeleteUser(dn string) error {
+	c, err := l.GetConnection()
+	if err != nil {
+		return err
+	}
+	defer c.Close()
+
+	return c.Del(&ldap.DelRequest{DN: dn})
+}
