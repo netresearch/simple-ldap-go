@@ -19,6 +19,7 @@ var (
 type User struct {
 	Object
 	SAMAccountName string
+	Description    string
 	Enabled        bool
 	// Groups is a list of CNs
 	Groups []string
@@ -36,7 +37,7 @@ func (l *LDAP) FindUserByDN(dn string) (user *User, err error) {
 		Scope:        ldap.ScopeBaseObject,
 		DerefAliases: ldap.NeverDerefAliases,
 		Filter:       "(objectClass=user)",
-		Attributes:   []string{"memberOf", "cn", "sAMAccountName", "userAccountControl"},
+		Attributes:   []string{"memberOf", "cn", "sAMAccountName", "userAccountControl", "description"},
 	})
 	if err != nil {
 		return nil, err
@@ -59,6 +60,7 @@ func (l *LDAP) FindUserByDN(dn string) (user *User, err error) {
 		Object:         objectFromEntry(r.Entries[0]),
 		SAMAccountName: r.Entries[0].GetAttributeValue("sAMAccountName"),
 		Enabled:        enabled,
+		Description:    r.Entries[0].GetAttributeValue("description"),
 		Groups:         r.Entries[0].GetAttributeValues("memberOf"),
 	}
 
@@ -77,7 +79,7 @@ func (l *LDAP) FindUserBySAMAccountName(sAMAccountName string) (user *User, err 
 		Scope:        ldap.ScopeWholeSubtree,
 		DerefAliases: ldap.NeverDerefAliases,
 		Filter:       fmt.Sprintf("(&(objectClass=user)(sAMAccountName=%s))", ldap.EscapeFilter(sAMAccountName)),
-		Attributes:   []string{"memberOf", "cn", "sAMAccountName", "userAccountControl"},
+		Attributes:   []string{"memberOf", "cn", "sAMAccountName", "userAccountControl", "description"},
 	})
 	if err != nil {
 		return nil, err
@@ -100,6 +102,7 @@ func (l *LDAP) FindUserBySAMAccountName(sAMAccountName string) (user *User, err 
 		Object:         objectFromEntry(r.Entries[0]),
 		SAMAccountName: r.Entries[0].GetAttributeValue("sAMAccountName"),
 		Enabled:        enabled,
+		Description:    r.Entries[0].GetAttributeValue("description"),
 		Groups:         r.Entries[0].GetAttributeValues("memberOf"),
 	}
 
@@ -118,7 +121,7 @@ func (l *LDAP) FindUsers() (users []User, err error) {
 		Scope:        ldap.ScopeWholeSubtree,
 		DerefAliases: ldap.NeverDerefAliases,
 		Filter:       "(objectClass=user)",
-		Attributes:   []string{"cn", "sAMAccountName", "memberOf", "userAccountControl"},
+		Attributes:   []string{"cn", "sAMAccountName", "memberOf", "userAccountControl", "description"},
 	})
 	if err != nil {
 		return nil, err
@@ -134,6 +137,7 @@ func (l *LDAP) FindUsers() (users []User, err error) {
 			Object:         objectFromEntry(entry),
 			SAMAccountName: entry.GetAttributeValue("sAMAccountName"),
 			Enabled:        enabled,
+			Description:    entry.GetAttributeValue("description"),
 			Groups:         entry.GetAttributeValues("memberOf"),
 		}
 
