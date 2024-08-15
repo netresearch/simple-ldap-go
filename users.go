@@ -11,18 +11,43 @@ import (
 var (
 	ErrUserNotFound             = errors.New("user not found")
 	ErrSAMAccountNameDuplicated = errors.New("sAMAccountName is not unique")
+	ErrMailDuplicated           = errors.New("mail is not unique")
 
 	accountExpiresBase         = time.Date(1601, 1, 1, 0, 0, 0, 0, time.UTC)
 	accountExpiresNever uint64 = 0x7FFFFFFFFFFFFFFF
+
+	userFields = []string{"memberOf", "cn", "sAMAccountName", "mail", "userAccountControl", "description"}
 )
 
 type User struct {
 	Object
+	Enabled        bool
 	SAMAccountName string
 	Description    string
-	Enabled        bool
+	Mail           *string
 	// Groups is a list of CNs
 	Groups []string
+}
+
+func userFromEntry(entry *ldap.Entry) (*User, error) {
+	enabled, err := parseObjectEnabled(entry.GetAttributeValue("userAccountControl"))
+	if err != nil {
+		return nil, err
+	}
+
+	var mail *string
+	if mails := entry.GetAttributeValues("mail"); len(mails) > 0 {
+		mail = &mails[0]
+	}
+
+	return &User{
+		Object:         objectFromEntry(entry),
+		Enabled:        enabled,
+		SAMAccountName: entry.GetAttributeValue("sAMAccountName"),
+		Description:    entry.GetAttributeValue("description"),
+		Mail:           mail,
+		Groups:         entry.GetAttributeValues("memberOf"),
+	}, nil
 }
 
 func (l *LDAP) FindUserByDN(dn string) (user *User, err error) {
@@ -51,17 +76,8 @@ func (l *LDAP) FindUserByDN(dn string) (user *User, err error) {
 		return nil, ErrDNDuplicated
 	}
 
-	enabled, err := parseObjectEnabled(r.Entries[0].GetAttributeValue("userAccountControl"))
-	if err != nil {
+	if user, err = userFromEntry(r.Entries[0]); err != nil {
 		return nil, err
-	}
-
-	user = &User{
-		Object:         objectFromEntry(r.Entries[0]),
-		SAMAccountName: r.Entries[0].GetAttributeValue("sAMAccountName"),
-		Enabled:        enabled,
-		Description:    r.Entries[0].GetAttributeValue("description"),
-		Groups:         r.Entries[0].GetAttributeValues("memberOf"),
 	}
 
 	return
@@ -79,7 +95,7 @@ func (l *LDAP) FindUserBySAMAccountName(sAMAccountName string) (user *User, err 
 		Scope:        ldap.ScopeWholeSubtree,
 		DerefAliases: ldap.NeverDerefAliases,
 		Filter:       fmt.Sprintf("(&(objectClass=user)(sAMAccountName=%s))", ldap.EscapeFilter(sAMAccountName)),
-		Attributes:   []string{"memberOf", "cn", "sAMAccountName", "userAccountControl", "description"},
+		Attributes:   userFields,
 	})
 	if err != nil {
 		return nil, err
@@ -88,22 +104,44 @@ func (l *LDAP) FindUserBySAMAccountName(sAMAccountName string) (user *User, err 
 	if len(r.Entries) == 0 {
 		return nil, ErrUserNotFound
 	}
-
 	if len(r.Entries) > 1 {
 		return nil, ErrSAMAccountNameDuplicated
 	}
 
-	enabled, err := parseObjectEnabled(r.Entries[0].GetAttributeValue("userAccountControl"))
+	if user, err = userFromEntry(r.Entries[0]); err != nil {
+		return nil, err
+	}
+
+	return
+}
+
+func (l *LDAP) FindUserByMail(mail string) (user *User, err error) {
+	c, err := l.GetConnection()
+	if err != nil {
+		return nil, err
+	}
+	defer c.Close()
+
+	r, err := c.Search(&ldap.SearchRequest{
+		BaseDN:       l.config.BaseDN,
+		Scope:        ldap.ScopeWholeSubtree,
+		DerefAliases: ldap.NeverDerefAliases,
+		Filter:       fmt.Sprintf("(&(objectClass=user)(mail=%s))", ldap.EscapeFilter(mail)),
+		Attributes:   userFields,
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	user = &User{
-		Object:         objectFromEntry(r.Entries[0]),
-		SAMAccountName: r.Entries[0].GetAttributeValue("sAMAccountName"),
-		Enabled:        enabled,
-		Description:    r.Entries[0].GetAttributeValue("description"),
-		Groups:         r.Entries[0].GetAttributeValues("memberOf"),
+	if len(r.Entries) == 0 {
+		return nil, ErrUserNotFound
+	}
+	if len(r.Entries) > 1 {
+		return nil, ErrMailDuplicated
+	}
+
+	if user, err = userFromEntry(r.Entries[0]); err != nil {
+		return nil, err
 	}
 
 	return
@@ -121,27 +159,19 @@ func (l *LDAP) FindUsers() (users []User, err error) {
 		Scope:        ldap.ScopeWholeSubtree,
 		DerefAliases: ldap.NeverDerefAliases,
 		Filter:       "(objectClass=user)",
-		Attributes:   []string{"cn", "sAMAccountName", "memberOf", "userAccountControl", "description"},
+		Attributes:   userFields,
 	})
 	if err != nil {
 		return nil, err
 	}
 
 	for _, entry := range r.Entries {
-		enabled, err := parseObjectEnabled(entry.GetAttributeValue("userAccountControl"))
+		user, err := userFromEntry(entry)
 		if err != nil {
 			continue
 		}
 
-		user := User{
-			Object:         objectFromEntry(entry),
-			SAMAccountName: entry.GetAttributeValue("sAMAccountName"),
-			Enabled:        enabled,
-			Description:    entry.GetAttributeValue("description"),
-			Groups:         entry.GetAttributeValues("memberOf"),
-		}
-
-		users = append(users, user)
+		users = append(users, *user)
 	}
 
 	return
