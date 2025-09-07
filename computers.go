@@ -46,10 +46,14 @@ func (l *LDAP) FindComputerByDN(dn string) (computer *Computer, err error) {
 		BaseDN:       dn,
 		Scope:        ldap.ScopeBaseObject,
 		DerefAliases: ldap.NeverDerefAliases,
-		Filter:       "(objectClass=computer)",
-		Attributes:   []string{"memberOf", "cn", "sAMAccountName", "userAccountControl", "operatingSystem", "operatingSystemVersion"},
+		Filter:       "(|(objectClass=computer)(objectClass=device))",
+		Attributes:   []string{"memberOf", "cn", "sAMAccountName", "userAccountControl", "operatingSystem", "operatingSystemVersion", "description"},
 	})
 	if err != nil {
+		// If LDAP error indicates object not found, return ErrComputerNotFound
+		if ldapErr, ok := err.(*ldap.Error); ok && ldapErr.ResultCode == ldap.LDAPResultNoSuchObject {
+			return nil, ErrComputerNotFound
+		}
 		return nil, err
 	}
 
@@ -61,14 +65,27 @@ func (l *LDAP) FindComputerByDN(dn string) (computer *Computer, err error) {
 		return nil, ErrDNDuplicated
 	}
 
-	enabled, err := parseObjectEnabled(r.Entries[0].GetAttributeValue("userAccountControl"))
-	if err != nil {
-		return nil, err
+	var enabled bool
+	var samAccountName string
+	
+	// Handle Active Directory vs OpenLDAP compatibility
+	if uac := r.Entries[0].GetAttributeValue("userAccountControl"); uac != "" {
+		// Active Directory
+		var err error
+		enabled, err = parseObjectEnabled(uac)
+		if err != nil {
+			return nil, err
+		}
+		samAccountName = r.Entries[0].GetAttributeValue("sAMAccountName")
+	} else {
+		// OpenLDAP - devices are typically enabled, use cn as account name
+		enabled = true
+		samAccountName = r.Entries[0].GetAttributeValue("cn")
 	}
 
 	computer = &Computer{
 		Object:         objectFromEntry(r.Entries[0]),
-		SAMAccountName: r.Entries[0].GetAttributeValue("sAMAccountName"),
+		SAMAccountName: samAccountName,
 		Enabled:        enabled,
 		OS:             r.Entries[0].GetAttributeValue("operatingSystem"),
 		OSVersion:      r.Entries[0].GetAttributeValue("operatingSystemVersion"),
@@ -102,8 +119,8 @@ func (l *LDAP) FindComputerBySAMAccountName(sAMAccountName string) (computer *Co
 		BaseDN:       l.config.BaseDN,
 		Scope:        ldap.ScopeWholeSubtree,
 		DerefAliases: ldap.NeverDerefAliases,
-		Filter:       fmt.Sprintf("(&(objectClass=computer)(sAMAccountName=%s))", ldap.EscapeFilter(sAMAccountName)),
-		Attributes:   []string{"memberOf", "cn", "sAMAccountName", "userAccountControl", "operatingSystem", "operatingSystemVersion"},
+		Filter:       fmt.Sprintf("(&(|(objectClass=computer)(objectClass=device))(|(sAMAccountName=%s)(cn=%s)))", ldap.EscapeFilter(sAMAccountName), ldap.EscapeFilter(sAMAccountName)),
+		Attributes:   []string{"memberOf", "cn", "sAMAccountName", "userAccountControl", "operatingSystem", "operatingSystemVersion", "description"},
 	})
 	if err != nil {
 		return nil, err
@@ -117,14 +134,27 @@ func (l *LDAP) FindComputerBySAMAccountName(sAMAccountName string) (computer *Co
 		return nil, ErrSAMAccountNameDuplicated
 	}
 
-	enabled, err := parseObjectEnabled(r.Entries[0].GetAttributeValue("userAccountControl"))
-	if err != nil {
-		return nil, err
+	var enabled bool
+	var samAccountName string
+	
+	// Handle Active Directory vs OpenLDAP compatibility
+	if uac := r.Entries[0].GetAttributeValue("userAccountControl"); uac != "" {
+		// Active Directory
+		var err error
+		enabled, err = parseObjectEnabled(uac)
+		if err != nil {
+			return nil, err
+		}
+		samAccountName = r.Entries[0].GetAttributeValue("sAMAccountName")
+	} else {
+		// OpenLDAP - devices are typically enabled, use cn as account name
+		enabled = true
+		samAccountName = r.Entries[0].GetAttributeValue("cn")
 	}
 
 	computer = &Computer{
 		Object:         objectFromEntry(r.Entries[0]),
-		SAMAccountName: r.Entries[0].GetAttributeValue("sAMAccountName"),
+		SAMAccountName: samAccountName,
 		Enabled:        enabled,
 		OS:             r.Entries[0].GetAttributeValue("operatingSystem"),
 		OSVersion:      r.Entries[0].GetAttributeValue("operatingSystemVersion"),
@@ -153,7 +183,7 @@ func (l *LDAP) FindComputers() (computers []Computer, err error) {
 		BaseDN:       l.config.BaseDN,
 		Scope:        ldap.ScopeWholeSubtree,
 		DerefAliases: ldap.NeverDerefAliases,
-		Filter:       "(objectClass=computer)",
+		Filter:       "(|(objectClass=computer)(objectClass=device))",
 		Attributes:   []string{"cn", "memberOf", "sAMAccountName", "userAccountControl", "operatingSystem", "operatingSystemVersion"},
 	})
 	if err != nil {
