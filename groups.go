@@ -6,14 +6,26 @@ import (
 	"github.com/go-ldap/ldap/v3"
 )
 
+// ErrGroupNotFound is returned when a group search operation finds no matching entries.
 var ErrGroupNotFound = errors.New("group not found")
 
+// Group represents an LDAP group object with its members.
 type Group struct {
 	Object
-	// Members is a list of DNs
+	// Members contains a list of distinguished names (DNs) of group members.
 	Members []string
 }
 
+// FindGroupByDN retrieves a group by its distinguished name.
+//
+// Parameters:
+//   - dn: The distinguished name of the group (e.g., "CN=Administrators,CN=Builtin,DC=example,DC=com")
+//
+// Returns:
+//   - *Group: The group object if found
+//   - error: ErrGroupNotFound if no group exists with the given DN,
+//     ErrDNDuplicated if multiple entries share the same DN (data integrity issue),
+//     or any LDAP operation error
 func (l *LDAP) FindGroupByDN(dn string) (group *Group, err error) {
 	c, err := l.GetConnection()
 	if err != nil {
@@ -48,6 +60,14 @@ func (l *LDAP) FindGroupByDN(dn string) (group *Group, err error) {
 	return
 }
 
+// FindGroups retrieves all group objects from the directory.
+//
+// Returns:
+//   - []Group: A slice of all group objects found in the directory
+//   - error: Any LDAP operation error
+//
+// This method performs a subtree search starting from the configured BaseDN.
+// Groups that cannot be parsed are skipped and not included in the results.
 func (l *LDAP) FindGroups() (groups []Group, err error) {
 	c, err := l.GetConnection()
 	if err != nil {
