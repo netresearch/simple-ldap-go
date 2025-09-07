@@ -1,0 +1,1918 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>simple-ldap-go: Go Coverage Report</title>
+		<style>
+			body {
+				background: black;
+				color: rgb(80, 80, 80);
+			}
+			body, pre, #legend span {
+				font-family: Menlo, monospace;
+				font-weight: bold;
+			}
+			#topbar {
+				background: black;
+				position: fixed;
+				top: 0; left: 0; right: 0;
+				height: 42px;
+				border-bottom: 1px solid rgb(80, 80, 80);
+			}
+			#content {
+				margin-top: 50px;
+			}
+			#nav, #legend {
+				float: left;
+				margin-left: 10px;
+			}
+			#legend {
+				margin-top: 12px;
+			}
+			#nav {
+				margin-top: 10px;
+			}
+			#legend span {
+				margin: 0 5px;
+			}
+			.cov0 { color: rgb(192, 0, 0) }
+.cov1 { color: rgb(128, 128, 128) }
+.cov2 { color: rgb(116, 140, 131) }
+.cov3 { color: rgb(104, 152, 134) }
+.cov4 { color: rgb(92, 164, 137) }
+.cov5 { color: rgb(80, 176, 140) }
+.cov6 { color: rgb(68, 188, 143) }
+.cov7 { color: rgb(56, 200, 146) }
+.cov8 { color: rgb(44, 212, 149) }
+.cov9 { color: rgb(32, 224, 152) }
+.cov10 { color: rgb(20, 236, 155) }
+
+		</style>
+	</head>
+	<body>
+		<div id="topbar">
+			<div id="nav">
+				<select id="files">
+				
+				<option value="file0">github.com/netresearch/simple-ldap-go/auth.go (6.1%)</option>
+				
+				<option value="file1">github.com/netresearch/simple-ldap-go/client.go (0.0%)</option>
+				
+				<option value="file2">github.com/netresearch/simple-ldap-go/computers.go (0.0%)</option>
+				
+				<option value="file3">github.com/netresearch/simple-ldap-go/groups.go (0.0%)</option>
+				
+				<option value="file4">github.com/netresearch/simple-ldap-go/object.go (100.0%)</option>
+				
+				<option value="file5">github.com/netresearch/simple-ldap-go/sam_account_type.go (0.0%)</option>
+				
+				<option value="file6">github.com/netresearch/simple-ldap-go/test_setup.go (10.8%)</option>
+				
+				<option value="file7">github.com/netresearch/simple-ldap-go/uac.go (83.1%)</option>
+				
+				<option value="file8">github.com/netresearch/simple-ldap-go/users.go (0.0%)</option>
+				
+				<option value="file9">github.com/netresearch/simple-ldap-go/utils.go (100.0%)</option>
+				
+				</select>
+			</div>
+			<div id="legend">
+				<span>not tracked</span>
+			
+				<span class="cov0">not covered</span>
+				<span class="cov8">covered</span>
+			
+			</div>
+		</div>
+		<div id="content">
+		
+		<pre class="file" id="file0" style="display: none">package ldap
+
+import (
+        "errors"
+        "strings"
+
+        "github.com/go-ldap/ldap/v3"
+        "golang.org/x/text/encoding/unicode"
+)
+
+var (
+        utf16le = unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM)
+        // ErrActiveDirectoryMustBeLDAPS is returned when attempting to change passwords on Active Directory
+        // over an unencrypted connection. Password changes in AD require LDAPS (LDAP over SSL/TLS).
+        ErrActiveDirectoryMustBeLDAPS = errors.New("ActiveDirectory servers must be connected to via LDAPS to change passwords")
+)
+
+// CheckPasswordForSAMAccountName validates a user's password by attempting to bind with their credentials.
+// This method finds the user by their sAMAccountName and then attempts authentication.
+//
+// Parameters:
+//   - sAMAccountName: The Security Account Manager account name (e.g., "jdoe" for john.doe@domain.com)
+//   - password: The password to validate
+//
+// Returns:
+//   - *User: The user object if authentication succeeds
+//   - error: ErrUserNotFound if the user doesn't exist, or authentication error if credentials are invalid
+//
+// This is commonly used for login validation in Active Directory environments.
+func (l *LDAP) CheckPasswordForSAMAccountName(sAMAccountName, password string) (*User, error) <span class="cov0" title="0">{
+        c, err := l.GetConnection()
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">defer c.Close()
+
+        user, err := l.FindUserBySAMAccountName(sAMAccountName)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov0" title="0">err = c.Bind(user.DN(), password)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov0" title="0">return user, nil</span>
+}
+
+// CheckPasswordForDN validates a user's password by attempting to bind with their credentials.
+// This method finds the user by their distinguished name and then attempts authentication.
+//
+// Parameters:
+//   - dn: The distinguished name of the user (e.g., "CN=John Doe,CN=Users,DC=example,DC=com")
+//   - password: The password to validate
+//
+// Returns:
+//   - *User: The user object if authentication succeeds
+//   - error: ErrUserNotFound if the user doesn't exist, or authentication error if credentials are invalid
+//
+// This method is useful when you already have the user's DN and want to validate their password.
+func (l *LDAP) CheckPasswordForDN(dn, password string) (*User, error) <span class="cov0" title="0">{
+        c, err := l.GetConnection()
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">defer c.Close()
+
+        user, err := l.FindUserByDN(dn)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov0" title="0">err = c.Bind(user.DN(), password)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov0" title="0">return user, nil</span>
+}
+
+// encodePassword encodes a password for Active Directory according to Microsoft specifications.
+// Active Directory requires passwords to be UTF-16LE encoded and enclosed in quotes.
+//
+// Parameters:
+//   - password: The plain text password to encode
+//
+// Returns:
+//   - string: The UTF-16LE encoded password suitable for Active Directory operations
+//   - error: Any encoding error
+//
+// This function is used internally for password change operations in Active Directory.
+// See: https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-adts/6e803168-f140-4d23-b2d3-c3a8ab5917d2
+func encodePassword(password string) (string, error) <span class="cov8" title="1">{
+        encoded, err := utf16le.NewEncoder().String("\"" + password + "\"")
+        if err != nil </span><span class="cov0" title="0">{
+                return "", err
+        }</span>
+
+        <span class="cov8" title="1">return encoded, nil</span>
+}
+
+// ChangePasswordForSAMAccountName changes a user's password in Active Directory.
+// This method requires the current password for authentication and changes it to the new password.
+//
+// Parameters:
+//   - sAMAccountName: The Security Account Manager account name of the user
+//   - oldPassword: The current password (required for authentication)
+//   - newPassword: The new password to set
+//
+// Returns:
+//   - error: ErrActiveDirectoryMustBeLDAPS if trying to change AD passwords over unencrypted connection,
+//     ErrUserNotFound if user doesn't exist, authentication error if old password is wrong,
+//     or any other LDAP operation error
+//
+// Requirements:
+//   - For Active Directory servers, LDAPS (SSL/TLS) connection is mandatory
+//   - User must provide their current password for verification
+//   - New password must meet the domain's password policy requirements
+//
+// The password change uses the Microsoft-specific unicodePwd attribute with proper UTF-16LE encoding.
+// Reference: https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-adts/6e803168-f140-4d23-b2d3-c3a8ab5917d2
+func (l *LDAP) ChangePasswordForSAMAccountName(sAMAccountName, oldPassword, newPassword string) (err error) <span class="cov0" title="0">{
+        c, err := l.GetConnection()
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        <span class="cov0" title="0">defer c.Close()
+
+        user, err := l.FindUserBySAMAccountName(sAMAccountName)
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+
+        <span class="cov0" title="0">if l.config.IsActiveDirectory &amp;&amp; !strings.HasPrefix(l.config.Server, "ldaps://") </span><span class="cov0" title="0">{
+                return ErrActiveDirectoryMustBeLDAPS
+        }</span>
+
+        <span class="cov0" title="0">if err := c.Bind(user.DN(), oldPassword); err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+
+        <span class="cov0" title="0">oldEncoded, err := encodePassword(oldPassword)
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+
+        <span class="cov0" title="0">newEncoded, err := encodePassword(newPassword)
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+
+        // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-adts/6e803168-f140-4d23-b2d3-c3a8ab5917d2?redirectedfrom=MSDN
+        // If the Modify request contains a delete operation containing a value Vdel for unicodePwd followed
+        // by an add operation containing a value Vadd for unicodePwd, the server considers the request
+        // to be a request to change the password. [...]. Vdel is the old password, while Vadd is the new password.
+        <span class="cov0" title="0">modifyRequest := ldap.NewModifyRequest(user.DN(), nil)
+        modifyRequest.Add("unicodePwd", []string{newEncoded})
+        modifyRequest.Delete("unicodePwd", []string{oldEncoded})
+
+        if err := c.Modify(modifyRequest); err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+
+        <span class="cov0" title="0">return nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file1" style="display: none">// Package ldap provides a simplified interface for LDAP operations with Active Directory support.
+package ldap
+
+import (
+        "errors"
+
+        "github.com/go-ldap/ldap/v3"
+)
+
+// Config holds the configuration for connecting to an LDAP server.
+type Config struct {
+        // Server is the LDAP server URL (e.g., "ldap://localhost:389" or "ldaps://domain.com:636")
+        Server string
+        // BaseDN is the base distinguished name for LDAP searches (e.g., "DC=example,DC=com")
+        BaseDN string
+
+        // IsActiveDirectory indicates whether the server is Microsoft Active Directory.
+        // This affects password change operations which require LDAPS for AD.
+        IsActiveDirectory bool
+
+        // DialOptions contains additional options for the LDAP connection
+        DialOptions []ldap.DialOpt
+}
+
+// LDAP represents a client connection to an LDAP server with authentication credentials.
+type LDAP struct {
+        config Config
+
+        user     string
+        password string
+}
+
+// ErrDNDuplicated is returned when a search operation finds multiple entries with the same DN,
+// indicating a data integrity issue.
+var ErrDNDuplicated = errors.New("DN is not unique")
+
+// New creates a new LDAP client with the specified configuration and credentials.
+// It validates the connection by attempting to connect and authenticate with the provided credentials.
+//
+// Parameters:
+//   - config: The LDAP server configuration including server URL and base DN
+//   - user: The distinguished name (DN) or username for authentication
+//   - password: The password for authentication
+//
+// Returns:
+//   - *LDAP: A configured LDAP client ready for operations
+//   - error: Any error encountered during connection validation
+//
+// Example:
+//
+//        config := Config{
+//            Server: "ldaps://ad.example.com:636",
+//            BaseDN: "DC=example,DC=com",
+//            IsActiveDirectory: true,
+//        }
+//        client, err := New(config, "CN=admin,CN=Users,DC=example,DC=com", "password")
+func New(config Config, user, password string) (*LDAP, error) <span class="cov0" title="0">{
+        l := &amp;LDAP{
+                config,
+                user,
+                password,
+        }
+
+        c, err := l.GetConnection()
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">c.Close()
+
+        return l, nil</span>
+}
+
+// WithCredentials creates a new LDAP client using the same configuration but with different credentials.
+// This is useful for operations that need to be performed with different user privileges.
+//
+// Parameters:
+//   - dn: The distinguished name for the new credentials
+//   - password: The password for the new credentials
+//
+// Returns:
+//   - *LDAP: A new LDAP client with updated credentials
+//   - error: Any error encountered during connection validation
+func (l *LDAP) WithCredentials(dn, password string) (*LDAP, error) <span class="cov0" title="0">{
+        return New(l.config, dn, password)
+}</span>
+
+// GetConnection establishes and returns an authenticated LDAP connection.
+// The connection must be closed by the caller when no longer needed.
+//
+// Returns:
+//   - *ldap.Conn: An authenticated LDAP connection
+//   - error: Any error encountered during connection or authentication
+//
+// The returned connection is ready for LDAP operations. Always defer Close() on the connection:
+//
+//        conn, err := client.GetConnection()
+//        if err != nil {
+//            return err
+//        }
+//        defer conn.Close()
+func (l LDAP) GetConnection() (*ldap.Conn, error) <span class="cov0" title="0">{
+        dialOpts := make([]ldap.DialOpt, 0)
+        if l.config.DialOptions != nil </span><span class="cov0" title="0">{
+                dialOpts = l.config.DialOptions
+        }</span>
+
+        <span class="cov0" title="0">c, err := ldap.DialURL(l.config.Server, dialOpts...)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov0" title="0">if err = c.Bind(l.user, l.password); err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov0" title="0">return c, nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file2" style="display: none">package ldap
+
+import (
+        "errors"
+        "fmt"
+
+        "github.com/go-ldap/ldap/v3"
+)
+
+// ErrComputerNotFound is returned when a computer search operation finds no matching entries.
+var ErrComputerNotFound = errors.New("computer not found")
+
+// Computer represents an LDAP computer object with common attributes.
+type Computer struct {
+        Object
+        // SAMAccountName is the Security Account Manager account name for the computer (typically ends with $).
+        SAMAccountName string
+        // Enabled indicates whether the computer account is enabled (not disabled by userAccountControl).
+        Enabled bool
+        // OS contains the operating system name from the operatingSystem attribute.
+        OS string
+        // OSVersion contains the operating system version from the operatingSystemVersion attribute.
+        OSVersion string
+        // Groups contains a list of distinguished names (DNs) of groups the computer belongs to.
+        Groups []string
+}
+
+// FindComputerByDN retrieves a computer by its distinguished name.
+//
+// Parameters:
+//   - dn: The distinguished name of the computer (e.g., "CN=COMPUTER01,CN=Computers,DC=example,DC=com")
+//
+// Returns:
+//   - *Computer: The computer object if found
+//   - error: ErrComputerNotFound if no computer exists with the given DN,
+//     ErrDNDuplicated if multiple entries share the same DN (data integrity issue),
+//     or any LDAP operation error
+func (l *LDAP) FindComputerByDN(dn string) (computer *Computer, err error) <span class="cov0" title="0">{
+        c, err := l.GetConnection()
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">defer c.Close()
+
+        r, err := c.Search(&amp;ldap.SearchRequest{
+                BaseDN:       dn,
+                Scope:        ldap.ScopeBaseObject,
+                DerefAliases: ldap.NeverDerefAliases,
+                Filter:       "(objectClass=computer)",
+                Attributes:   []string{"memberOf", "cn", "sAMAccountName", "userAccountControl", "operatingSystem", "operatingSystemVersion"},
+        })
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov0" title="0">if len(r.Entries) == 0 </span><span class="cov0" title="0">{
+                return nil, ErrComputerNotFound
+        }</span>
+
+        <span class="cov0" title="0">if len(r.Entries) &gt; 1 </span><span class="cov0" title="0">{
+                return nil, ErrDNDuplicated
+        }</span>
+
+        <span class="cov0" title="0">enabled, err := parseObjectEnabled(r.Entries[0].GetAttributeValue("userAccountControl"))
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov0" title="0">computer = &amp;Computer{
+                Object:         objectFromEntry(r.Entries[0]),
+                SAMAccountName: r.Entries[0].GetAttributeValue("sAMAccountName"),
+                Enabled:        enabled,
+                OS:             r.Entries[0].GetAttributeValue("operatingSystem"),
+                OSVersion:      r.Entries[0].GetAttributeValue("operatingSystemVersion"),
+                Groups:         r.Entries[0].GetAttributeValues("memberOf"),
+        }
+
+        return</span>
+}
+
+// FindComputerBySAMAccountName retrieves a computer by its Security Account Manager account name.
+//
+// Parameters:
+//   - sAMAccountName: The SAM account name of the computer (e.g., "COMPUTER01$")
+//
+// Returns:
+//   - *Computer: The computer object if found
+//   - error: ErrComputerNotFound if no computer exists with the given sAMAccountName,
+//     ErrSAMAccountNameDuplicated if multiple computers have the same sAMAccountName,
+//     or any LDAP operation error
+//
+// This method performs a subtree search starting from the configured BaseDN.
+// Computer sAMAccountNames typically end with a dollar sign ($).
+func (l *LDAP) FindComputerBySAMAccountName(sAMAccountName string) (computer *Computer, err error) <span class="cov0" title="0">{
+        c, err := l.GetConnection()
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">defer c.Close()
+
+        r, err := c.Search(&amp;ldap.SearchRequest{
+                BaseDN:       l.config.BaseDN,
+                Scope:        ldap.ScopeWholeSubtree,
+                DerefAliases: ldap.NeverDerefAliases,
+                Filter:       fmt.Sprintf("(&amp;(objectClass=computer)(sAMAccountName=%s))", ldap.EscapeFilter(sAMAccountName)),
+                Attributes:   []string{"memberOf", "cn", "sAMAccountName", "userAccountControl", "operatingSystem", "operatingSystemVersion"},
+        })
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov0" title="0">if len(r.Entries) == 0 </span><span class="cov0" title="0">{
+                return nil, ErrComputerNotFound
+        }</span>
+
+        <span class="cov0" title="0">if len(r.Entries) &gt; 1 </span><span class="cov0" title="0">{
+                return nil, ErrSAMAccountNameDuplicated
+        }</span>
+
+        <span class="cov0" title="0">enabled, err := parseObjectEnabled(r.Entries[0].GetAttributeValue("userAccountControl"))
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov0" title="0">computer = &amp;Computer{
+                Object:         objectFromEntry(r.Entries[0]),
+                SAMAccountName: r.Entries[0].GetAttributeValue("sAMAccountName"),
+                Enabled:        enabled,
+                OS:             r.Entries[0].GetAttributeValue("operatingSystem"),
+                OSVersion:      r.Entries[0].GetAttributeValue("operatingSystemVersion"),
+                Groups:         r.Entries[0].GetAttributeValues("memberOf"),
+        }
+
+        return</span>
+}
+
+// FindComputers retrieves all computer objects from the directory.
+//
+// Returns:
+//   - []Computer: A slice of all computer objects found in the directory
+//   - error: Any LDAP operation error
+//
+// This method performs a subtree search starting from the configured BaseDN.
+// Computers that cannot be parsed (due to missing required attributes) are skipped.
+func (l *LDAP) FindComputers() (computers []Computer, err error) <span class="cov0" title="0">{
+        c, err := l.GetConnection()
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">defer c.Close()
+
+        r, err := c.Search(&amp;ldap.SearchRequest{
+                BaseDN:       l.config.BaseDN,
+                Scope:        ldap.ScopeWholeSubtree,
+                DerefAliases: ldap.NeverDerefAliases,
+                Filter:       "(objectClass=computer)",
+                Attributes:   []string{"cn", "memberOf", "sAMAccountName", "userAccountControl", "operatingSystem", "operatingSystemVersion"},
+        })
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov0" title="0">for _, entry := range r.Entries </span><span class="cov0" title="0">{
+                enabled, err := parseObjectEnabled(entry.GetAttributeValue("userAccountControl"))
+                if err != nil </span><span class="cov0" title="0">{
+                        continue</span>
+                }
+
+                <span class="cov0" title="0">computer := Computer{
+                        Object:         objectFromEntry(entry),
+                        SAMAccountName: entry.GetAttributeValue("sAMAccountName"),
+                        Enabled:        enabled,
+                        OS:             entry.GetAttributeValue("operatingSystem"),
+                        OSVersion:      entry.GetAttributeValue("operatingSystemVersion"),
+                        Groups:         entry.GetAttributeValues("memberOf"),
+                }
+
+                computers = append(computers, computer)</span>
+        }
+
+        <span class="cov0" title="0">return</span>
+}
+</pre>
+		
+		<pre class="file" id="file3" style="display: none">package ldap
+
+import (
+        "errors"
+
+        "github.com/go-ldap/ldap/v3"
+)
+
+// ErrGroupNotFound is returned when a group search operation finds no matching entries.
+var ErrGroupNotFound = errors.New("group not found")
+
+// Group represents an LDAP group object with its members.
+type Group struct {
+        Object
+        // Members contains a list of distinguished names (DNs) of group members.
+        Members []string
+}
+
+// FindGroupByDN retrieves a group by its distinguished name.
+//
+// Parameters:
+//   - dn: The distinguished name of the group (e.g., "CN=Administrators,CN=Builtin,DC=example,DC=com")
+//
+// Returns:
+//   - *Group: The group object if found
+//   - error: ErrGroupNotFound if no group exists with the given DN,
+//     ErrDNDuplicated if multiple entries share the same DN (data integrity issue),
+//     or any LDAP operation error
+func (l *LDAP) FindGroupByDN(dn string) (group *Group, err error) <span class="cov0" title="0">{
+        c, err := l.GetConnection()
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">defer c.Close()
+
+        r, err := c.Search(&amp;ldap.SearchRequest{
+                BaseDN:       dn,
+                Scope:        ldap.ScopeBaseObject,
+                DerefAliases: ldap.NeverDerefAliases,
+                Filter:       "(objectClass=group)",
+                Attributes:   []string{"cn", "member"},
+        })
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov0" title="0">if len(r.Entries) == 0 </span><span class="cov0" title="0">{
+                return nil, ErrGroupNotFound
+        }</span>
+
+        <span class="cov0" title="0">if len(r.Entries) &gt; 1 </span><span class="cov0" title="0">{
+                return nil, ErrDNDuplicated
+        }</span>
+
+        <span class="cov0" title="0">group = &amp;Group{
+                Object:  objectFromEntry(r.Entries[0]),
+                Members: r.Entries[0].GetAttributeValues("member"),
+        }
+
+        return</span>
+}
+
+// FindGroups retrieves all group objects from the directory.
+//
+// Returns:
+//   - []Group: A slice of all group objects found in the directory
+//   - error: Any LDAP operation error
+//
+// This method performs a subtree search starting from the configured BaseDN.
+// Groups that cannot be parsed are skipped and not included in the results.
+func (l *LDAP) FindGroups() (groups []Group, err error) <span class="cov0" title="0">{
+        c, err := l.GetConnection()
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">defer c.Close()
+
+        r, err := c.Search(&amp;ldap.SearchRequest{
+                BaseDN:       l.config.BaseDN,
+                Scope:        ldap.ScopeWholeSubtree,
+                DerefAliases: ldap.NeverDerefAliases,
+                Filter:       "(objectClass=group)",
+                Attributes:   []string{"cn", "member"},
+        })
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov0" title="0">for _, entry := range r.Entries </span><span class="cov0" title="0">{
+                group := Group{
+                        Object:  objectFromEntry(entry),
+                        Members: entry.GetAttributeValues("member"),
+                }
+
+                groups = append(groups, group)
+        }</span>
+
+        <span class="cov0" title="0">return</span>
+}
+</pre>
+		
+		<pre class="file" id="file4" style="display: none">package ldap
+
+import "github.com/go-ldap/ldap/v3"
+
+// Object represents the base LDAP object with common name and distinguished name.
+type Object struct {
+        cn string
+        dn string
+}
+
+// objectFromEntry creates an Object from an LDAP entry.
+func objectFromEntry(entry *ldap.Entry) Object <span class="cov8" title="1">{
+        return Object{
+                cn: entry.GetAttributeValue("cn"),
+                dn: entry.DN,
+        }
+}</span>
+
+// DN returns the distinguished name of the object.
+// The distinguished name uniquely identifies an object in the LDAP directory tree.
+func (o Object) DN() string <span class="cov8" title="1">{
+        return o.dn
+}</span>
+
+// CN returns the common name of the object.
+// The common name is the human-readable name component of the distinguished name.
+func (o Object) CN() string <span class="cov8" title="1">{
+        return o.cn
+}</span>
+</pre>
+		
+		<pre class="file" id="file5" style="display: none">package ldap
+
+// SamAccountType represents the Security Account Manager account type values used in Active Directory.
+// This enumeration defines the type of account object and is stored in the sAMAccountType attribute.
+//
+// Reference: https://learn.microsoft.com/en-us/windows/win32/adschema/a-samaccounttype
+type SamAccountType uint32
+
+const (
+        // SamDomainObject (0x0) represents a domain object.
+        SamDomainObject SamAccountType = 0x0
+        // SamGroupObject (0x10000000) represents a security group object.
+        SamGroupObject SamAccountType = 0x10000000
+        // SamNonSecurityGroupObject (0x10000001) represents a non-security group object.
+        SamNonSecurityGroupObject SamAccountType = 0x10000001
+        // SamAliasObject (0x20000000) represents an alias object (local group).
+        SamAliasObject SamAccountType = 0x20000000
+        // SamNonSecurityAliasObject (0x20000001) represents a non-security alias object.
+        SamNonSecurityAliasObject SamAccountType = 0x20000001
+        // SamUserObject (0x30000000) represents a normal user account (also known as SAM_NORMAL_USER_ACCOUNT).
+        SamUserObject SamAccountType = 0x30000000
+        // SamMachineAccount (0x30000001) represents a computer/machine account.
+        SamMachineAccount SamAccountType = 0x30000001
+        // SamTrustAccount (0x30000002) represents an interdomain trust account.
+        SamTrustAccount SamAccountType = 0x30000002
+        // SamAppBasicGroup (0x40000000) represents an application basic group.
+        SamAppBasicGroup SamAccountType = 0x40000000
+        // SamAppQueryGroup (0x40000001) represents an application query group.
+        SamAppQueryGroup SamAccountType = 0x40000001
+        // SamAccountTypeMax (0x7fffffff) represents the maximum account type value.
+        SamAccountTypeMax SamAccountType = 0x7fffffff
+)
+
+// String returns a human-readable description of the SAM account type.
+//
+// Returns:
+//   - string: A descriptive name for the account type, or "Unknown" for unrecognized values
+//
+// This method is useful for logging and debugging to understand what type of account
+// object is being processed.
+func (t SamAccountType) String() string <span class="cov0" title="0">{
+        switch t </span>{
+        case SamDomainObject:<span class="cov0" title="0">
+                return "Domain Object"</span>
+        case SamGroupObject:<span class="cov0" title="0">
+                return "Group Object"</span>
+        case SamNonSecurityGroupObject:<span class="cov0" title="0">
+                return "Non-Security Group Object"</span>
+        case SamAliasObject:<span class="cov0" title="0">
+                return "Alias Object"</span>
+        case SamNonSecurityAliasObject:<span class="cov0" title="0">
+                return "Non-Security Alias Object"</span>
+        case SamUserObject:<span class="cov0" title="0">
+                return "User Object / Normal User Account"</span>
+        case SamMachineAccount:<span class="cov0" title="0">
+                return "Machine Account"</span>
+        case SamTrustAccount:<span class="cov0" title="0">
+                return "Trust Account"</span>
+        case SamAppBasicGroup:<span class="cov0" title="0">
+                return "App Basic Group"</span>
+        case SamAppQueryGroup:<span class="cov0" title="0">
+                return "App Query Group"</span>
+        case SamAccountTypeMax:<span class="cov0" title="0">
+                return "Account Type Max"</span>
+        default:<span class="cov0" title="0">
+                return "Unknown"</span>
+        }
+}
+</pre>
+		
+		<pre class="file" id="file6" style="display: none">package ldap
+
+import (
+        "context"
+        "fmt"
+        "strings"
+        "testing"
+        "time"
+
+        "github.com/go-ldap/ldap/v3"
+        "github.com/stretchr/testify/require"
+        "github.com/testcontainers/testcontainers-go"
+        "github.com/testcontainers/testcontainers-go/modules/openldap"
+        "github.com/testcontainers/testcontainers-go/wait"
+)
+
+// TestContainer wraps the OpenLDAP container and provides test data
+type TestContainer struct {
+        Container   *openldap.OpenLDAPContainer
+        Config      Config
+        AdminUser   string
+        AdminPass   string
+        BaseDN      string
+        UsersOU     string
+        GroupsOU    string
+        ComputersOU string
+        ctx         context.Context
+}
+
+// SetupTestContainer creates and configures an OpenLDAP container for testing
+func SetupTestContainer(t *testing.T) *TestContainer <span class="cov8" title="1">{
+        ctx := context.Background()
+
+        container, err := openldap.Run(ctx, "osixia/openldap:1.5.0",
+                openldap.WithAdminUsername("admin"),
+                openldap.WithAdminPassword("admin123"),
+                testcontainers.WithEnv(map[string]string{
+                        "LDAP_ORGANISATION": "Example Org",
+                        "LDAP_DOMAIN":      "example.org",
+                }),
+                testcontainers.WithWaitStrategy(
+                        wait.ForAll(
+                                wait.ForLog("slapd starting").WithStartupTimeout(60*time.Second).WithPollInterval(1*time.Second),
+                                wait.ForListeningPort("389/tcp").WithStartupTimeout(60*time.Second).WithPollInterval(1*time.Second),
+                        ),
+                ),
+        )
+        require.NoError(t, err)
+
+        // Get connection details
+        connStr, err := container.ConnectionString(ctx)
+        require.NoError(t, err)
+
+        testContainer := &amp;TestContainer{
+                Container:   container,
+                AdminUser:   "cn=admin,dc=example,dc=org",
+                AdminPass:   "admin123",
+                BaseDN:      "dc=example,dc=org",
+                UsersOU:     "ou=people,dc=example,dc=org",
+                GroupsOU:    "ou=groups,dc=example,dc=org",
+                ComputersOU: "ou=computers,dc=example,dc=org",
+                ctx:         ctx,
+                Config: Config{
+                        Server:            connStr,
+                        BaseDN:            "dc=example,dc=org",
+                        IsActiveDirectory: false,
+                },
+        }
+
+        // Wait additional time for LDAP server to be fully ready
+        time.Sleep(5 * time.Second)
+
+        // Wait for container to be ready and populate test data
+        testContainer.populateTestData(t)
+
+        return testContainer
+}</span>
+
+// populateTestData sets up test users, groups, and computers
+func (tc *TestContainer) populateTestData(t *testing.T) <span class="cov0" title="0">{
+        // Retry connection setup with backoff
+        var conn *ldap.Conn
+        var err error
+        
+        for i := 0; i &lt; 5; i++ </span><span class="cov0" title="0">{
+                conn, err = ldap.DialURL(tc.Config.Server)
+                if err == nil </span><span class="cov0" title="0">{
+                        break</span>
+                }
+                <span class="cov0" title="0">t.Logf("Connection attempt %d failed: %v, retrying...", i+1, err)
+                time.Sleep(time.Duration(i+1) * time.Second)</span>
+        }
+        <span class="cov0" title="0">require.NoError(t, err, "Failed to connect to LDAP after 5 attempts")
+        defer conn.Close()
+
+        err = conn.Bind(tc.AdminUser, tc.AdminPass)
+        require.NoError(t, err, "Failed to bind as admin")
+
+        // Create organizational units
+        tc.createOU(t, conn, "people", "People", tc.BaseDN)
+        tc.createOU(t, conn, "groups", "Groups", tc.BaseDN)
+        tc.createOU(t, conn, "computers", "Computers", tc.BaseDN)
+
+        // Create test users
+        tc.createTestUsers(t, conn)
+        
+        // Create test groups
+        tc.createTestGroups(t, conn)
+        
+        // Create test computers
+        tc.createTestComputers(t, conn)</span>
+}
+
+// createOU creates an organizational unit
+func (tc *TestContainer) createOU(t *testing.T, conn *ldap.Conn, ou, description, baseDN string) <span class="cov0" title="0">{
+        dn := fmt.Sprintf("ou=%s,%s", ou, baseDN)
+        
+        addReq := ldap.NewAddRequest(dn, nil)
+        addReq.Attribute("objectClass", []string{"organizationalUnit"})
+        addReq.Attribute("ou", []string{ou})
+        addReq.Attribute("description", []string{description})
+        
+        err := conn.Add(addReq)
+        if err != nil &amp;&amp; !strings.Contains(err.Error(), "already exists") </span><span class="cov0" title="0">{
+                t.Logf("Warning: Failed to create OU %s: %v", ou, err)
+        }</span>
+}
+
+// createTestUsers creates test user accounts
+func (tc *TestContainer) createTestUsers(t *testing.T, conn *ldap.Conn) <span class="cov0" title="0">{
+        users := []struct {
+                uid         string
+                cn          string
+                sn          string
+                givenName   string
+                mail        string
+                password    string
+                description string
+        }{
+                {
+                        uid:       "jdoe",
+                        cn:        "John Doe",
+                        sn:        "Doe",
+                        givenName: "John",
+                        mail:      "john.doe@example.com",
+                        password:  "password123",
+                        description: "Test user - John Doe",
+                },
+                {
+                        uid:       "asmith",
+                        cn:        "Alice Smith",
+                        sn:        "Smith",
+                        givenName: "Alice",
+                        mail:      "alice.smith@example.com",
+                        password:  "password456",
+                        description: "Test user - Alice Smith",
+                },
+                {
+                        uid:       "bwilson",
+                        cn:        "Bob Wilson",
+                        sn:        "Wilson",
+                        givenName: "Bob",
+                        mail:      "bob.wilson@example.com",
+                        password:  "password789",
+                        description: "Test user - Bob Wilson",
+                },
+                {
+                        uid:       "abrown",
+                        cn:        "Alice Brown",
+                        sn:        "Brown",
+                        givenName: "Alice",
+                        mail:      "alice.brown@example.com",
+                        password:  "passwordabc",
+                        description: "Test user - Alice Brown (disabled)",
+                },
+        }
+
+        for _, user := range users </span><span class="cov0" title="0">{
+                dn := fmt.Sprintf("uid=%s,%s", user.uid, tc.UsersOU)
+                
+                addReq := ldap.NewAddRequest(dn, nil)
+                addReq.Attribute("objectClass", []string{"inetOrgPerson", "posixAccount", "shadowAccount"})
+                addReq.Attribute("uid", []string{user.uid})
+                addReq.Attribute("cn", []string{user.cn})
+                addReq.Attribute("sn", []string{user.sn})
+                addReq.Attribute("givenName", []string{user.givenName})
+                addReq.Attribute("mail", []string{user.mail})
+                addReq.Attribute("userPassword", []string{user.password})
+                addReq.Attribute("description", []string{user.description})
+                addReq.Attribute("uidNumber", []string{fmt.Sprintf("100%d", len(user.uid))})
+                addReq.Attribute("gidNumber", []string{"1000"})
+                addReq.Attribute("homeDirectory", []string{fmt.Sprintf("/home/%s", user.uid)})
+                
+                err := conn.Add(addReq)
+                if err != nil &amp;&amp; !strings.Contains(err.Error(), "already exists") </span><span class="cov0" title="0">{
+                        t.Logf("Warning: Failed to create user %s: %v", user.uid, err)
+                }</span>
+        }
+}
+
+// createTestGroups creates test group accounts
+func (tc *TestContainer) createTestGroups(t *testing.T, conn *ldap.Conn) <span class="cov0" title="0">{
+        groups := []struct {
+                cn          string
+                description string
+                members     []string
+        }{
+                {
+                        cn:          "admins",
+                        description: "System Administrators",
+                        members:     []string{fmt.Sprintf("uid=jdoe,%s", tc.UsersOU)},
+                },
+                {
+                        cn:          "users",
+                        description: "Regular Users",
+                        members: []string{
+                                fmt.Sprintf("uid=asmith,%s", tc.UsersOU),
+                                fmt.Sprintf("uid=bwilson,%s", tc.UsersOU),
+                        },
+                },
+                {
+                        cn:          "developers",
+                        description: "Software Developers",
+                        members: []string{
+                                fmt.Sprintf("uid=jdoe,%s", tc.UsersOU),
+                                fmt.Sprintf("uid=bwilson,%s", tc.UsersOU),
+                        },
+                },
+        }
+
+        for _, group := range groups </span><span class="cov0" title="0">{
+                dn := fmt.Sprintf("cn=%s,%s", group.cn, tc.GroupsOU)
+                
+                addReq := ldap.NewAddRequest(dn, nil)
+                addReq.Attribute("objectClass", []string{"groupOfNames"})
+                addReq.Attribute("cn", []string{group.cn})
+                addReq.Attribute("description", []string{group.description})
+                
+                // Add members
+                if len(group.members) &gt; 0 </span><span class="cov0" title="0">{
+                        addReq.Attribute("member", group.members)
+                }</span> else<span class="cov0" title="0"> {
+                        // GroupOfNames requires at least one member, use admin as placeholder
+                        addReq.Attribute("member", []string{tc.AdminUser})
+                }</span>
+                
+                <span class="cov0" title="0">err := conn.Add(addReq)
+                if err != nil &amp;&amp; !strings.Contains(err.Error(), "already exists") </span><span class="cov0" title="0">{
+                        t.Logf("Warning: Failed to create group %s: %v", group.cn, err)
+                }</span>
+        }
+}
+
+// createTestComputers creates test computer accounts (as device objects for OpenLDAP compatibility)
+func (tc *TestContainer) createTestComputers(t *testing.T, conn *ldap.Conn) <span class="cov0" title="0">{
+        computers := []struct {
+                cn          string
+                description string
+        }{
+                {
+                        cn:          "WORKSTATION01",
+                        description: "Test workstation computer",
+                },
+                {
+                        cn:          "SERVER01",
+                        description: "Test server computer",
+                },
+        }
+
+        for _, computer := range computers </span><span class="cov0" title="0">{
+                dn := fmt.Sprintf("cn=%s,%s", computer.cn, tc.ComputersOU)
+                
+                addReq := ldap.NewAddRequest(dn, nil)
+                addReq.Attribute("objectClass", []string{"device"})
+                addReq.Attribute("cn", []string{computer.cn})
+                addReq.Attribute("description", []string{computer.description})
+                
+                err := conn.Add(addReq)
+                if err != nil &amp;&amp; !strings.Contains(err.Error(), "already exists") </span><span class="cov0" title="0">{
+                        t.Logf("Warning: Failed to create computer %s: %v", computer.cn, err)
+                }</span>
+        }
+}
+
+// GetLDAPClient returns a configured LDAP client for testing
+func (tc *TestContainer) GetLDAPClient(t *testing.T) *LDAP <span class="cov0" title="0">{
+        client, err := New(tc.Config, tc.AdminUser, tc.AdminPass)
+        require.NoError(t, err)
+        return client
+}</span>
+
+// GetTestData returns test data references
+func (tc *TestContainer) GetTestData() *TestData <span class="cov0" title="0">{
+        return &amp;TestData{
+                ValidUserDN:       fmt.Sprintf("uid=jdoe,%s", tc.UsersOU),
+                ValidUserCN:       "John Doe",
+                ValidUserUID:      "jdoe",
+                ValidUserMail:     "john.doe@example.com",
+                ValidUserPassword: "password123",
+                
+                InvalidUserUID:      "nonexistent",
+                InvalidPassword:     "wrongpassword",
+                DisabledUserUID:     "abrown",
+                DisabledUserDN:      fmt.Sprintf("uid=abrown,%s", tc.UsersOU),
+                DisabledUserPassword: "passwordabc",
+                
+                ValidGroupDN:       fmt.Sprintf("cn=admins,%s", tc.GroupsOU),
+                ValidGroupCN:       "admins",
+                
+                ValidComputerDN:   fmt.Sprintf("cn=WORKSTATION01,%s", tc.ComputersOU),
+                ValidComputerCN:   "WORKSTATION01",
+        }
+}</span>
+
+// TestData contains references to test objects
+type TestData struct {
+        ValidUserDN       string
+        ValidUserCN       string
+        ValidUserUID      string
+        ValidUserMail     string
+        ValidUserPassword string
+        
+        InvalidUserUID      string
+        InvalidPassword     string
+        DisabledUserUID     string
+        DisabledUserDN      string
+        DisabledUserPassword string
+        
+        ValidGroupDN string
+        ValidGroupCN string
+        
+        ValidComputerDN string
+        ValidComputerCN string
+}
+
+// Close cleans up the test container
+func (tc *TestContainer) Close(t *testing.T) <span class="cov0" title="0">{
+        err := tc.Container.Terminate(tc.ctx)
+        if err != nil </span><span class="cov0" title="0">{
+                t.Logf("Warning: Failed to terminate container: %v", err)
+        }</span>
+}</pre>
+		
+		<pre class="file" id="file7" style="display: none">package ldap
+
+import "strings"
+
+/*
+Active Directory User Account Control Flag Values:
+  ADS_UF_SCRIPT = 0x1,
+  ADS_UF_ACCOUNTDISABLE = 0x2,
+  ADS_UF_HOMEDIR_REQUIRED = 0x8,
+  ADS_UF_LOCKOUT = 0x10,
+  ADS_UF_PASSWD_NOTREQD = 0x20,
+  ADS_UF_PASSWD_CANT_CHANGE = 0x40,
+  ADS_UF_ENCRYPTED_TEXT_PASSWORD_ALLOWED = 0x80,
+  ADS_UF_TEMP_DUPLICATE_ACCOUNT = 0x100,
+  ADS_UF_NORMAL_ACCOUNT = 0x200,
+  ADS_UF_INTERDOMAIN_TRUST_ACCOUNT = 0x800,
+  ADS_UF_WORKSTATION_TRUST_ACCOUNT = 0x1000,
+  ADS_UF_SERVER_TRUST_ACCOUNT = 0x2000,
+  ADS_UF_DONT_EXPIRE_PASSWD = 0x10000,
+  ADS_UF_MNS_LOGON_ACCOUNT = 0x20000,
+  ADS_UF_SMARTCARD_REQUIRED = 0x40000,
+  ADS_UF_TRUSTED_FOR_DELEGATION = 0x80000,
+  ADS_UF_NOT_DELEGATED = 0x100000,
+  ADS_UF_USE_DES_KEY_ONLY = 0x200000,
+  ADS_UF_DONT_REQUIRE_PREAUTH = 0x400000,
+  ADS_UF_PASSWORD_EXPIRED = 0x800000,
+  ADS_UF_TRUSTED_TO_AUTHENTICATE_FOR_DELEGATION = 0x1000000
+*/
+
+// UAC represents the User Account Control flags for Active Directory user and computer accounts.
+// These flags control various security settings and account behaviors.
+//
+// Reference: https://learn.microsoft.com/en-us/windows/win32/adschema/a-useraccountcontrol
+type UAC struct {
+        // LogonScript (0x1) - Execute a logon script for the user
+        LogonScript bool
+        // AccountDisabled (0x2) - The account is disabled
+        AccountDisabled bool
+        // HomeDirRequired (0x8) - A home directory is required for the user
+        HomeDirRequired bool
+        // Lockout (0x10) - The account is locked out (read-only flag, set by the system)
+        Lockout bool
+        // PasswordNotRequired (0x20) - No password is required for the account
+        PasswordNotRequired bool
+        // PasswordCantChange (0x40) - The user cannot change their password
+        PasswordCantChange bool
+        // EncryptedTextPasswordAllowed (0x80) - Allows encrypted text passwords for the account
+        EncryptedTextPasswordAllowed bool
+        // TempDuplicateAccount (0x100) - This is a temporary duplicate account
+        TempDuplicateAccount bool
+        // NormalAccount (0x200) - This is a default account type representing a typical user
+        NormalAccount bool
+        // InterdomainTrustAccount (0x800) - This is a permit to trust account for a system domain that trusts other domains
+        InterdomainTrustAccount bool
+        // WorkstationTrustAccount (0x1000) - This is a computer account for a computer that is a member of this domain
+        WorkstationTrustAccount bool
+        // ServerTrustAccount (0x2000) - This is a computer account for a system backup domain controller that is a member of this domain
+        ServerTrustAccount bool
+        // NoPasswordExpiration (0x10000) - The password for this account does not expire
+        NoPasswordExpiration bool
+        // MNSLogonAccount (0x20000) - This is an MNS logon account
+        MNSLogonAccount bool
+        // SmartCardRequired (0x40000) - The user is required to log on using a smart card
+        SmartCardRequired bool
+        // TrustedForDelegation (0x80000) - The service account (user or computer account) under which a service runs is trusted for Kerberos delegation
+        TrustedForDelegation bool
+        // NotDelegated (0x100000) - The security context of the user will not be delegated to a service even if the service account is set as trusted for Kerberos delegation
+        NotDelegated bool
+        // UseDESKeyOnly (0x200000) - Use DES encryption types for keys for this account
+        UseDESKeyOnly bool
+        // DontRequirePreauth (0x400000) - This account does not require Kerberos pre-authentication for logon
+        DontRequirePreauth bool
+        // PasswordExpired (0x800000) - The user password has expired
+        PasswordExpired bool
+        // TrustedToAuthenticateForDelegation (0x1000000) - The account is enabled for delegation; used with the Kerberos constrained delegation feature
+        TrustedToAuthenticateForDelegation bool
+}
+
+// UACFromUint32 creates a UAC struct from a uint32 userAccountControl value.
+// This function decodes the bitmask flags from Active Directory's userAccountControl attribute.
+//
+// Parameters:
+//   - v: The uint32 value from the userAccountControl attribute
+//
+// Returns:
+//   - UAC: A UAC struct with boolean flags corresponding to the bitmask
+//
+// Example:
+//
+//        // For a typical enabled user account (0x200 = ADS_UF_NORMAL_ACCOUNT)
+//        uac := UACFromUint32(512)
+//        // uac.NormalAccount will be true, AccountDisabled will be false
+func UACFromUint32(v uint32) UAC <span class="cov8" title="1">{
+        return UAC{
+                LogonScript:                        v&amp;0x1 != 0,
+                AccountDisabled:                    v&amp;0x2 != 0,
+                HomeDirRequired:                    v&amp;0x8 != 0,
+                Lockout:                            v&amp;0x10 != 0,
+                PasswordNotRequired:                v&amp;0x20 != 0,
+                PasswordCantChange:                 v&amp;0x40 != 0,
+                EncryptedTextPasswordAllowed:       v&amp;0x80 != 0,
+                TempDuplicateAccount:               v&amp;0x100 != 0,
+                NormalAccount:                      v&amp;0x200 != 0,
+                InterdomainTrustAccount:            v&amp;0x800 != 0,
+                WorkstationTrustAccount:            v&amp;0x1000 != 0,
+                ServerTrustAccount:                 v&amp;0x2000 != 0,
+                NoPasswordExpiration:               v&amp;0x10000 != 0,
+                MNSLogonAccount:                    v&amp;0x20000 != 0,
+                SmartCardRequired:                  v&amp;0x40000 != 0,
+                TrustedForDelegation:               v&amp;0x80000 != 0,
+                NotDelegated:                       v&amp;0x100000 != 0,
+                UseDESKeyOnly:                      v&amp;0x200000 != 0,
+                DontRequirePreauth:                 v&amp;0x400000 != 0,
+                PasswordExpired:                    v&amp;0x800000 != 0,
+                TrustedToAuthenticateForDelegation: v&amp;0x1000000 != 0,
+        }
+}</span>
+
+// Uint32 converts the UAC struct back to a uint32 userAccountControl value.
+// This function encodes the boolean flags into the bitmask format expected by Active Directory.
+//
+// Returns:
+//   - uint32: The userAccountControl bitmask value suitable for Active Directory operations
+//
+// This method is useful when creating or modifying user accounts and need to set the
+// userAccountControl attribute with the appropriate flags.
+func (u UAC) Uint32() uint32 <span class="cov8" title="1">{
+        var v uint32 = 0
+
+        if u.LogonScript </span><span class="cov8" title="1">{
+                v |= 0x1
+        }</span>
+
+        <span class="cov8" title="1">if u.AccountDisabled </span><span class="cov8" title="1">{
+                v |= 0x2
+        }</span>
+
+        <span class="cov8" title="1">if u.HomeDirRequired </span><span class="cov8" title="1">{
+                v |= 0x8
+        }</span>
+
+        <span class="cov8" title="1">if u.Lockout </span><span class="cov8" title="1">{
+                v |= 0x10
+        }</span>
+
+        <span class="cov8" title="1">if u.PasswordNotRequired </span><span class="cov8" title="1">{
+                v |= 0x20
+        }</span>
+
+        <span class="cov8" title="1">if u.PasswordCantChange </span><span class="cov8" title="1">{
+                v |= 0x40
+        }</span>
+
+        <span class="cov8" title="1">if u.EncryptedTextPasswordAllowed </span><span class="cov8" title="1">{
+                v |= 0x80
+        }</span>
+
+        <span class="cov8" title="1">if u.TempDuplicateAccount </span><span class="cov8" title="1">{
+                v |= 0x100
+        }</span>
+
+        <span class="cov8" title="1">if u.NormalAccount </span><span class="cov8" title="1">{
+                v |= 0x200
+        }</span>
+
+        <span class="cov8" title="1">if u.InterdomainTrustAccount </span><span class="cov8" title="1">{
+                v |= 0x800
+        }</span>
+
+        <span class="cov8" title="1">if u.WorkstationTrustAccount </span><span class="cov8" title="1">{
+                v |= 0x1000
+        }</span>
+
+        <span class="cov8" title="1">if u.ServerTrustAccount </span><span class="cov8" title="1">{
+                v |= 0x2000
+        }</span>
+
+        <span class="cov8" title="1">if u.NoPasswordExpiration </span><span class="cov8" title="1">{
+                v |= 0x10000
+        }</span>
+
+        <span class="cov8" title="1">if u.MNSLogonAccount </span><span class="cov8" title="1">{
+                v |= 0x20000
+        }</span>
+
+        <span class="cov8" title="1">if u.SmartCardRequired </span><span class="cov8" title="1">{
+                v |= 0x40000
+        }</span>
+
+        <span class="cov8" title="1">if u.TrustedForDelegation </span><span class="cov8" title="1">{
+                v |= 0x80000
+        }</span>
+
+        <span class="cov8" title="1">if u.NotDelegated </span><span class="cov8" title="1">{
+                v |= 0x100000
+        }</span>
+
+        <span class="cov8" title="1">if u.UseDESKeyOnly </span><span class="cov8" title="1">{
+                v |= 0x200000
+        }</span>
+
+        <span class="cov8" title="1">if u.DontRequirePreauth </span><span class="cov8" title="1">{
+                v |= 0x400000
+        }</span>
+
+        <span class="cov8" title="1">if u.PasswordExpired </span><span class="cov8" title="1">{
+                v |= 0x800000
+        }</span>
+
+        <span class="cov8" title="1">if u.TrustedToAuthenticateForDelegation </span><span class="cov8" title="1">{
+                v |= 0x1000000
+        }</span>
+
+        <span class="cov8" title="1">return v</span>
+}
+
+// String returns a human-readable representation of the UAC flags.
+// Only flags that are set to true are included in the output string.
+//
+// Returns:
+//   - string: A comma-separated list of active UAC flag names
+//
+// Example output: "NormalAccount, NoPasswordExpiration"
+// If no flags are set, returns an empty string.
+func (u UAC) String() string <span class="cov8" title="1">{
+        s := strings.Builder{}
+
+        if u.LogonScript </span><span class="cov0" title="0">{
+                s.WriteString("LogonScript, ")
+        }</span>
+
+        <span class="cov8" title="1">if u.AccountDisabled </span><span class="cov8" title="1">{
+                s.WriteString("AccountDisabled, ")
+        }</span>
+
+        <span class="cov8" title="1">if u.HomeDirRequired </span><span class="cov0" title="0">{
+                s.WriteString("HomeDirRequired, ")
+        }</span>
+
+        <span class="cov8" title="1">if u.Lockout </span><span class="cov0" title="0">{
+                s.WriteString("Lockout, ")
+        }</span>
+
+        <span class="cov8" title="1">if u.PasswordNotRequired </span><span class="cov0" title="0">{
+                s.WriteString("PasswordNotRequired, ")
+        }</span>
+
+        <span class="cov8" title="1">if u.PasswordCantChange </span><span class="cov0" title="0">{
+                s.WriteString("PasswordCantChange, ")
+        }</span>
+
+        <span class="cov8" title="1">if u.EncryptedTextPasswordAllowed </span><span class="cov0" title="0">{
+                s.WriteString("EncryptedTextPasswordAllowed, ")
+        }</span>
+
+        <span class="cov8" title="1">if u.TempDuplicateAccount </span><span class="cov0" title="0">{
+                s.WriteString("TempDuplicateAccount, ")
+        }</span>
+
+        <span class="cov8" title="1">if u.NormalAccount </span><span class="cov8" title="1">{
+                s.WriteString("NormalAccount, ")
+        }</span>
+
+        <span class="cov8" title="1">if u.InterdomainTrustAccount </span><span class="cov0" title="0">{
+                s.WriteString("InterdomainTrustAccount, ")
+        }</span>
+
+        <span class="cov8" title="1">if u.WorkstationTrustAccount </span><span class="cov8" title="1">{
+                s.WriteString("WorkstationTrustAccount, ")
+        }</span>
+
+        <span class="cov8" title="1">if u.ServerTrustAccount </span><span class="cov0" title="0">{
+                s.WriteString("ServerTrustAccount, ")
+        }</span>
+
+        <span class="cov8" title="1">if u.NoPasswordExpiration </span><span class="cov8" title="1">{
+                s.WriteString("NoPasswordExpiration, ")
+        }</span>
+
+        <span class="cov8" title="1">if u.MNSLogonAccount </span><span class="cov0" title="0">{
+                s.WriteString("MNSLogonAccount, ")
+        }</span>
+
+        <span class="cov8" title="1">if u.SmartCardRequired </span><span class="cov8" title="1">{
+                s.WriteString("SmartCardRequired, ")
+        }</span>
+
+        <span class="cov8" title="1">if u.TrustedForDelegation </span><span class="cov0" title="0">{
+                s.WriteString("TrustedForDelegation, ")
+        }</span>
+
+        <span class="cov8" title="1">if u.NotDelegated </span><span class="cov0" title="0">{
+                s.WriteString("NotDelegated, ")
+        }</span>
+
+        <span class="cov8" title="1">if u.UseDESKeyOnly </span><span class="cov0" title="0">{
+                s.WriteString("UseDESKeyOnly, ")
+        }</span>
+
+        <span class="cov8" title="1">if u.DontRequirePreauth </span><span class="cov0" title="0">{
+                s.WriteString("DontRequirePreauth, ")
+        }</span>
+
+        <span class="cov8" title="1">if u.PasswordExpired </span><span class="cov0" title="0">{
+                s.WriteString("PasswordExpired, ")
+        }</span>
+
+        <span class="cov8" title="1">if u.TrustedToAuthenticateForDelegation </span><span class="cov8" title="1">{
+                s.WriteString("TrustedToAuthenticateForDelegation, ")
+        }</span>
+
+        <span class="cov8" title="1">return strings.TrimSuffix(s.String(), ", ")</span>
+}
+</pre>
+		
+		<pre class="file" id="file8" style="display: none">package ldap
+
+import (
+        "errors"
+        "fmt"
+        "time"
+
+        "github.com/go-ldap/ldap/v3"
+)
+
+var (
+        // ErrUserNotFound is returned when a user search operation finds no matching entries.
+        ErrUserNotFound = errors.New("user not found")
+        // ErrSAMAccountNameDuplicated is returned when multiple users have the same sAMAccountName,
+        // indicating a data integrity issue in the directory.
+        ErrSAMAccountNameDuplicated = errors.New("sAMAccountName is not unique")
+        // ErrMailDuplicated is returned when multiple users have the same email address,
+        // indicating a data integrity issue in the directory.
+        ErrMailDuplicated = errors.New("mail is not unique")
+
+        // accountExpiresBase is the base date for Active Directory account expiration calculations (January 1, 1601 UTC).
+        accountExpiresBase = time.Date(1601, 1, 1, 0, 0, 0, 0, time.UTC)
+        // accountExpiresNever represents the value for accounts that never expire in Active Directory.
+        accountExpiresNever uint64 = 0x7FFFFFFFFFFFFFFF
+
+        // userFields contains the standard LDAP attributes retrieved for user objects.
+        userFields = []string{"memberOf", "cn", "sAMAccountName", "mail", "userAccountControl", "description"}
+)
+
+// User represents an LDAP user object with common attributes.
+type User struct {
+        Object
+        // Enabled indicates whether the user account is enabled (not disabled by userAccountControl).
+        Enabled bool
+        // SAMAccountName is the Security Account Manager account name (unique identifier for Windows authentication).
+        SAMAccountName string
+        // Description contains the user's description or notes.
+        Description string
+        // Mail contains the user's email address (nil if not set).
+        Mail *string
+        // Groups contains a list of distinguished names (DNs) of groups the user belongs to.
+        Groups []string
+}
+
+func userFromEntry(entry *ldap.Entry) (*User, error) <span class="cov0" title="0">{
+        enabled, err := parseObjectEnabled(entry.GetAttributeValue("userAccountControl"))
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov0" title="0">var mail *string
+        if mails := entry.GetAttributeValues("mail"); len(mails) &gt; 0 </span><span class="cov0" title="0">{
+                mail = &amp;mails[0]
+        }</span>
+
+        <span class="cov0" title="0">return &amp;User{
+                Object:         objectFromEntry(entry),
+                Enabled:        enabled,
+                SAMAccountName: entry.GetAttributeValue("sAMAccountName"),
+                Description:    entry.GetAttributeValue("description"),
+                Mail:           mail,
+                Groups:         entry.GetAttributeValues("memberOf"),
+        }, nil</span>
+}
+
+// FindUserByDN retrieves a user by their distinguished name.
+//
+// Parameters:
+//   - dn: The distinguished name of the user (e.g., "CN=John Doe,CN=Users,DC=example,DC=com")
+//
+// Returns:
+//   - *User: The user object if found
+//   - error: ErrUserNotFound if no user exists with the given DN,
+//     ErrDNDuplicated if multiple entries share the same DN (data integrity issue),
+//     or any LDAP operation error
+func (l *LDAP) FindUserByDN(dn string) (user *User, err error) <span class="cov0" title="0">{
+        c, err := l.GetConnection()
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">defer c.Close()
+
+        r, err := c.Search(&amp;ldap.SearchRequest{
+                BaseDN:       dn,
+                Scope:        ldap.ScopeBaseObject,
+                DerefAliases: ldap.NeverDerefAliases,
+                Filter:       "(objectClass=user)",
+                Attributes:   []string{"memberOf", "cn", "sAMAccountName", "userAccountControl", "description"},
+        })
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov0" title="0">if len(r.Entries) == 0 </span><span class="cov0" title="0">{
+                return nil, ErrUserNotFound
+        }</span>
+
+        <span class="cov0" title="0">if len(r.Entries) &gt; 1 </span><span class="cov0" title="0">{
+                return nil, ErrDNDuplicated
+        }</span>
+
+        <span class="cov0" title="0">if user, err = userFromEntry(r.Entries[0]); err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov0" title="0">return</span>
+}
+
+// FindUserBySAMAccountName retrieves a user by their Security Account Manager account name.
+//
+// Parameters:
+//   - sAMAccountName: The SAM account name (e.g., "jdoe" for john.doe@domain.com)
+//
+// Returns:
+//   - *User: The user object if found
+//   - error: ErrUserNotFound if no user exists with the given sAMAccountName,
+//     ErrSAMAccountNameDuplicated if multiple users have the same sAMAccountName,
+//     or any LDAP operation error
+//
+// This method performs a subtree search starting from the configured BaseDN.
+func (l *LDAP) FindUserBySAMAccountName(sAMAccountName string) (user *User, err error) <span class="cov0" title="0">{
+        c, err := l.GetConnection()
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">defer c.Close()
+
+        r, err := c.Search(&amp;ldap.SearchRequest{
+                BaseDN:       l.config.BaseDN,
+                Scope:        ldap.ScopeWholeSubtree,
+                DerefAliases: ldap.NeverDerefAliases,
+                Filter:       fmt.Sprintf("(&amp;(objectClass=user)(sAMAccountName=%s))", ldap.EscapeFilter(sAMAccountName)),
+                Attributes:   userFields,
+        })
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov0" title="0">if len(r.Entries) == 0 </span><span class="cov0" title="0">{
+                return nil, ErrUserNotFound
+        }</span>
+        <span class="cov0" title="0">if len(r.Entries) &gt; 1 </span><span class="cov0" title="0">{
+                return nil, ErrSAMAccountNameDuplicated
+        }</span>
+
+        <span class="cov0" title="0">if user, err = userFromEntry(r.Entries[0]); err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov0" title="0">return</span>
+}
+
+// FindUserByMail retrieves a user by their email address.
+//
+// Parameters:
+//   - mail: The email address to search for (e.g., "john.doe@example.com")
+//
+// Returns:
+//   - *User: The user object if found
+//   - error: ErrUserNotFound if no user exists with the given email,
+//     ErrMailDuplicated if multiple users have the same email address,
+//     or any LDAP operation error
+//
+// This method performs a subtree search starting from the configured BaseDN.
+func (l *LDAP) FindUserByMail(mail string) (user *User, err error) <span class="cov0" title="0">{
+        c, err := l.GetConnection()
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">defer c.Close()
+
+        r, err := c.Search(&amp;ldap.SearchRequest{
+                BaseDN:       l.config.BaseDN,
+                Scope:        ldap.ScopeWholeSubtree,
+                DerefAliases: ldap.NeverDerefAliases,
+                Filter:       fmt.Sprintf("(&amp;(objectClass=user)(mail=%s))", ldap.EscapeFilter(mail)),
+                Attributes:   userFields,
+        })
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov0" title="0">if len(r.Entries) == 0 </span><span class="cov0" title="0">{
+                return nil, ErrUserNotFound
+        }</span>
+        <span class="cov0" title="0">if len(r.Entries) &gt; 1 </span><span class="cov0" title="0">{
+                return nil, ErrMailDuplicated
+        }</span>
+
+        <span class="cov0" title="0">if user, err = userFromEntry(r.Entries[0]); err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov0" title="0">return</span>
+}
+
+// FindUsers retrieves all user objects from the directory.
+//
+// Returns:
+//   - []User: A slice of all user objects found in the directory
+//   - error: Any LDAP operation error
+//
+// This method performs a subtree search starting from the configured BaseDN.
+// Users that cannot be parsed (due to missing required attributes) are skipped.
+func (l *LDAP) FindUsers() (users []User, err error) <span class="cov0" title="0">{
+        c, err := l.GetConnection()
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">defer c.Close()
+
+        r, err := c.Search(&amp;ldap.SearchRequest{
+                BaseDN:       l.config.BaseDN,
+                Scope:        ldap.ScopeWholeSubtree,
+                DerefAliases: ldap.NeverDerefAliases,
+                Filter:       "(objectClass=user)",
+                Attributes:   userFields,
+        })
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov0" title="0">for _, entry := range r.Entries </span><span class="cov0" title="0">{
+                user, err := userFromEntry(entry)
+                if err != nil </span><span class="cov0" title="0">{
+                        continue</span>
+                }
+
+                <span class="cov0" title="0">users = append(users, *user)</span>
+        }
+
+        <span class="cov0" title="0">return</span>
+}
+
+// AddUserToGroup adds a user to a group by modifying the group's member attribute.
+//
+// Parameters:
+//   - dn: The distinguished name of the user to add to the group
+//   - groupDN: The distinguished name of the group to modify
+//
+// Returns:
+//   - error: Any LDAP operation error, including insufficient permissions or if the user is already a member
+//
+// This operation requires write permissions on the target group object.
+func (l *LDAP) AddUserToGroup(dn, groupDN string) error <span class="cov0" title="0">{
+        c, err := l.GetConnection()
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        <span class="cov0" title="0">defer c.Close()
+
+        req := ldap.NewModifyRequest(groupDN, nil)
+        req.Add("member", []string{dn})
+
+        return c.Modify(req)</span>
+}
+
+// RemoveUserFromGroup removes a user from a group by modifying the group's member attribute.
+//
+// Parameters:
+//   - dn: The distinguished name of the user to remove from the group
+//   - groupDN: The distinguished name of the group to modify
+//
+// Returns:
+//   - error: Any LDAP operation error, including insufficient permissions or if the user is not a member
+//
+// This operation requires write permissions on the target group object.
+func (l *LDAP) RemoveUserFromGroup(dn, groupDN string) error <span class="cov0" title="0">{
+        c, err := l.GetConnection()
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        <span class="cov0" title="0">defer c.Close()
+
+        req := ldap.NewModifyRequest(groupDN, nil)
+        req.Delete("member", []string{dn})
+
+        return c.Modify(req)</span>
+}
+
+// FullUser represents a complete user object for creation operations with all configurable attributes.
+type FullUser struct {
+        // CN is the common name of the user (required, used as the RDN component).
+        CN string
+        // SAMAccountName is the Security Account Manager account name (optional for creation).
+        SAMAccountName *string
+        // FirstName is the user's given name (required).
+        FirstName string
+        // LastName is the user's surname (required).
+        LastName string
+        // DisplayName is the name displayed in address lists (optional, defaults to CN if nil).
+        DisplayName *string
+        // Description contains additional information about the user (optional).
+        Description *string
+        // Email is the user's email address (optional).
+        Email *string
+        // ObjectClasses defines the LDAP object classes (optional, defaults to standard user classes).
+        ObjectClasses []string
+        // AccountExpires represents the expiration date of the user's account.
+        // When set to nil, the account never expires.
+        AccountExpires *time.Time
+        // UserAccountControl contains the account control flags (enabled/disabled, password policies, etc.).
+        UserAccountControl UAC
+        // Path specifies the organizational unit path relative to BaseDN (optional, defaults to BaseDN).
+        Path *string
+}
+
+// CreateUser creates a new user in the directory with the specified attributes.
+//
+// Parameters:
+//   - user: The FullUser object containing all user attributes
+//   - password: The initial password for the user (currently not implemented in this version)
+//
+// Returns:
+//   - string: The distinguished name of the created user
+//   - error: Any LDAP operation error, including duplicate entries or insufficient permissions
+//
+// Default behaviors:
+//   - ObjectClasses defaults to ["top", "person", "organizationalPerson", "user"] if not specified
+//   - DisplayName defaults to CN if not specified
+//   - The user is created at the specified Path relative to BaseDN, or directly under BaseDN if Path is nil
+//
+// Example:
+//
+//        user := FullUser{
+//            CN: "John Doe",
+//            FirstName: "John",
+//            LastName: "Doe",
+//            SAMAccountName: &amp;"jdoe",
+//            Email: &amp;"john.doe@example.com",
+//            UserAccountControl: UAC{NormalAccount: true},
+//        }
+//        dn, err := client.CreateUser(user, "")
+func (l *LDAP) CreateUser(user FullUser, password string) (string, error) <span class="cov0" title="0">{
+        if user.ObjectClasses == nil </span><span class="cov0" title="0">{
+                user.ObjectClasses = []string{"top", "person", "organizationalPerson", "user"}
+        }</span>
+
+        <span class="cov0" title="0">if user.DisplayName == nil </span><span class="cov0" title="0">{
+                user.DisplayName = &amp;user.CN
+        }</span>
+
+        <span class="cov0" title="0">c, err := l.GetConnection()
+        if err != nil </span><span class="cov0" title="0">{
+                return "", err
+        }</span>
+        <span class="cov0" title="0">defer c.Close()
+
+        baseDN := ""
+        if user.Path != nil </span><span class="cov0" title="0">{
+                baseDN = *user.Path + ","
+        }</span>
+        <span class="cov0" title="0">baseDN += l.config.BaseDN
+
+        dn := fmt.Sprintf("CN=%s,%s", ldap.EscapeDN(user.CN), baseDN)
+
+        req := ldap.NewAddRequest(dn, nil)
+        req.Attribute("objectClass", user.ObjectClasses)
+        req.Attribute("cn", []string{user.CN})
+        req.Attribute("name", []string{user.FirstName + " " + user.LastName})
+        req.Attribute("givenName", []string{user.FirstName})
+        req.Attribute("sn", []string{user.LastName})
+        req.Attribute("displayName", []string{*user.DisplayName})
+        req.Attribute("accountExpires", []string{convertAccountExpires(user.AccountExpires)})
+        req.Attribute("userAccountControl", []string{fmt.Sprintf("%d", user.UserAccountControl.Uint32())})
+
+        if user.SAMAccountName != nil </span><span class="cov0" title="0">{
+                req.Attribute("sAMAccountName", []string{*user.SAMAccountName})
+        }</span>
+
+        <span class="cov0" title="0">if user.Description != nil </span><span class="cov0" title="0">{
+                req.Attribute("description", []string{*user.Description})
+        }</span>
+
+        <span class="cov0" title="0">if user.Email != nil </span><span class="cov0" title="0">{
+                req.Attribute("mail", []string{*user.Email})
+        }</span>
+
+        <span class="cov0" title="0">return dn, c.Add(req)</span>
+}
+
+// DeleteUser removes a user from the directory.
+//
+// Parameters:
+//   - dn: The distinguished name of the user to delete
+//
+// Returns:
+//   - error: Any LDAP operation error, including user not found or insufficient permissions
+//
+// Warning: This operation is irreversible. Ensure you have proper backups and permissions before deletion.
+func (l *LDAP) DeleteUser(dn string) error <span class="cov0" title="0">{
+        c, err := l.GetConnection()
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        <span class="cov0" title="0">defer c.Close()
+
+        return c.Del(&amp;ldap.DelRequest{DN: dn})</span>
+}
+</pre>
+		
+		<pre class="file" id="file9" style="display: none">package ldap
+
+import (
+        "fmt"
+        "strconv"
+        "time"
+)
+
+// parseObjectEnabled determines if an LDAP object is enabled based on userAccountControl attribute.
+// This function checks the ACCOUNTDISABLE flag (0x2) in the userAccountControl bitmask.
+//
+// Parameters:
+//   - userAccountControl: String representation of the userAccountControl attribute value
+//
+// Returns:
+//   - bool: true if the account is enabled (ACCOUNTDISABLE flag is not set), false if disabled
+//   - error: Any error parsing the userAccountControl value
+//
+// Reference: https://docs.microsoft.com/en-us/windows/win32/adschema/a-useraccountcontrol
+func parseObjectEnabled(userAccountControl string) (bool, error) <span class="cov8" title="1">{
+        raw, err := strconv.ParseInt(userAccountControl, 10, 32)
+        if err != nil </span><span class="cov8" title="1">{
+                return false, err
+        }</span>
+
+        // https://docs.microsoft.com/en-us/windows/win32/adschema/a-useraccountcontrol
+        // 2 (0x2) - ACCOUNTDISABLE
+        // The user account is disabled.
+        <span class="cov8" title="1">if raw&amp;2 != 0 </span><span class="cov8" title="1">{
+                return false, nil
+        }</span>
+
+        <span class="cov8" title="1">return true, nil</span>
+}
+
+// convertAccountExpires converts a Go time.Time to Active Directory accountExpires format.
+// Active Directory stores account expiration as the number of 100-nanosecond intervals
+// since January 1, 1601 UTC (Windows FILETIME format).
+//
+// Parameters:
+//   - target: The expiration time, or nil for accounts that never expire
+//
+// Returns:
+//   - string: The accountExpires value formatted for Active Directory
+//
+// Special values:
+//   - nil target returns 0x7FFFFFFFFFFFFFFF (account never expires)
+//   - Otherwise returns the calculated 100-nanosecond intervals since 1601-01-01
+//
+// Reference: https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-adls/acdfe32c-ce53-4073-b9b4-40d1130038dc
+func convertAccountExpires(target *time.Time) string <span class="cov8" title="1">{
+        if target == nil </span><span class="cov8" title="1">{
+                return fmt.Sprintf("%d", accountExpiresNever)
+        }</span>
+
+        <span class="cov8" title="1">remaining := target.Sub(accountExpiresBase)
+
+        /*
+           This value represents the number of 100-nanosecond intervals since January 1, 1601 (UTC).
+           A value of 0 or 0x7FFFFFFFFFFFFFFF (9223372036854775807) indicates that the account never expires.
+        */
+        ns := remaining.Nanoseconds() / 100
+
+        return fmt.Sprintf("%d", ns)</span>
+}
+</pre>
+		
+		</div>
+	</body>
+	<script>
+	(function() {
+		var files = document.getElementById('files');
+		var visible;
+		files.addEventListener('change', onChange, false);
+		function select(part) {
+			if (visible)
+				visible.style.display = 'none';
+			visible = document.getElementById(part);
+			if (!visible)
+				return;
+			files.value = part;
+			visible.style.display = 'block';
+			location.hash = part;
+		}
+		function onChange() {
+			select(files.value);
+			window.scrollTo(0, 0);
+		}
+		if (location.hash != "") {
+			select(location.hash.substr(1));
+		}
+		if (!visible) {
+			select("file0");
+		}
+	})();
+	</script>
+</html>

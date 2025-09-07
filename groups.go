@@ -37,10 +37,14 @@ func (l *LDAP) FindGroupByDN(dn string) (group *Group, err error) {
 		BaseDN:       dn,
 		Scope:        ldap.ScopeBaseObject,
 		DerefAliases: ldap.NeverDerefAliases,
-		Filter:       "(objectClass=group)",
+		Filter:       "(|(objectClass=group)(objectClass=groupOfNames))",
 		Attributes:   []string{"cn", "member"},
 	})
 	if err != nil {
+		// If LDAP error indicates object not found, return ErrGroupNotFound
+		if ldapErr, ok := err.(*ldap.Error); ok && ldapErr.ResultCode == ldap.LDAPResultNoSuchObject {
+			return nil, ErrGroupNotFound
+		}
 		return nil, err
 	}
 
@@ -79,7 +83,7 @@ func (l *LDAP) FindGroups() (groups []Group, err error) {
 		BaseDN:       l.config.BaseDN,
 		Scope:        ldap.ScopeWholeSubtree,
 		DerefAliases: ldap.NeverDerefAliases,
-		Filter:       "(objectClass=group)",
+		Filter:       "(|(objectClass=group)(objectClass=groupOfNames))",
 		Attributes:   []string{"cn", "member"},
 	})
 	if err != nil {

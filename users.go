@@ -43,9 +43,27 @@ type User struct {
 }
 
 func userFromEntry(entry *ldap.Entry) (*User, error) {
-	enabled, err := parseObjectEnabled(entry.GetAttributeValue("userAccountControl"))
-	if err != nil {
-		return nil, err
+	var enabled bool
+	var err error
+	var samAccountName string
+
+	// Try to get userAccountControl for Active Directory
+	if uac := entry.GetAttributeValue("userAccountControl"); uac != "" {
+		enabled, err = parseObjectEnabled(uac)
+		if err != nil {
+			return nil, err
+		}
+		samAccountName = entry.GetAttributeValue("sAMAccountName")
+	} else {
+		// For OpenLDAP compatibility, assume users are enabled by default
+		// OpenLDAP doesn't have userAccountControl
+		enabled = true
+		// Use uid as sAMAccountName equivalent for OpenLDAP
+		samAccountName = entry.GetAttributeValue("uid")
+		if samAccountName == "" {
+			// Fall back to cn if uid is not available
+			samAccountName = entry.GetAttributeValue("cn")
+		}
 	}
 
 	var mail *string
@@ -56,7 +74,7 @@ func userFromEntry(entry *ldap.Entry) (*User, error) {
 	return &User{
 		Object:         objectFromEntry(entry),
 		Enabled:        enabled,
-		SAMAccountName: entry.GetAttributeValue("sAMAccountName"),
+		SAMAccountName: samAccountName,
 		Description:    entry.GetAttributeValue("description"),
 		Mail:           mail,
 		Groups:         entry.GetAttributeValues("memberOf"),
@@ -84,10 +102,14 @@ func (l *LDAP) FindUserByDN(dn string) (user *User, err error) {
 		BaseDN:       dn,
 		Scope:        ldap.ScopeBaseObject,
 		DerefAliases: ldap.NeverDerefAliases,
-		Filter:       "(objectClass=user)",
-		Attributes:   []string{"memberOf", "cn", "sAMAccountName", "userAccountControl", "description"},
+		Filter:       "(|(objectClass=user)(objectClass=inetOrgPerson)(objectClass=person))",
+		Attributes:   []string{"memberOf", "cn", "sAMAccountName", "uid", "userAccountControl", "description", "mail"},
 	})
 	if err != nil {
+		// If LDAP error indicates object not found, return ErrUserNotFound
+		if ldapErr, ok := err.(*ldap.Error); ok && ldapErr.ResultCode == ldap.LDAPResultNoSuchObject {
+			return nil, ErrUserNotFound
+		}
 		return nil, err
 	}
 
@@ -118,6 +140,7 @@ func (l *LDAP) FindUserByDN(dn string) (user *User, err error) {
 //     or any LDAP operation error
 //
 // This method performs a subtree search starting from the configured BaseDN.
+// For OpenLDAP compatibility, it also searches for uid attribute when sAMAccountName is not found.
 func (l *LDAP) FindUserBySAMAccountName(sAMAccountName string) (user *User, err error) {
 	c, err := l.GetConnection()
 	if err != nil {
@@ -125,15 +148,32 @@ func (l *LDAP) FindUserBySAMAccountName(sAMAccountName string) (user *User, err 
 	}
 	defer c.Close()
 
+	// Try Active Directory search first
+	filter := fmt.Sprintf("(&(objectClass=user)(sAMAccountName=%s))", ldap.EscapeFilter(sAMAccountName))
 	r, err := c.Search(&ldap.SearchRequest{
 		BaseDN:       l.config.BaseDN,
 		Scope:        ldap.ScopeWholeSubtree,
 		DerefAliases: ldap.NeverDerefAliases,
-		Filter:       fmt.Sprintf("(&(objectClass=user)(sAMAccountName=%s))", ldap.EscapeFilter(sAMAccountName)),
+		Filter:       filter,
 		Attributes:   userFields,
 	})
 	if err != nil {
 		return nil, err
+	}
+
+	// If no results with Active Directory filter, try OpenLDAP compatibility
+	if len(r.Entries) == 0 && !l.config.IsActiveDirectory {
+		filter = fmt.Sprintf("(&(|(objectClass=inetOrgPerson)(objectClass=person))(uid=%s))", ldap.EscapeFilter(sAMAccountName))
+		r, err = c.Search(&ldap.SearchRequest{
+			BaseDN:       l.config.BaseDN,
+			Scope:        ldap.ScopeWholeSubtree,
+			DerefAliases: ldap.NeverDerefAliases,
+			Filter:       filter,
+			Attributes:   []string{"memberOf", "cn", "uid", "mail", "description"}, // OpenLDAP compatible attributes
+		})
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if len(r.Entries) == 0 {
@@ -173,8 +213,8 @@ func (l *LDAP) FindUserByMail(mail string) (user *User, err error) {
 		BaseDN:       l.config.BaseDN,
 		Scope:        ldap.ScopeWholeSubtree,
 		DerefAliases: ldap.NeverDerefAliases,
-		Filter:       fmt.Sprintf("(&(objectClass=user)(mail=%s))", ldap.EscapeFilter(mail)),
-		Attributes:   userFields,
+		Filter:       fmt.Sprintf("(&(|(objectClass=user)(objectClass=inetOrgPerson)(objectClass=person))(mail=%s))", ldap.EscapeFilter(mail)),
+		Attributes:   []string{"memberOf", "cn", "sAMAccountName", "uid", "mail", "userAccountControl", "description"}, // Include both AD and OpenLDAP attributes
 	})
 	if err != nil {
 		return nil, err
@@ -213,8 +253,8 @@ func (l *LDAP) FindUsers() (users []User, err error) {
 		BaseDN:       l.config.BaseDN,
 		Scope:        ldap.ScopeWholeSubtree,
 		DerefAliases: ldap.NeverDerefAliases,
-		Filter:       "(objectClass=user)",
-		Attributes:   userFields,
+		Filter:       "(|(objectClass=user)(objectClass=inetOrgPerson)(objectClass=person))",
+		Attributes:   []string{"memberOf", "cn", "sAMAccountName", "uid", "mail", "userAccountControl", "description"}, // Include both AD and OpenLDAP attributes
 	})
 	if err != nil {
 		return nil, err
