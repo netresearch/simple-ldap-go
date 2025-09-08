@@ -1,12 +1,12 @@
 module github.com/netresearch/simple-ldap-go
 
-go 1.23.0
+go 1.24.0
 
 toolchain go1.25.0
 
 require (
 	github.com/go-ldap/ldap/v3 v3.4.11
-	golang.org/x/text v0.28.0
+	golang.org/x/text v0.29.0
 )
 
 require (
