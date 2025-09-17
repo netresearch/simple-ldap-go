@@ -148,7 +148,7 @@ func (l *LDAP) FindComputerByDNContext(ctx context.Context, dn string) (computer
 
 	var enabled bool
 	var samAccountName string
-	
+
 	// Handle Active Directory vs OpenLDAP compatibility
 	if uac := r.Entries[0].GetAttributeValue("userAccountControl"); uac != "" {
 		// Active Directory
@@ -285,7 +285,7 @@ func (l *LDAP) FindComputerBySAMAccountNameContext(ctx context.Context, sAMAccou
 
 	var enabled bool
 	var samAccountName string
-	
+
 	// Handle Active Directory vs OpenLDAP compatibility
 	if uac := r.Entries[0].GetAttributeValue("userAccountControl"); uac != "" {
 		// Active Directory

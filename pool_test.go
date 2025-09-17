@@ -99,7 +99,7 @@ func TestConnectionPool_GetPut(t *testing.T) {
 
 	t.Run("MultipleConnections", func(t *testing.T) {
 		var connections []*ldap.Conn
-		
+
 		// Get multiple connections
 		for i := 0; i < 3; i++ {
 			conn, err := pool.Get(ctx)
@@ -182,7 +182,7 @@ func TestConnectionPool_Concurrency(t *testing.T) {
 	assert.Equal(t, int32(0), finalStats.ActiveConnections)
 	assert.Greater(t, finalStats.PoolHits, int64(0))
 
-	t.Logf("Concurrent test stats: hits=%d, misses=%d, active=%d", 
+	t.Logf("Concurrent test stats: hits=%d, misses=%d, active=%d",
 		finalStats.PoolHits, finalStats.PoolMisses, finalStats.ActiveConnections)
 }
 
@@ -289,7 +289,7 @@ func TestConnectionPool_HealthChecks(t *testing.T) {
 	t.Logf("Final stats: %+v", finalStats)
 
 	// Should have health check activity
-	assert.Greater(t, finalStats.HealthChecksPassed+finalStats.HealthChecksFailed, 
+	assert.Greater(t, finalStats.HealthChecksPassed+finalStats.HealthChecksFailed,
 		initialStats.HealthChecksPassed+initialStats.HealthChecksFailed)
 }
 

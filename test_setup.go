@@ -37,8 +37,8 @@ func SetupTestContainer(t *testing.T) *TestContainer {
 		ExposedPorts: []string{"389/tcp", "636/tcp"},
 		Env: map[string]string{
 			"LDAP_ORGANISATION":    "Example Org",
-			"LDAP_DOMAIN":         "example.org", 
-			"LDAP_ADMIN_PASSWORD": "admin123",
+			"LDAP_DOMAIN":          "example.org",
+			"LDAP_ADMIN_PASSWORD":  "admin123",
 			"LDAP_CONFIG_PASSWORD": "config123",
 		},
 		WaitingFor: wait.ForAll(
@@ -49,7 +49,7 @@ func SetupTestContainer(t *testing.T) *TestContainer {
 
 	genericContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
-		Started:         true,
+		Started:          true,
 	})
 	require.NoError(t, err)
 
@@ -62,10 +62,10 @@ func SetupTestContainer(t *testing.T) *TestContainer {
 	// Get connection details using generic container methods
 	host, err := genericContainer.Host(ctx)
 	require.NoError(t, err)
-	
+
 	mappedPort, err := genericContainer.MappedPort(ctx, "389/tcp")
 	require.NoError(t, err)
-	
+
 	port := mappedPort.Port()
 	connStr := fmt.Sprintf("ldap://%s:%s", host, port)
 
@@ -99,7 +99,7 @@ func (tc *TestContainer) populateTestData(t *testing.T) {
 	// Retry connection setup with backoff
 	var conn *ldap.Conn
 	var err error
-	
+
 	for i := 0; i < 5; i++ {
 		conn, err = ldap.DialURL(tc.Config.Server)
 		if err == nil {
@@ -121,10 +121,10 @@ func (tc *TestContainer) populateTestData(t *testing.T) {
 
 	// Create test users
 	tc.createTestUsers(t, conn)
-	
+
 	// Create test groups
 	tc.createTestGroups(t, conn)
-	
+
 	// Create test computers
 	tc.createTestComputers(t, conn)
 }
@@ -132,12 +132,12 @@ func (tc *TestContainer) populateTestData(t *testing.T) {
 // createOU creates an organizational unit
 func (tc *TestContainer) createOU(t *testing.T, conn *ldap.Conn, ou, description, baseDN string) {
 	dn := fmt.Sprintf("ou=%s,%s", ou, baseDN)
-	
+
 	addReq := ldap.NewAddRequest(dn, nil)
 	addReq.Attribute("objectClass", []string{"organizationalUnit"})
 	addReq.Attribute("ou", []string{ou})
 	addReq.Attribute("description", []string{description})
-	
+
 	err := conn.Add(addReq)
 	if err != nil && !strings.Contains(err.Error(), "already exists") {
 		t.Logf("Warning: Failed to create OU %s: %v", ou, err)
@@ -156,46 +156,46 @@ func (tc *TestContainer) createTestUsers(t *testing.T, conn *ldap.Conn) {
 		description string
 	}{
 		{
-			uid:       "jdoe",
-			cn:        "John Doe",
-			sn:        "Doe",
-			givenName: "John",
-			mail:      "john.doe@example.com",
-			password:  "password123",
+			uid:         "jdoe",
+			cn:          "John Doe",
+			sn:          "Doe",
+			givenName:   "John",
+			mail:        "john.doe@example.com",
+			password:    "password123",
 			description: "Test user - John Doe",
 		},
 		{
-			uid:       "asmith",
-			cn:        "Alice Smith",
-			sn:        "Smith",
-			givenName: "Alice",
-			mail:      "alice.smith@example.com",
-			password:  "password456",
+			uid:         "asmith",
+			cn:          "Alice Smith",
+			sn:          "Smith",
+			givenName:   "Alice",
+			mail:        "alice.smith@example.com",
+			password:    "password456",
 			description: "Test user - Alice Smith",
 		},
 		{
-			uid:       "bwilson",
-			cn:        "Bob Wilson",
-			sn:        "Wilson",
-			givenName: "Bob",
-			mail:      "bob.wilson@example.com",
-			password:  "password789",
+			uid:         "bwilson",
+			cn:          "Bob Wilson",
+			sn:          "Wilson",
+			givenName:   "Bob",
+			mail:        "bob.wilson@example.com",
+			password:    "password789",
 			description: "Test user - Bob Wilson",
 		},
 		{
-			uid:       "abrown",
-			cn:        "Alice Brown",
-			sn:        "Brown",
-			givenName: "Alice",
-			mail:      "alice.brown@example.com",
-			password:  "passwordabc",
+			uid:         "abrown",
+			cn:          "Alice Brown",
+			sn:          "Brown",
+			givenName:   "Alice",
+			mail:        "alice.brown@example.com",
+			password:    "passwordabc",
 			description: "Test user - Alice Brown (disabled)",
 		},
 	}
 
 	for _, user := range users {
 		dn := fmt.Sprintf("uid=%s,%s", user.uid, tc.UsersOU)
-		
+
 		addReq := ldap.NewAddRequest(dn, nil)
 		addReq.Attribute("objectClass", []string{"inetOrgPerson", "posixAccount", "shadowAccount"})
 		addReq.Attribute("uid", []string{user.uid})
@@ -209,7 +209,7 @@ func (tc *TestContainer) createTestUsers(t *testing.T, conn *ldap.Conn) {
 		addReq.Attribute("uidNumber", []string{fmt.Sprintf("100%d", len(user.uid))})
 		addReq.Attribute("gidNumber", []string{"1000"})
 		addReq.Attribute("homeDirectory", []string{fmt.Sprintf("/home/%s", user.uid)})
-		
+
 		err := conn.Add(addReq)
 		if err != nil && !strings.Contains(err.Error(), "already exists") {
 			t.Logf("Warning: Failed to create user %s: %v", user.uid, err)
@@ -249,12 +249,12 @@ func (tc *TestContainer) createTestGroups(t *testing.T, conn *ldap.Conn) {
 
 	for _, group := range groups {
 		dn := fmt.Sprintf("cn=%s,%s", group.cn, tc.GroupsOU)
-		
+
 		addReq := ldap.NewAddRequest(dn, nil)
 		addReq.Attribute("objectClass", []string{"groupOfNames"})
 		addReq.Attribute("cn", []string{group.cn})
 		addReq.Attribute("description", []string{group.description})
-		
+
 		// Add members
 		if len(group.members) > 0 {
 			addReq.Attribute("member", group.members)
@@ -262,7 +262,7 @@ func (tc *TestContainer) createTestGroups(t *testing.T, conn *ldap.Conn) {
 			// GroupOfNames requires at least one member, use admin as placeholder
 			addReq.Attribute("member", []string{tc.AdminUser})
 		}
-		
+
 		err := conn.Add(addReq)
 		if err != nil && !strings.Contains(err.Error(), "already exists") {
 			t.Logf("Warning: Failed to create group %s: %v", group.cn, err)
@@ -288,12 +288,12 @@ func (tc *TestContainer) createTestComputers(t *testing.T, conn *ldap.Conn) {
 
 	for _, computer := range computers {
 		dn := fmt.Sprintf("cn=%s,%s", computer.cn, tc.ComputersOU)
-		
+
 		addReq := ldap.NewAddRequest(dn, nil)
 		addReq.Attribute("objectClass", []string{"device"})
 		addReq.Attribute("cn", []string{computer.cn})
 		addReq.Attribute("description", []string{computer.description})
-		
+
 		err := conn.Add(addReq)
 		if err != nil && !strings.Contains(err.Error(), "already exists") {
 			t.Logf("Warning: Failed to create computer %s: %v", computer.cn, err)
@@ -316,18 +316,18 @@ func (tc *TestContainer) GetTestData() *TestData {
 		ValidUserUID:      "jdoe",
 		ValidUserMail:     "john.doe@example.com",
 		ValidUserPassword: "password123",
-		
-		InvalidUserUID:      "nonexistent",
-		InvalidPassword:     "wrongpassword",
-		DisabledUserUID:     "abrown",
-		DisabledUserDN:      fmt.Sprintf("uid=abrown,%s", tc.UsersOU),
+
+		InvalidUserUID:       "nonexistent",
+		InvalidPassword:      "wrongpassword",
+		DisabledUserUID:      "abrown",
+		DisabledUserDN:       fmt.Sprintf("uid=abrown,%s", tc.UsersOU),
 		DisabledUserPassword: "passwordabc",
-		
-		ValidGroupDN:       fmt.Sprintf("cn=admins,%s", tc.GroupsOU),
-		ValidGroupCN:       "admins",
-		
-		ValidComputerDN:   fmt.Sprintf("cn=WORKSTATION01,%s", tc.ComputersOU),
-		ValidComputerCN:   "WORKSTATION01",
+
+		ValidGroupDN: fmt.Sprintf("cn=admins,%s", tc.GroupsOU),
+		ValidGroupCN: "admins",
+
+		ValidComputerDN: fmt.Sprintf("cn=WORKSTATION01,%s", tc.ComputersOU),
+		ValidComputerCN: "WORKSTATION01",
 	}
 }
 
@@ -338,16 +338,16 @@ type TestData struct {
 	ValidUserUID      string
 	ValidUserMail     string
 	ValidUserPassword string
-	
-	InvalidUserUID      string
-	InvalidPassword     string
-	DisabledUserUID     string
-	DisabledUserDN      string
+
+	InvalidUserUID       string
+	InvalidPassword      string
+	DisabledUserUID      string
+	DisabledUserDN       string
 	DisabledUserPassword string
-	
+
 	ValidGroupDN string
 	ValidGroupCN string
-	
+
 	ValidComputerDN string
 	ValidComputerCN string
 }

@@ -153,9 +153,9 @@ func TestSamAccountTypeStringAllCases(t *testing.T) {
 
 		for _, samType := range definedTypes {
 			result := samType.String()
-			assert.NotEqual(t, "Unknown", result, 
+			assert.NotEqual(t, "Unknown", result,
 				"Defined constant %d should not return 'Unknown'", uint32(samType))
-			assert.NotEmpty(t, result, 
+			assert.NotEmpty(t, result,
 				"Defined constant %d should not return empty string", uint32(samType))
 		}
 	})
@@ -206,7 +206,7 @@ func TestSamAccountTypeUsageScenarios(t *testing.T) {
 				stringRep := scenario.samType.String()
 				assert.NotEmpty(t, stringRep)
 				assert.NotEqual(t, "Unknown", stringRep)
-				
+
 				// Test that we can convert back and forth
 				value := uint32(scenario.samType)
 				reconstructed := SamAccountType(value)
@@ -222,11 +222,11 @@ func TestSamAccountTypeComparison(t *testing.T) {
 		// Test equality
 		assert.Equal(t, SamUserObject, SamUserObject)
 		assert.NotEqual(t, SamUserObject, SamMachineAccount)
-		
+
 		// Test with uint32 conversion
 		assert.Equal(t, uint32(SamUserObject), uint32(0x30000000))
 		assert.True(t, SamUserObject == SamAccountType(0x30000000))
-		
+
 		// Test ordering (though not typically meaningful for account types)
 		assert.True(t, SamDomainObject < SamGroupObject)
 		assert.True(t, SamGroupObject < SamUserObject)
@@ -275,20 +275,20 @@ func TestSamAccountTypeRange(t *testing.T) {
 	t.Run("value ranges for different categories", func(t *testing.T) {
 		// Domain objects: 0x0
 		assert.True(t, SamDomainObject == 0x0)
-		
+
 		// Group objects: 0x1xxxxxxx
 		assert.True(t, uint32(SamGroupObject)&0xF0000000 == 0x10000000)
 		assert.True(t, uint32(SamNonSecurityGroupObject)&0xF0000000 == 0x10000000)
-		
+
 		// Alias objects: 0x2xxxxxxx
 		assert.True(t, uint32(SamAliasObject)&0xF0000000 == 0x20000000)
 		assert.True(t, uint32(SamNonSecurityAliasObject)&0xF0000000 == 0x20000000)
-		
+
 		// User objects: 0x3xxxxxxx
 		assert.True(t, uint32(SamUserObject)&0xF0000000 == 0x30000000)
 		assert.True(t, uint32(SamMachineAccount)&0xF0000000 == 0x30000000)
 		assert.True(t, uint32(SamTrustAccount)&0xF0000000 == 0x30000000)
-		
+
 		// App groups: 0x4xxxxxxx
 		assert.True(t, uint32(SamAppBasicGroup)&0xF0000000 == 0x40000000)
 		assert.True(t, uint32(SamAppQueryGroup)&0xF0000000 == 0x40000000)
@@ -301,16 +301,16 @@ func TestSamAccountTypeDocumentation(t *testing.T) {
 		accountType := SamUserObject
 		isUser := accountType == SamUserObject
 		assert.True(t, isUser)
-		
+
 		// Example 2: Check if an account is a computer
 		computerType := SamMachineAccount
 		isComputer := computerType == SamMachineAccount
 		assert.True(t, isComputer)
-		
+
 		// Example 3: Get human-readable description
 		description := SamGroupObject.String()
 		assert.Equal(t, "Group Object", description)
-		
+
 		// Example 4: Convert from uint32 (as would come from LDAP)
 		var rawValue uint32 = 0x30000000
 		converted := SamAccountType(rawValue)
@@ -331,7 +331,7 @@ func TestSamAccountTypeInSwitch(t *testing.T) {
 
 		for _, samType := range testTypes {
 			var category string
-			
+
 			switch samType {
 			case SamUserObject:
 				category = "User"
@@ -350,7 +350,7 @@ func TestSamAccountTypeInSwitch(t *testing.T) {
 			default:
 				category = "Unknown"
 			}
-			
+
 			assert.NotEmpty(t, category)
 			t.Logf("Type %s (%d) categorized as: %s", samType.String(), uint32(samType), category)
 		}
@@ -360,7 +360,7 @@ func TestSamAccountTypeInSwitch(t *testing.T) {
 // Benchmark SamAccountType operations
 func BenchmarkSamAccountTypeString(b *testing.B) {
 	samType := SamUserObject
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = samType.String()
@@ -369,7 +369,7 @@ func BenchmarkSamAccountTypeString(b *testing.B) {
 
 func BenchmarkSamAccountTypeComparison(b *testing.B) {
 	samType := SamUserObject
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = samType == SamUserObject
@@ -378,7 +378,7 @@ func BenchmarkSamAccountTypeComparison(b *testing.B) {
 
 func BenchmarkSamAccountTypeSwitch(b *testing.B) {
 	samType := SamUserObject
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		var result string
@@ -386,7 +386,7 @@ func BenchmarkSamAccountTypeSwitch(b *testing.B) {
 		case SamUserObject:
 			result = "User"
 		case SamMachineAccount:
-			result = "Computer" 
+			result = "Computer"
 		case SamGroupObject:
 			result = "Group"
 		default:

@@ -11,10 +11,10 @@ import (
 
 func TestParseObjectEnabled(t *testing.T) {
 	tests := []struct {
-		name                string
-		userAccountControl  string
-		expectedEnabled     bool
-		expectedError       bool
+		name               string
+		userAccountControl string
+		expectedEnabled    bool
+		expectedError      bool
 	}{
 		{
 			name:               "enabled normal user account",
@@ -99,7 +99,7 @@ func TestParseObjectEnabled(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			enabled, err := parseObjectEnabled(tt.userAccountControl)
-			
+
 			if tt.expectedError {
 				assert.Error(t, err)
 			} else {
@@ -117,16 +117,16 @@ func TestParseObjectEnabledBitwise(t *testing.T) {
 			flags   []uint32
 			enabled bool
 		}{
-			{[]uint32{}, true},                                 // No flags = enabled
-			{[]uint32{0x1}, true},                             // Logon script = enabled
-			{[]uint32{0x2}, false},                            // Account disabled = disabled
-			{[]uint32{0x1, 0x2}, false},                       // Logon script + disabled = disabled
-			{[]uint32{0x200}, true},                           // Normal account = enabled
-			{[]uint32{0x200, 0x2}, false},                     // Normal account + disabled = disabled
-			{[]uint32{0x200, 0x10000}, true},                  // Normal + no pwd expiry = enabled
-			{[]uint32{0x200, 0x10000, 0x2}, false},            // Normal + no pwd expiry + disabled = disabled
-			{[]uint32{0x1000}, true},                          // Workstation trust = enabled
-			{[]uint32{0x1000, 0x2}, false},                    // Workstation trust + disabled = disabled
+			{[]uint32{}, true},                     // No flags = enabled
+			{[]uint32{0x1}, true},                  // Logon script = enabled
+			{[]uint32{0x2}, false},                 // Account disabled = disabled
+			{[]uint32{0x1, 0x2}, false},            // Logon script + disabled = disabled
+			{[]uint32{0x200}, true},                // Normal account = enabled
+			{[]uint32{0x200, 0x2}, false},          // Normal account + disabled = disabled
+			{[]uint32{0x200, 0x10000}, true},       // Normal + no pwd expiry = enabled
+			{[]uint32{0x200, 0x10000, 0x2}, false}, // Normal + no pwd expiry + disabled = disabled
+			{[]uint32{0x1000}, true},               // Workstation trust = enabled
+			{[]uint32{0x1000, 0x2}, false},         // Workstation trust + disabled = disabled
 		}
 
 		for i, tc := range testCases {
@@ -138,7 +138,7 @@ func TestParseObjectEnabledBitwise(t *testing.T) {
 
 				enabled, err := parseObjectEnabled(strconv.Itoa(int(combined)))
 				assert.NoError(t, err)
-				assert.Equal(t, tc.enabled, enabled, 
+				assert.Equal(t, tc.enabled, enabled,
 					"Combined flags 0x%X should result in enabled=%v", combined, tc.enabled)
 			})
 		}
@@ -185,7 +185,7 @@ func TestConvertAccountExpires(t *testing.T) {
 				value, err := strconv.ParseInt(result, 10, 64)
 				assert.NoError(t, err)
 				assert.Greater(t, value, int64(0))
-				
+
 				// Should represent 24 hours in 100-nanosecond intervals
 				expected := 24 * 60 * 60 * 1000 * 1000 * 10 // 24 hours in 100ns intervals
 				assert.Equal(t, int64(expected), value)
@@ -240,14 +240,14 @@ func TestConvertAccountExpiresNanosecondConversion(t *testing.T) {
 	t.Run("nanosecond to 100-nanosecond conversion", func(t *testing.T) {
 		// Test the division by 100 for nanosecond conversion
 		baseTime := accountExpiresBase
-		
+
 		// Add exactly 1 second
 		oneSecondLater := baseTime.Add(1 * time.Second)
 		result := convertAccountExpires(&oneSecondLater)
-		
+
 		value, err := strconv.ParseInt(result, 10, 64)
 		assert.NoError(t, err)
-		
+
 		// 1 second = 1,000,000,000 nanoseconds
 		// 1,000,000,000 nanoseconds / 100 = 10,000,000 intervals of 100 nanoseconds
 		assert.Equal(t, int64(10000000), value)
@@ -259,7 +259,7 @@ func TestConvertAccountExpiresEdgeCases(t *testing.T) {
 		// Test with a date far in the future
 		farFuture := time.Date(3000, 12, 31, 23, 59, 59, 0, time.UTC)
 		result := convertAccountExpires(&farFuture)
-		
+
 		// Should not error and should be a valid string representation of a large number
 		value, err := strconv.ParseInt(result, 10, 64)
 		assert.NoError(t, err)
@@ -270,7 +270,7 @@ func TestConvertAccountExpiresEdgeCases(t *testing.T) {
 		// Test with a date far in the past (before 1601)
 		farPast := time.Date(1000, 1, 1, 0, 0, 0, 0, time.UTC)
 		result := convertAccountExpires(&farPast)
-		
+
 		// Should not error and should be a valid string representation of a negative number
 		value, err := strconv.ParseInt(result, 10, 64)
 		assert.NoError(t, err)
@@ -319,7 +319,7 @@ func TestUtilsIntegrationWithUAC(t *testing.T) {
 				// Convert UAC to uint32, then to string for parseObjectEnabled
 				uacValue := tc.uac.Uint32()
 				uacString := strconv.FormatUint(uint64(uacValue), 10)
-				
+
 				enabled, err := parseObjectEnabled(uacString)
 				assert.NoError(t, err)
 				assert.Equal(t, tc.enabled, enabled)
@@ -356,7 +356,7 @@ func TestUtilsDocumentationExamples(t *testing.T) {
 // Benchmark utility functions
 func BenchmarkParseObjectEnabled(b *testing.B) {
 	testValue := "514" // Disabled normal account
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, err := parseObjectEnabled(testValue)
@@ -368,7 +368,7 @@ func BenchmarkParseObjectEnabled(b *testing.B) {
 
 func BenchmarkConvertAccountExpires(b *testing.B) {
 	expirationDate := time.Date(2025, 12, 31, 23, 59, 59, 0, time.UTC)
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = convertAccountExpires(&expirationDate)

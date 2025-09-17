@@ -72,13 +72,13 @@ func demonstrateStructuredLogging() {
 	// Group operations - will log membership changes
 	err = client.AddUserToGroupContext(ctx, user.DN(), "CN=IT Department,CN=Groups,DC=example,DC=com")
 	if err != nil {
-		slog.Error("Failed to add user to group", 
-			slog.String("user_dn", user.DN()), 
+		slog.Error("Failed to add user to group",
+			slog.String("user_dn", user.DN()),
 			slog.String("group_dn", "CN=IT Department,CN=Groups,DC=example,DC=com"),
 			slog.String("error", err.Error()))
 	} else {
-		slog.Info("User added to group successfully", 
-			slog.String("user_dn", user.DN()), 
+		slog.Info("User added to group successfully",
+			slog.String("user_dn", user.DN()),
 			slog.String("group_dn", "CN=IT Department,CN=Groups,DC=example,DC=com"))
 	}
 

@@ -24,7 +24,7 @@ var (
 type PoolConfig struct {
 	// MaxConnections is the maximum number of concurrent connections (default: 10)
 	MaxConnections int
-	// MinConnections is the minimum number of idle connections to maintain (default: 2)  
+	// MinConnections is the minimum number of idle connections to maintain (default: 2)
 	MinConnections int
 	// MaxIdleTime is the maximum time a connection can remain idle before cleanup (default: 5min)
 	MaxIdleTime time.Duration
@@ -72,39 +72,39 @@ type PoolStats struct {
 
 // pooledConnection wraps an LDAP connection with metadata for pool management
 type pooledConnection struct {
-	conn         *ldap.Conn
-	createdAt    time.Time
-	lastUsed     time.Time
-	usageCount   int64
-	isHealthy    bool
-	inUse        bool
+	conn       *ldap.Conn
+	createdAt  time.Time
+	lastUsed   time.Time
+	usageCount int64
+	isHealthy  bool
+	inUse      bool
 }
 
 // ConnectionPool manages a pool of LDAP connections with health monitoring and lifecycle management
 type ConnectionPool struct {
-	config         *PoolConfig
-	ldapConfig     Config
-	user           string
-	password       string
-	logger         *slog.Logger
-	
+	config     *PoolConfig
+	ldapConfig Config
+	user       string
+	password   string
+	logger     *slog.Logger
+
 	// Pool management
-	connections    []*pooledConnection
-	available      chan *pooledConnection
-	mu             sync.RWMutex
-	closed         bool
-	
+	connections []*pooledConnection
+	available   chan *pooledConnection
+	mu          sync.RWMutex
+	closed      bool
+
 	// Statistics (atomic counters for thread safety)
-	stats          PoolStats
-	
+	stats PoolStats
+
 	// Background tasks
 	healthCheckStop chan struct{}
 	cleanupStop     chan struct{}
 	wg              sync.WaitGroup
-	
+
 	// Connection tracking for proper cleanup
-	connMap        map[*ldap.Conn]*pooledConnection
-	connMapMu      sync.Mutex
+	connMap   map[*ldap.Conn]*pooledConnection
+	connMapMu sync.Mutex
 }
 
 // NewConnectionPool creates a new connection pool with the specified configuration
@@ -112,11 +112,11 @@ func NewConnectionPool(config *PoolConfig, ldapConfig Config, user, password str
 	if config == nil {
 		config = DefaultPoolConfig()
 	}
-	
+
 	if logger == nil {
 		logger = slog.Default()
 	}
-	
+
 	// Validate configuration
 	if config.MaxConnections <= 0 {
 		config.MaxConnections = 10
@@ -193,16 +193,16 @@ func (p *ConnectionPool) Get(ctx context.Context) (*ldap.Conn, error) {
 			atomic.AddInt32(&p.stats.ActiveConnections, 1)
 			atomic.AddInt32(&p.stats.IdleConnections, -1)
 			atomic.AddInt64(&p.stats.PoolHits, 1)
-			
+
 			// Add to connection map for tracking
 			p.connMapMu.Lock()
 			p.connMap[conn.conn] = conn
 			p.connMapMu.Unlock()
-			
+
 			p.logger.Debug("connection_retrieved_from_pool",
 				slog.Time("created_at", conn.createdAt),
 				slog.Int64("usage_count", conn.usageCount))
-			
+
 			return conn.conn, nil
 		}
 		// Connection was unhealthy, create a new one
@@ -211,11 +211,11 @@ func (p *ConnectionPool) Get(ctx context.Context) (*ldap.Conn, error) {
 		}
 		// Try to create a new connection
 		return p.createConnection(ctx)
-		
+
 	case <-timeoutCtx.Done():
 		// No available connection, try to create new one
 		return p.createConnection(ctx)
-		
+
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
@@ -242,7 +242,7 @@ func (p *ConnectionPool) Put(conn *ldap.Conn) error {
 		delete(p.connMap, conn)
 	}
 	p.connMapMu.Unlock()
-	
+
 	if !exists {
 		// Connection not from pool, close directly
 		conn.Close()
@@ -251,7 +251,7 @@ func (p *ConnectionPool) Put(conn *ldap.Conn) error {
 
 	pooledConn.inUse = false
 	pooledConn.lastUsed = time.Now()
-	
+
 	// Check if connection is still healthy before returning to pool
 	if p.isConnectionHealthy(pooledConn) {
 		select {
@@ -309,7 +309,7 @@ func (p *ConnectionPool) Close() error {
 	// Close all connections
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	
+
 	// Drain available channel
 	for {
 		select {
@@ -351,10 +351,10 @@ func (p *ConnectionPool) warmPool(ctx context.Context) error {
 			return err
 		}
 	}
-	
+
 	p.logger.Debug("pool_warmed",
 		slog.Int("connections_created", p.config.MinConnections))
-	
+
 	return nil
 }
 
@@ -364,7 +364,7 @@ func (p *ConnectionPool) createConnection(ctx context.Context) (*ldap.Conn, erro
 	p.mu.RLock()
 	currentTotal := len(p.connections)
 	p.mu.RUnlock()
-	
+
 	if currentTotal >= p.config.MaxConnections {
 		atomic.AddInt64(&p.stats.PoolMisses, 1)
 		return nil, ErrPoolExhausted
@@ -430,7 +430,7 @@ func (p *ConnectionPool) createConnection(ctx context.Context) (*ldap.Conn, erro
 	p.mu.Lock()
 	p.connections = append(p.connections, pooledConn)
 	p.mu.Unlock()
-	
+
 	// Add to connection map for tracking
 	p.connMapMu.Lock()
 	p.connMap[conn] = pooledConn
@@ -585,7 +585,7 @@ func (p *ConnectionPool) performHealthChecks() {
 	}
 
 	var unhealthyConnections []*pooledConnection
-	
+
 	// Check connections in available channel (idle connections)
 	availableCount := len(p.available)
 	for i := 0; i < availableCount; i++ {
@@ -611,7 +611,7 @@ func (p *ConnectionPool) performHealthChecks() {
 	for _, conn := range unhealthyConnections {
 		p.closeConnection(conn)
 		atomic.AddInt32(&p.stats.IdleConnections, -1)
-		
+
 		// Try to maintain minimum connections
 		if len(p.connections) < p.config.MinConnections {
 			go func() {
@@ -649,7 +649,7 @@ func (p *ConnectionPool) cleanupIdleConnections() {
 
 	var cleanedUp int
 	availableCount := len(p.available)
-	
+
 	for i := 0; i < availableCount && currentTotal > p.config.MinConnections; i++ {
 		select {
 		case conn := <-p.available:

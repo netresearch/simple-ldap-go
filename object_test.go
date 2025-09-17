@@ -25,7 +25,7 @@ func TestObject(t *testing.T) {
 
 		// Test DN method
 		assert.Equal(t, "cn=Test Object,ou=objects,dc=example,dc=com", obj.DN())
-		
+
 		// Test CN method
 		assert.Equal(t, "Test Object", obj.CN())
 	})
@@ -33,10 +33,10 @@ func TestObject(t *testing.T) {
 
 func TestObjectFromEntry(t *testing.T) {
 	tests := []struct {
-		name           string
-		entry          *ldap.Entry
-		expectedDN     string
-		expectedCN     string
+		name       string
+		entry      *ldap.Entry
+		expectedDN string
+		expectedCN string
 	}{
 		{
 			name: "standard user entry",
@@ -122,7 +122,7 @@ func TestObjectFromEntry(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			obj := objectFromEntry(tt.entry)
-			
+
 			assert.Equal(t, tt.expectedDN, obj.DN())
 			assert.Equal(t, tt.expectedCN, obj.CN())
 		})
@@ -186,7 +186,7 @@ func TestObjectInheritance(t *testing.T) {
 					Values: []string{"testgroup"},
 				},
 				{
-					Name:   "member",
+					Name: "member",
 					Values: []string{
 						"uid=user1,ou=people,dc=example,dc=com",
 						"uid=user2,ou=people,dc=example,dc=com",
@@ -301,7 +301,7 @@ func TestObjectEdgeCases(t *testing.T) {
 	t.Run("nil entry handling", func(t *testing.T) {
 		// This tests what would happen if objectFromEntry received a nil entry
 		// In practice, this shouldn't happen, but it's good to document the behavior
-		
+
 		// Note: This test is more theoretical since objectFromEntry is typically
 		// called with valid entries from LDAP search results
 		defer func() {
@@ -338,7 +338,7 @@ func TestObjectEdgeCases(t *testing.T) {
 func TestObjectIntegrationWithLDAP(t *testing.T) {
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
-	
+
 	client := tc.GetLDAPClient(t)
 	testData := tc.GetTestData()
 
@@ -353,7 +353,7 @@ func TestObjectIntegrationWithLDAP(t *testing.T) {
 		assert.NotEmpty(t, user.DN())
 		assert.NotEmpty(t, user.CN())
 		assert.Contains(t, user.DN(), testData.ValidUserUID)
-		
+
 		// DN should contain the CN value (in some form)
 		// Note: This might not always be true for all DN formats
 		if user.CN() != "" {
@@ -367,7 +367,7 @@ func TestObjectIntegrationWithLDAP(t *testing.T) {
 		// Find the same user by different methods and verify Object consistency
 		userBySAM, err1 := client.FindUserBySAMAccountName(testData.ValidUserUID)
 		userByDN, err2 := client.FindUserByDN(testData.ValidUserDN)
-		
+
 		if err1 != nil || err2 != nil {
 			t.Skipf("Cannot find test user by different methods: %v, %v", err1, err2)
 		}
@@ -384,7 +384,7 @@ func BenchmarkObjectDN(b *testing.B) {
 		dn: "uid=testuser,ou=people,dc=example,dc=com",
 		cn: "Test User",
 	}
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = obj.DN()
@@ -396,7 +396,7 @@ func BenchmarkObjectCN(b *testing.B) {
 		dn: "uid=testuser,ou=people,dc=example,dc=com",
 		cn: "Test User",
 	}
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = obj.CN()
@@ -413,7 +413,7 @@ func BenchmarkObjectFromEntry(b *testing.B) {
 			},
 		},
 	}
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = objectFromEntry(entry)

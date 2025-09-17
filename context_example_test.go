@@ -2,10 +2,10 @@ package ldap
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 	"time"
 )
-
 
 // TestContextCancellation demonstrates context cancellation functionality
 func TestContextCancellation(t *testing.T) {
@@ -21,6 +21,7 @@ func TestContextCancellation(t *testing.T) {
 		},
 		user:     "test",
 		password: "test",
+		logger:   slog.Default(),
 	}
 
 	// These operations should fail with context.Canceled error
@@ -66,6 +67,7 @@ func TestContextDeadlineExceeded(t *testing.T) {
 		},
 		user:     "test",
 		password: "test",
+		logger:   slog.Default(),
 	}
 
 	// Operations should fail with context.DeadlineExceeded error
@@ -93,7 +95,7 @@ func TestBackwardCompatibility(t *testing.T) {
 
 	// Test that methods exist by getting their function values
 	_ = client.FindUserBySAMAccountName
-	_ = client.CheckPasswordForSAMAccountName  
+	_ = client.CheckPasswordForSAMAccountName
 	_ = client.FindUsers
 	_ = client.FindGroups
 	_ = client.FindComputers

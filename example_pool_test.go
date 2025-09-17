@@ -21,8 +21,8 @@ func Example_connectionPooling() {
 		BaseDN:            "DC=example,DC=com",
 		IsActiveDirectory: true,
 		Pool: &ldap.PoolConfig{
-			MaxConnections:      20,                // Maximum concurrent connections
-			MinConnections:      5,                 // Keep 5 connections ready
+			MaxConnections:      20,               // Maximum concurrent connections
+			MinConnections:      5,                // Keep 5 connections ready
 			MaxIdleTime:         10 * time.Minute, // Close idle connections after 10min
 			HealthCheckInterval: 30 * time.Second, // Check connection health every 30s
 			ConnectionTimeout:   10 * time.Second, // Timeout for new connections
@@ -62,7 +62,7 @@ func Example_connectionPooling() {
 
 	// Output:
 	// Found 150 users
-	// Pool stats: 0 active, 5 idle, 5 total connections  
+	// Pool stats: 0 active, 5 idle, 5 total connections
 	// Pool efficiency: 1 hits, 1 misses (50.0% hit ratio)
 }
 
@@ -120,7 +120,7 @@ func Example_concurrentOperations() {
 		fmt.Printf("  Total connections created: %d\n", stats.ConnectionsCreated)
 		fmt.Printf("  Peak connections: %d\n", stats.TotalConnections)
 		fmt.Printf("  Pool hits: %d, misses: %d\n", stats.PoolHits, stats.PoolMisses)
-		
+
 		if stats.PoolHits+stats.PoolMisses > 0 {
 			hitRatio := float64(stats.PoolHits) / float64(stats.PoolHits+stats.PoolMisses) * 100
 			fmt.Printf("  Hit ratio: %.1f%%\n", hitRatio)
@@ -137,7 +137,7 @@ func Example_concurrentOperations() {
 	// Completed 200 operations in 2.5s
 	// Final pool stats:
 	//   Total connections created: 15
-	//   Peak connections: 15  
+	//   Peak connections: 15
 	//   Pool hits: 185, misses: 15
 	//   Hit ratio: 92.5%
 	//   Efficiency: 0.075 connections per operation
@@ -261,12 +261,12 @@ func Example_poolConfiguration() {
 
 	// Full pool configuration for fine-tuning
 	fullConfig := ldap.Config{
-		Server: "ldaps://ad.enterprise.com:636",
-		BaseDN: "DC=enterprise,DC=com",
+		Server:            "ldaps://ad.enterprise.com:636",
+		BaseDN:            "DC=enterprise,DC=com",
 		IsActiveDirectory: true,
 		Pool: &ldap.PoolConfig{
-			MaxConnections:      50,                // High concurrency support
-			MinConnections:      10,                // Keep 10 connections warm
+			MaxConnections:      50,               // High concurrency support
+			MinConnections:      10,               // Keep 10 connections warm
 			MaxIdleTime:         15 * time.Minute, // Allow longer idle time
 			HealthCheckInterval: 45 * time.Second, // Less frequent health checks
 			ConnectionTimeout:   20 * time.Second, // Longer connection timeout
@@ -282,8 +282,8 @@ func Example_poolConfiguration() {
 		Server: "ldap://fast-server:389",
 		BaseDN: "dc=fast,dc=org",
 		Pool: &ldap.PoolConfig{
-			MaxConnections:      100,               // Support very high concurrency
-			MinConnections:      20,                // Many warm connections
+			MaxConnections:      100,              // Support very high concurrency
+			MinConnections:      20,               // Many warm connections
 			MaxIdleTime:         30 * time.Minute, // Keep connections longer
 			HealthCheckInterval: 60 * time.Second, // Minimal health check overhead
 			ConnectionTimeout:   5 * time.Second,  // Fast connection creation
@@ -298,7 +298,7 @@ func Example_poolConfiguration() {
 		Pool: &ldap.PoolConfig{
 			MaxConnections:      3,                // Minimal resource usage
 			MinConnections:      1,                // Just one warm connection
-			MaxIdleTime:         2 * time.Minute, // Cleanup idle connections quickly
+			MaxIdleTime:         2 * time.Minute,  // Cleanup idle connections quickly
 			HealthCheckInterval: 15 * time.Second, // Frequent health monitoring
 			ConnectionTimeout:   30 * time.Second, // Allow time for slow connections
 			GetTimeout:          10 * time.Second, // Patient pool access
@@ -336,7 +336,7 @@ func Example_poolConfiguration() {
 	//   Health Check Interval: 0s
 	//   Connection Timeout: 0s
 	//   Get Timeout: 0s
-	// 
+	//
 	// Full Configuration:
 	//   Max Connections: 50
 	//   Min Connections: 10
@@ -344,7 +344,7 @@ func Example_poolConfiguration() {
 	//   Health Check Interval: 45s
 	//   Connection Timeout: 20s
 	//   Get Timeout: 8s
-	// 
+	//
 	// HighPerf Configuration:
 	//   Max Connections: 100
 	//   Min Connections: 20
@@ -352,7 +352,7 @@ func Example_poolConfiguration() {
 	//   Health Check Interval: 1m0s
 	//   Connection Timeout: 5s
 	//   Get Timeout: 2s
-	// 
+	//
 	// Conservative Configuration:
 	//   Max Connections: 3
 	//   Min Connections: 1

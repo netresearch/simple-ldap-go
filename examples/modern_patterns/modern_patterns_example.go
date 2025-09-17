@@ -97,9 +97,9 @@ func demonstrateModernClientCreation(logger *slog.Logger) error {
 		ldap.WithConnectionOptions(&ldap.ConnectionOptions{
 			ConnectionTimeout:    30 * time.Second,
 			OperationTimeout:     60 * time.Second,
-			MaxRetries:          3,
-			RetryDelay:          1 * time.Second,
-			EnableTLS:           true,
+			MaxRetries:           3,
+			RetryDelay:           1 * time.Second,
+			EnableTLS:            true,
 			ValidateCertificates: true,
 		}),
 	)
@@ -180,7 +180,7 @@ func demonstrateBuilderPatterns() error {
 	if err != nil {
 		return fmt.Errorf("failed to build group: %w", err)
 	}
-	fmt.Printf("✓ Built group: %s (%s)\n", group1.CN, *group1.SAMAccountName)
+	fmt.Printf("✓ Built group: %s (%s)\n", group1.CN, group1.SAMAccountName)
 
 	// Example 3: Create a computer with the builder pattern
 	computer1, err := ldap.NewComputerBuilder().
@@ -195,7 +195,7 @@ func demonstrateBuilderPatterns() error {
 	if err != nil {
 		return fmt.Errorf("failed to build computer: %w", err)
 	}
-	fmt.Printf("✓ Built computer: %s (%s)\n", computer1.CN, *computer1.SAMAccountName)
+	fmt.Printf("✓ Built computer: %s (%s)\n", computer1.CN, computer1.SAMAccountName)
 
 	// Example 4: Create configuration with builder pattern
 	config, err := ldap.NewConfigBuilder().
@@ -262,42 +262,42 @@ func demonstrateGenerics(logger *slog.Logger) error {
 	// Example 1: Generic search (type-safe)
 	fmt.Println("Generic search operations...")
 	/*
-	ctx := context.Background()
-	// This would work with a real connection:
-	users, err := ldap.Search[*ldap.User](ctx, client, "(objectClass=user)", "")
-	if err != nil {
-		return fmt.Errorf("user search failed: %w", err)
-	}
-	fmt.Printf("Found %d users\n", len(users))
+		ctx := context.Background()
+		// This would work with a real connection:
+		users, err := ldap.Search[*ldap.User](ctx, client, "(objectClass=user)", "")
+		if err != nil {
+			return fmt.Errorf("user search failed: %w", err)
+		}
+		fmt.Printf("Found %d users\n", len(users))
 
-	groups, err := ldap.Search[*ldap.Group](ctx, client, "(objectClass=group)", "")
-	if err != nil {
-		return fmt.Errorf("group search failed: %w", err)
-	}
-	fmt.Printf("Found %d groups\n", len(groups))
+		groups, err := ldap.Search[*ldap.Group](ctx, client, "(objectClass=group)", "")
+		if err != nil {
+			return fmt.Errorf("group search failed: %w", err)
+		}
+		fmt.Printf("Found %d groups\n", len(groups))
 	*/
 
 	// Example 2: Generic pipeline processing
 	fmt.Println("Generic pipeline processing...")
 	/*
-	pipeline := ldap.NewPipeline[string, *ldap.User](ctx, logger, 100)
-	
-	// Add parsing stage
-	pipeline.AddStage("parse", func(ctx context.Context, dn string) (*ldap.FullUser, error) {
-		// Parse DN and create user object
-		return parseUserFromDN(dn), nil
-	}, 5)
-	
-	// Add creation stage
-	pipeline.AddStage("create", func(ctx context.Context, user *ldap.FullUser) (*ldap.User, error) {
-		dn, err := client.CreateUserContext(ctx, *user, "password")
-		if err != nil {
-			return nil, err
-		}
-		return client.FindUserByDNContext(ctx, dn)
-	}, 10)
+		pipeline := ldap.NewPipeline[string, *ldap.User](ctx, logger, 100)
 
-	go pipeline.Start()
+		// Add parsing stage
+		pipeline.AddStage("parse", func(ctx context.Context, dn string) (*ldap.FullUser, error) {
+			// Parse DN and create user object
+			return parseUserFromDN(dn), nil
+		}, 5)
+
+		// Add creation stage
+		pipeline.AddStage("create", func(ctx context.Context, user *ldap.FullUser) (*ldap.User, error) {
+			dn, err := client.CreateUserContext(ctx, *user, "password")
+			if err != nil {
+				return nil, err
+			}
+			return client.FindUserByDNContext(ctx, dn)
+		}, 10)
+
+		go pipeline.Start()
 	*/
 
 	fmt.Println("✓ Generic patterns demonstrated")
@@ -325,73 +325,73 @@ func demonstrateConcurrencyPatterns(logger *slog.Logger) error {
 	// Example 1: Worker pool pattern
 	fmt.Println("Worker pool pattern...")
 	/*
-	pool := ldap.NewWorkerPool[*ldap.FullUser](client, &ldap.WorkerPoolConfig{
-		WorkerCount: 10,
-		BufferSize:  50,
-		Timeout:     2 * time.Minute,
-	})
-	defer pool.Close()
-
-	// Submit work items
-	users := []*ldap.FullUser{
-		// ... user objects
-	}
-	
-	for i, user := range users {
-		pool.Submit(ldap.WorkItem[*ldap.FullUser]{
-			ID:   fmt.Sprintf("user-%d", i),
-			Data: user,
-			Fn: func(ctx context.Context, client *ldap.LDAP, data *ldap.FullUser) error {
-				_, err := client.CreateUserContext(ctx, *data, "defaultPassword")
-				return err
-			},
+		pool := ldap.NewWorkerPool[*ldap.FullUser](client, &ldap.WorkerPoolConfig{
+			WorkerCount: 10,
+			BufferSize:  50,
+			Timeout:     2 * time.Minute,
 		})
-	}
+		defer pool.Close()
 
-	// Collect results
-	for result := range pool.Results() {
-		if result.Error != nil {
-			logger.Error("worker_pool_item_failed",
-				slog.String("id", result.ID),
-				slog.String("error", result.Error.Error()))
-		} else {
-			logger.Info("worker_pool_item_success",
-				slog.String("id", result.ID),
-				slog.Duration("duration", result.Duration))
+		// Submit work items
+		users := []*ldap.FullUser{
+			// ... user objects
 		}
-	}
 
-	stats := pool.Stats()
-	fmt.Printf("Processed: %d, Errors: %d, Avg Duration: %v\n", 
-		stats.Processed, stats.Errors, stats.AverageDuration)
+		for i, user := range users {
+			pool.Submit(ldap.WorkItem[*ldap.FullUser]{
+				ID:   fmt.Sprintf("user-%d", i),
+				Data: user,
+				Fn: func(ctx context.Context, client *ldap.LDAP, data *ldap.FullUser) error {
+					_, err := client.CreateUserContext(ctx, *data, "defaultPassword")
+					return err
+				},
+			})
+		}
+
+		// Collect results
+		for result := range pool.Results() {
+			if result.Error != nil {
+				logger.Error("worker_pool_item_failed",
+					slog.String("id", result.ID),
+					slog.String("error", result.Error.Error()))
+			} else {
+				logger.Info("worker_pool_item_success",
+					slog.String("id", result.ID),
+					slog.Duration("duration", result.Duration))
+			}
+		}
+
+		stats := pool.Stats()
+		fmt.Printf("Processed: %d, Errors: %d, Avg Duration: %v\n",
+			stats.Processed, stats.Errors, stats.AverageDuration)
 	*/
 
 	// Example 2: Batch processor
 	fmt.Println("Batch processor pattern...")
 	/*
-	processor := ldap.NewBatchProcessor(client, 10, 1*time.Second, 
-		func(ctx context.Context, client *ldap.LDAP, users []*ldap.FullUser) error {
-			logger.Info("processing_batch", slog.Int("size", len(users)))
-			for _, user := range users {
-				_, err := client.CreateUserContext(ctx, *user, "password")
-				if err != nil {
-					return err
+		processor := ldap.NewBatchProcessor(client, 10, 1*time.Second,
+			func(ctx context.Context, client *ldap.LDAP, users []*ldap.FullUser) error {
+				logger.Info("processing_batch", slog.Int("size", len(users)))
+				for _, user := range users {
+					_, err := client.CreateUserContext(ctx, *user, "password")
+					if err != nil {
+						return err
+					}
 				}
-			}
-			return nil
-		})
-	defer processor.Close()
+				return nil
+			})
+		defer processor.Close()
 
-	// Add items for processing
-	for _, user := range users {
-		processor.Add(user)
-	}
+		// Add items for processing
+		for _, user := range users {
+			processor.Add(user)
+		}
 	*/
 
 	// Example 3: Semaphore-controlled operations
 	fmt.Println("Semaphore-controlled operations...")
 	semaphore := ldap.NewSemaphore(5) // Max 5 concurrent operations
-	
+
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -410,22 +410,22 @@ func demonstrateConcurrencyPatterns(logger *slog.Logger) error {
 	// Example 4: Concurrent operations helper
 	fmt.Println("Concurrent operations helper...")
 	/*
-	concurrentOps := ldap.NewConcurrentOperations(client, 10)
-	
-	userDNs := []string{
-		"CN=User1,OU=Users,DC=example,DC=com",
-		"CN=User2,OU=Users,DC=example,DC=com",
-		"CN=User3,OU=Users,DC=example,DC=com",
-	}
+		concurrentOps := ldap.NewConcurrentOperations(client, 10)
 
-	users, errors := concurrentOps.BulkFindUsers(ctx, userDNs)
-	for i, user := range users {
-		if errors[i] != nil {
-			fmt.Printf("Error finding user %s: %v\n", userDNs[i], errors[i])
-		} else if user != nil {
-			fmt.Printf("Found user: %s\n", user.CN())
+		userDNs := []string{
+			"CN=User1,OU=Users,DC=example,DC=com",
+			"CN=User2,OU=Users,DC=example,DC=com",
+			"CN=User3,OU=Users,DC=example,DC=com",
 		}
-	}
+
+		users, errors := concurrentOps.BulkFindUsers(ctx, userDNs)
+		for i, user := range users {
+			if errors[i] != nil {
+				fmt.Printf("Error finding user %s: %v\n", userDNs[i], errors[i])
+			} else if user != nil {
+				fmt.Printf("Found user: %s\n", user.CN())
+			}
+		}
 	*/
 
 	fmt.Println("✓ Concurrency patterns demonstrated")
@@ -514,39 +514,39 @@ func demonstrateResourceManagement() error {
 	// Example 1: WithConnection pattern for resource management
 	fmt.Println("WithConnection pattern...")
 	/*
-	err = client.WithConnection(ctx, func(conn *ldap.Conn) error {
-		// Use connection for multiple operations
-		// Connection is automatically cleaned up when function returns
-		
-		searchResult, err := conn.Search(searchRequest)
-		if err != nil {
-			return err
-		}
-		
-		// Process results...
-		return nil
-	})
+		err = client.WithConnection(ctx, func(conn *ldap.Conn) error {
+			// Use connection for multiple operations
+			// Connection is automatically cleaned up when function returns
+
+			searchResult, err := conn.Search(searchRequest)
+			if err != nil {
+				return err
+			}
+
+			// Process results...
+			return nil
+		})
 	*/
 
 	// Example 2: Transaction pattern for grouped operations
 	fmt.Println("Transaction pattern...")
 	/*
-	err = client.Transaction(ctx, func(tx *ldap.Transaction) error {
-		// All operations use the same connection
-		user, err := tx.CreateUser(userData, "password")
-		if err != nil {
-			return err
-		}
-		
-		err = tx.AddUserToGroup(user.DN(), groupDN)
-		if err != nil {
-			// Attempt cleanup on error
-			tx.DeleteUser(user.DN())
-			return err
-		}
-		
-		return nil
-	})
+		err = client.Transaction(ctx, func(tx *ldap.Transaction) error {
+			// All operations use the same connection
+			user, err := tx.CreateUser(userData, "password")
+			if err != nil {
+				return err
+			}
+
+			err = tx.AddUserToGroup(user.DN(), groupDN)
+			if err != nil {
+				// Attempt cleanup on error
+				tx.DeleteUser(user.DN())
+				return err
+			}
+
+			return nil
+		})
 	*/
 
 	fmt.Println("✓ Resource management patterns demonstrated")
@@ -566,7 +566,7 @@ func demonstrateErrorHandling() {
 	_, err := ldap.NewWithOptions(config, "user", "password")
 	if err != nil {
 		fmt.Printf("✓ Enhanced error with context: %v\n", err)
-		
+
 		// Check for specific error types
 		var ldapErr *ldap.LDAPError
 		if errors.As(err, &ldapErr) {

@@ -1,6 +1,7 @@
 package ldap
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -11,7 +12,7 @@ import (
 func TestCheckPasswordForSAMAccountName(t *testing.T) {
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
-	
+
 	client := tc.GetLDAPClient(t)
 	testData := tc.GetTestData()
 
@@ -69,7 +70,7 @@ func TestCheckPasswordForSAMAccountName(t *testing.T) {
 				assert.Error(t, err)
 				assert.Nil(t, user)
 				if tt.expectedError != nil {
-					assert.Equal(t, tt.expectedError, err)
+					assert.True(t, errors.Is(err, tt.expectedError), "expected error %v, got %v", tt.expectedError, err)
 				}
 			} else {
 				assert.NoError(t, err)
@@ -83,7 +84,7 @@ func TestCheckPasswordForSAMAccountName(t *testing.T) {
 func TestCheckPasswordForDN(t *testing.T) {
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
-	
+
 	client := tc.GetLDAPClient(t)
 	testData := tc.GetTestData()
 
@@ -135,7 +136,7 @@ func TestCheckPasswordForDN(t *testing.T) {
 				assert.Error(t, err)
 				assert.Nil(t, user)
 				if tt.expectedError != nil {
-					assert.Equal(t, tt.expectedError, err)
+					assert.True(t, errors.Is(err, tt.expectedError), "expected error %v, got %v", tt.expectedError, err)
 				}
 			} else {
 				assert.NoError(t, err)
@@ -195,20 +196,20 @@ func TestEncodePassword(t *testing.T) {
 func TestChangePasswordForSAMAccountName(t *testing.T) {
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
-	
+
 	// Note: This test is designed for Active Directory functionality
 	// OpenLDAP doesn't support unicodePwd attribute, so we test validation logic only
 	config := tc.Config
 	config.IsActiveDirectory = true
 	config.Server = "ldap://localhost:389" // Non-LDAPS server
-	
+
 	// Create client with OpenLDAP config but AD flag - this tests the validation logic
 	client, err := New(config, tc.AdminUser, tc.AdminPass)
 	if err != nil {
 		t.Skip("Cannot create AD-mode client with OpenLDAP container")
 		return
 	}
-	
+
 	testData := tc.GetTestData()
 
 	t.Run("requires LDAPS for Active Directory", func(t *testing.T) {
@@ -226,7 +227,7 @@ func TestChangePasswordForSAMAccountName(t *testing.T) {
 		ldapsConfig := tc.Config
 		ldapsConfig.IsActiveDirectory = true
 		ldapsConfig.Server = "ldaps://localhost:636"
-		
+
 		// This will fail due to either certificate issues or LDAP connection issues
 		// We're primarily testing the user lookup logic here
 		_, err := New(ldapsConfig, tc.AdminUser, tc.AdminPass)
@@ -240,7 +241,7 @@ func TestChangePasswordForSAMAccountName(t *testing.T) {
 func TestAuthenticationFlow(t *testing.T) {
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
-	
+
 	client := tc.GetLDAPClient(t)
 	testData := tc.GetTestData()
 
@@ -259,7 +260,7 @@ func TestAuthenticationFlow(t *testing.T) {
 		// Step 3: Test using the authenticated user's credentials for a new client
 		userClient, err := client.WithCredentials(user.DN(), testData.ValidUserPassword)
 		require.NoError(t, err)
-		
+
 		// Step 4: Verify the user client can perform operations
 		conn, err := userClient.GetConnection()
 		require.NoError(t, err)
@@ -270,7 +271,7 @@ func TestAuthenticationFlow(t *testing.T) {
 func TestAuthErrorConditions(t *testing.T) {
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
-	
+
 	client := tc.GetLDAPClient(t)
 
 	t.Run("connection failure during auth", func(t *testing.T) {
@@ -279,7 +280,7 @@ func TestAuthErrorConditions(t *testing.T) {
 			Server: "ldap://nonexistent.server:389",
 			BaseDN: tc.BaseDN,
 		}
-		
+
 		invalidClient, err := New(invalidConfig, tc.AdminUser, tc.AdminPass)
 		assert.Error(t, err)
 		assert.Nil(t, invalidClient)
@@ -287,7 +288,7 @@ func TestAuthErrorConditions(t *testing.T) {
 
 	t.Run("bind failure after user lookup", func(t *testing.T) {
 		testData := tc.GetTestData()
-		
+
 		// This should find the user but fail to bind with wrong password
 		user, err := client.CheckPasswordForSAMAccountName(testData.ValidUserUID, "wrongpassword")
 		assert.Error(t, err)
@@ -303,9 +304,9 @@ func TestErrActiveDirectoryMustBeLDAPS(t *testing.T) {
 func TestAuthenticationIntegration(t *testing.T) {
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
-	
+
 	client := tc.GetLDAPClient(t)
-	
+
 	// Test multiple users to ensure robust authentication
 	// Use the actual users created in the test container
 	testUsers := []struct {
@@ -323,15 +324,15 @@ func TestAuthenticationIntegration(t *testing.T) {
 			authUser, err := client.CheckPasswordForSAMAccountName(user.uid, user.password)
 			require.NoError(t, err)
 			require.NotNil(t, authUser)
-			
+
 			assert.Equal(t, strings.ToLower(user.uid), strings.ToLower(authUser.SAMAccountName))
 			assert.Equal(t, user.enabled, authUser.Enabled)
-			
+
 			// Test DN-based authentication for the same user
 			authUserByDN, err := client.CheckPasswordForDN(authUser.DN(), user.password)
 			require.NoError(t, err)
 			require.NotNil(t, authUserByDN)
-			
+
 			// Results should be identical
 			assert.Equal(t, authUser.DN(), authUserByDN.DN())
 			assert.Equal(t, authUser.SAMAccountName, authUserByDN.SAMAccountName)
@@ -343,10 +344,10 @@ func TestAuthenticationIntegration(t *testing.T) {
 func BenchmarkCheckPasswordForSAMAccountName(b *testing.B) {
 	tc := SetupTestContainer(&testing.T{})
 	defer tc.Close(&testing.T{})
-	
+
 	client := tc.GetLDAPClient(&testing.T{})
 	testData := tc.GetTestData()
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, err := client.CheckPasswordForSAMAccountName(testData.ValidUserUID, testData.ValidUserPassword)
@@ -359,10 +360,10 @@ func BenchmarkCheckPasswordForSAMAccountName(b *testing.B) {
 func BenchmarkCheckPasswordForDN(b *testing.B) {
 	tc := SetupTestContainer(&testing.T{})
 	defer tc.Close(&testing.T{})
-	
+
 	client := tc.GetLDAPClient(&testing.T{})
 	testData := tc.GetTestData()
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, err := client.CheckPasswordForDN(testData.ValidUserDN, testData.ValidUserPassword)

@@ -75,13 +75,13 @@ func (b *UserBuilder) WithMail(email string) *UserBuilder {
 		b.user.Email = nil
 		return b
 	}
-	
+
 	// Validate email format
 	if _, err := mail.ParseAddress(email); err != nil {
 		b.errors = append(b.errors, fmt.Errorf("invalid email format: %w", err))
 		return b
 	}
-	
+
 	b.user.Email = &email
 	return b
 }
@@ -137,7 +137,7 @@ func (b *UserBuilder) Build() (*FullUser, error) {
 	if len(b.errors) > 0 {
 		return nil, fmt.Errorf("user builder validation failed: %v", b.errors)
 	}
-	
+
 	// Validate required fields
 	if b.user.CN == "" {
 		return nil, errors.New("CN is required")
@@ -148,12 +148,12 @@ func (b *UserBuilder) Build() (*FullUser, error) {
 	if b.user.LastName == "" {
 		return nil, errors.New("LastName is required")
 	}
-	
+
 	// Set default values
 	if b.user.SAMAccountName == nil {
 		// SAMAccountName is optional in FullUser
 	}
-	
+
 	return b.user, nil
 }
 
@@ -246,16 +246,16 @@ func (b *GroupBuilder) Build() (*FullGroup, error) {
 	if len(b.errors) > 0 {
 		return nil, fmt.Errorf("group builder validation failed: %v", b.errors)
 	}
-	
+
 	if b.group.CN == "" {
 		return nil, errors.New("CN is required")
 	}
-	
+
 	// Set default group type if not specified
 	if b.group.GroupType == 0 {
 		b.group.GroupType = 0x80000002 // Global Security Group (default)
 	}
-	
+
 	return b.group, nil
 }
 
@@ -311,13 +311,13 @@ func (b *ComputerBuilder) WithSAMAccountName(samAccountName string) *ComputerBui
 		b.errors = append(b.errors, errors.New("SAMAccountName cannot be empty"))
 		return b
 	}
-	
+
 	// Computer accounts should end with $
 	if !strings.HasSuffix(samAccountName, "$") {
 		b.errors = append(b.errors, errors.New("computer SAMAccountName should end with '$'"))
 		return b
 	}
-	
+
 	b.computer.SAMAccountName = samAccountName
 	return b
 }
@@ -362,19 +362,19 @@ func (b *ComputerBuilder) Build() (*FullComputer, error) {
 	if len(b.errors) > 0 {
 		return nil, fmt.Errorf("computer builder validation failed: %v", b.errors)
 	}
-	
+
 	if b.computer.CN == "" {
 		return nil, errors.New("CN is required")
 	}
 	if b.computer.SAMAccountName == "" {
 		return nil, errors.New("SAMAccountName is required")
 	}
-	
+
 	// Set default UserAccountControl if not set
 	if b.computer.UserAccountControl == 0 {
 		b.computer.UserAccountControl = 4096 // WORKSTATION_TRUST_ACCOUNT (enabled by default)
 	}
-	
+
 	return b.computer, nil
 }
 
@@ -467,14 +467,14 @@ func (b *ConfigBuilder) Build() (*Config, error) {
 	if len(b.errors) > 0 {
 		return nil, fmt.Errorf("config builder validation failed: %v", b.errors)
 	}
-	
+
 	if b.config.Server == "" {
 		return nil, errors.New("server URL is required")
 	}
 	if b.config.BaseDN == "" {
 		return nil, errors.New("base DN is required")
 	}
-	
+
 	return b.config, nil
 }
 
@@ -571,7 +571,7 @@ func (b *QueryBuilder) FilterByObjectClass(objectClass string) *QueryBuilder {
 		b.errors = append(b.errors, errors.New("object class cannot be empty"))
 		return b
 	}
-	
+
 	if b.filter.Len() > 0 {
 		// Wrap existing filter in AND
 		existing := b.filter.String()
@@ -582,7 +582,7 @@ func (b *QueryBuilder) FilterByObjectClass(objectClass string) *QueryBuilder {
 	} else {
 		b.filter.WriteString(fmt.Sprintf("(objectClass=%s)", objectClass))
 	}
-	
+
 	return b
 }
 
@@ -592,7 +592,7 @@ func (b *QueryBuilder) FilterByAttribute(attribute, value string) *QueryBuilder 
 		b.errors = append(b.errors, errors.New("attribute name cannot be empty"))
 		return b
 	}
-	
+
 	if b.filter.Len() > 0 {
 		// Wrap existing filter in AND
 		existing := b.filter.String()
@@ -603,7 +603,7 @@ func (b *QueryBuilder) FilterByAttribute(attribute, value string) *QueryBuilder 
 	} else {
 		b.filter.WriteString(fmt.Sprintf("(%s=%s)", attribute, value))
 	}
-	
+
 	return b
 }
 
@@ -612,11 +612,11 @@ func (b *QueryBuilder) BuildFilter() (string, error) {
 	if len(b.errors) > 0 {
 		return "", fmt.Errorf("query builder validation failed: %v", b.errors)
 	}
-	
+
 	if b.filter.Len() == 0 {
 		return "", errors.New("no filter criteria specified")
 	}
-	
+
 	return b.filter.String(), nil
 }
 
@@ -627,7 +627,7 @@ func (b *QueryBuilder) BuildFilter() (string, error) {
 // ValidateUser validates a user object created by UserBuilder.
 func ValidateUser(user *FullUser) ValidationResult {
 	var errors []string
-	
+
 	if user.CN == "" {
 		errors = append(errors, "CN is required")
 	}
@@ -642,7 +642,7 @@ func ValidateUser(user *FullUser) ValidationResult {
 			errors = append(errors, fmt.Sprintf("invalid email format: %v", err))
 		}
 	}
-	
+
 	return ValidationResult{
 		Valid:  len(errors) == 0,
 		Errors: errors,
@@ -652,11 +652,11 @@ func ValidateUser(user *FullUser) ValidationResult {
 // ValidateGroup validates a group object created by GroupBuilder.
 func ValidateGroup(group *FullGroup) ValidationResult {
 	var errors []string
-	
+
 	if group.CN == "" {
 		errors = append(errors, "CN is required")
 	}
-	
+
 	return ValidationResult{
 		Valid:  len(errors) == 0,
 		Errors: errors,
@@ -666,7 +666,7 @@ func ValidateGroup(group *FullGroup) ValidationResult {
 // ValidateComputer validates a computer object created by ComputerBuilder.
 func ValidateComputer(computer *FullComputer) ValidationResult {
 	var errors []string
-	
+
 	if computer.CN == "" {
 		errors = append(errors, "CN is required")
 	}
@@ -676,7 +676,7 @@ func ValidateComputer(computer *FullComputer) ValidationResult {
 	if !strings.HasSuffix(computer.SAMAccountName, "$") {
 		errors = append(errors, "computer SAMAccountName should end with '$'")
 	}
-	
+
 	return ValidationResult{
 		Valid:  len(errors) == 0,
 		Errors: errors,

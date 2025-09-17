@@ -48,7 +48,7 @@ func demonstrateEnhancedErrorHandling() {
 	fmt.Println("=== Example 1: Authentication Error Handling ===")
 	demonstrateAuthenticationErrors(client)
 
-	// Example 2: User Search with Enhanced Error Handling  
+	// Example 2: User Search with Enhanced Error Handling
 	fmt.Println("\n=== Example 2: User Search Error Handling ===")
 	demonstrateUserSearchErrors(client)
 
@@ -75,12 +75,12 @@ func demonstrateAuthenticationErrors(client *ldap.LDAP) {
 
 	for _, test := range testUsers {
 		fmt.Printf("\nTesting %s scenario:\n", test.scenario)
-		
+
 		user, err := client.CheckPasswordForSAMAccountName(test.username, test.password)
 		if err != nil {
 			// Demonstrate enhanced error analysis
 			demonstrateErrorAnalysis("Authentication", err)
-			
+
 			// Show how to handle different error types
 			handleAuthenticationError(test.username, err)
 		} else {
@@ -95,7 +95,7 @@ func demonstrateUserSearchErrors(client *ldap.LDAP) {
 
 	for _, username := range testUsernames {
 		fmt.Printf("\nSearching for user: %q\n", username)
-		
+
 		user, err := client.FindUserBySAMAccountName(username)
 		if err != nil {
 			demonstrateErrorAnalysis("User Search", err)
@@ -127,11 +127,11 @@ func demonstrateConnectionErrors(client *ldap.LDAP) {
 func demonstrateContextErrors(client *ldap.LDAP) {
 	// Demonstrate context timeout handling
 	fmt.Println("\nTesting context timeout:")
-	
+
 	// Create a very short timeout context
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
 	defer cancel()
-	
+
 	// This will likely timeout due to the very short duration
 	user, err := client.FindUserBySAMAccountNameContext(ctx, "someuser")
 	if err != nil {
@@ -144,10 +144,10 @@ func demonstrateContextErrors(client *ldap.LDAP) {
 
 func demonstrateErrorAnalysis(operation string, err error) {
 	fmt.Printf("📊 Error Analysis for %s:\n", operation)
-	
+
 	// Basic error information
 	fmt.Printf("   Error: %s\n", err.Error())
-	
+
 	// Extract enhanced error information
 	if ldapErr := extractLDAPError(err); ldapErr != nil {
 		fmt.Printf("   Operation: %s\n", ldapErr.Op)
@@ -163,7 +163,7 @@ func demonstrateErrorAnalysis(operation string, err error) {
 		}
 		fmt.Printf("   Timestamp: %s\n", ldapErr.Timestamp.Format(time.RFC3339))
 	}
-	
+
 	// Error classification
 	fmt.Printf("   Classifications:\n")
 	fmt.Printf("     • Authentication Error: %v\n", ldap.IsAuthenticationError(err))
@@ -171,13 +171,13 @@ func demonstrateErrorAnalysis(operation string, err error) {
 	fmt.Printf("     • Not Found Error: %v\n", ldap.IsNotFoundError(err))
 	fmt.Printf("     • Validation Error: %v\n", ldap.IsValidationError(err))
 	fmt.Printf("     • Context Error: %v\n", ldap.IsContextError(err))
-	
+
 	// Error severity and retry information
 	severity := ldap.GetErrorSeverity(err)
 	retryable := ldap.IsRetryable(err)
 	fmt.Printf("   Severity: %s\n", severity)
 	fmt.Printf("   Retryable: %v\n", retryable)
-	
+
 	// Detailed error with full context
 	detailed := ldap.FormatErrorWithContext(err)
 	fmt.Printf("   Detailed: %s\n", detailed)
@@ -191,7 +191,7 @@ func handleAuthenticationError(username string, err error) {
 		} else {
 			fmt.Printf("🔐 Authentication failed for user '%s'\n", username)
 			// Could increment failed login counter, log security event
-			
+
 			// Check specific authentication error types
 			if errors.Is(err, ldap.ErrInvalidCredentials) {
 				fmt.Printf("   → Invalid username or password\n")
@@ -237,7 +237,7 @@ func handleConnectionError(err error) {
 			fmt.Printf("❌ Connection error - log and monitor\n")
 			// Log error, increment metrics
 		}
-		
+
 		if ldap.IsRetryable(err) {
 			fmt.Printf("   → Implement exponential backoff retry\n")
 		} else {
@@ -269,33 +269,33 @@ func extractLDAPError(err error) *ldap.LDAPError {
 // Example of how to integrate with structured logging
 func logErrorWithContext(logger *slog.Logger, operation string, err error) {
 	severity := ldap.GetErrorSeverity(err)
-	
+
 	attrs := []slog.Attr{
 		slog.String("operation", operation),
 		slog.String("error", err.Error()),
 		slog.String("severity", severity.String()),
 	}
-	
+
 	// Add LDAP-specific context if available
 	if ldapErr := extractLDAPError(err); ldapErr != nil {
 		attrs = append(attrs,
 			slog.String("ldap_server", ldapErr.Server),
 			slog.String("ldap_operation", ldapErr.Op))
-		
+
 		if ldapErr.DN != "" {
 			attrs = append(attrs, slog.String("ldap_dn", ldapErr.DN))
 		}
-		
+
 		if ldapErr.Code != 0 {
 			attrs = append(attrs, slog.Int("ldap_code", ldapErr.Code))
 		}
-		
+
 		// Add context information
 		for key, value := range ldapErr.Context {
 			attrs = append(attrs, slog.Any(fmt.Sprintf("context_%s", key), value))
 		}
 	}
-	
+
 	// Log with appropriate level based on severity
 	level := slog.LevelError
 	switch severity {
@@ -308,6 +308,6 @@ func logErrorWithContext(logger *slog.Logger, operation string, err error) {
 	case ldap.SeverityInfo:
 		level = slog.LevelInfo
 	}
-	
+
 	logger.LogAttrs(context.Background(), level, "ldap_operation_failed", attrs...)
 }

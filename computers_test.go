@@ -12,7 +12,7 @@ import (
 func TestFindComputerByDN(t *testing.T) {
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
-	
+
 	client := tc.GetLDAPClient(t)
 	testData := tc.GetTestData()
 
@@ -71,7 +71,7 @@ func TestFindComputerByDN(t *testing.T) {
 				} else {
 					assert.NotNil(t, computer)
 					assert.Equal(t, strings.ToLower(tt.dn), strings.ToLower(computer.DN()))
-					
+
 					if tt.validateComputer != nil {
 						tt.validateComputer(t, computer)
 					}
@@ -84,7 +84,7 @@ func TestFindComputerByDN(t *testing.T) {
 func TestFindComputerBySAMAccountName(t *testing.T) {
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
-	
+
 	client := tc.GetLDAPClient(t)
 
 	tests := []struct {
@@ -134,7 +134,7 @@ func TestFindComputerBySAMAccountName(t *testing.T) {
 				assert.NoError(t, err)
 				assert.NotNil(t, computer)
 				assert.Equal(t, strings.ToLower(tt.sAMAccountName), strings.ToLower(computer.SAMAccountName))
-				
+
 				if tt.validateComputer != nil {
 					tt.validateComputer(t, computer)
 				}
@@ -146,18 +146,18 @@ func TestFindComputerBySAMAccountName(t *testing.T) {
 func TestFindComputers(t *testing.T) {
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
-	
+
 	client := tc.GetLDAPClient(t)
 
 	computers, err := client.FindComputers()
-	
+
 	// This will likely return no computers because our test setup creates "device" objects
 	// rather than "computer" objects with the proper objectClass
 	if err != nil {
 		t.Logf("Find computers failed (expected due to test schema): %v", err)
 	} else {
 		assert.NotNil(t, computers)
-		
+
 		// If we found computers, validate their structure
 		for _, computer := range computers {
 			assert.NotEmpty(t, computer.CN())
@@ -198,14 +198,14 @@ func TestComputerStructValidation(t *testing.T) {
 func TestComputerSearchFilters(t *testing.T) {
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
-	
+
 	client := tc.GetLDAPClient(t)
 
 	t.Run("computer object class filter", func(t *testing.T) {
 		// The FindComputers method uses "(objectClass=computer)" filter
 		// Our test environment creates "device" objects, so this should return empty
 		computers, err := client.FindComputers()
-		
+
 		if err != nil {
 			t.Logf("Computer search failed (expected): %v", err)
 		} else {
@@ -229,7 +229,7 @@ func TestComputerAttributes(t *testing.T) {
 		// This tests the expected attributes without requiring actual computer objects
 		expectedAttributes := []string{
 			"memberOf",
-			"cn", 
+			"cn",
 			"sAMAccountName",
 			"userAccountControl",
 			"operatingSystem",
@@ -247,7 +247,7 @@ func TestComputerAttributes(t *testing.T) {
 func TestComputerErrorConditions(t *testing.T) {
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
-	
+
 	client := tc.GetLDAPClient(t)
 
 	t.Run("malformed sAMAccountName", func(t *testing.T) {
@@ -255,8 +255,8 @@ func TestComputerErrorConditions(t *testing.T) {
 		malformedNames := []string{
 			"",                    // Empty name
 			"name without dollar", // No dollar sign
-			"name$extra",         // Extra characters after dollar
-			"name$$",             // Multiple dollar signs
+			"name$extra",          // Extra characters after dollar
+			"name$$",              // Multiple dollar signs
 		}
 
 		for _, name := range malformedNames {
@@ -275,7 +275,7 @@ func TestComputerErrorConditions(t *testing.T) {
 		// Try to find a user DN as if it's a computer
 		tc := SetupTestContainer(t)
 		defer tc.Close(t)
-		
+
 		testData := tc.GetTestData()
 		_, err := client.FindComputerByDN(testData.ValidUserDN)
 		assert.Error(t, err)
@@ -292,17 +292,17 @@ func TestComputerAccountControlParsing(t *testing.T) {
 			enabled  bool
 			hasError bool
 		}{
-			{uacValue: "512", enabled: true, hasError: false},   // Normal computer account, enabled
-			{uacValue: "514", enabled: false, hasError: false},  // Normal computer account, disabled
-			{uacValue: "4096", enabled: true, hasError: false},  // Workstation trust account, enabled
-			{uacValue: "4098", enabled: false, hasError: false}, // Workstation trust account, disabled
+			{uacValue: "512", enabled: true, hasError: false},     // Normal computer account, enabled
+			{uacValue: "514", enabled: false, hasError: false},    // Normal computer account, disabled
+			{uacValue: "4096", enabled: true, hasError: false},    // Workstation trust account, enabled
+			{uacValue: "4098", enabled: false, hasError: false},   // Workstation trust account, disabled
 			{uacValue: "invalid", enabled: false, hasError: true}, // Invalid value should error
 		}
 
 		for _, tc := range testCases {
 			t.Run(fmt.Sprintf("uac_%s", tc.uacValue), func(t *testing.T) {
 				enabled, err := parseObjectEnabled(tc.uacValue)
-				
+
 				if tc.hasError {
 					assert.Error(t, err)
 				} else {
@@ -333,15 +333,15 @@ func TestComputerSAMAccountNameFormat(t *testing.T) {
 	t.Run("sAMAccountName format validation", func(t *testing.T) {
 		validNames := []string{
 			"COMPUTER01$",
-			"SERVER-01$", 
+			"SERVER-01$",
 			"LAPTOP123$",
 		}
 
 		invalidNames := []string{
-			"COMPUTER01",    // No dollar sign
-			"computer01$",   // Lowercase (might be valid depending on server)
-			"COMPUTER01$$",  // Multiple dollar signs
-			"",              // Empty
+			"COMPUTER01",   // No dollar sign
+			"computer01$",  // Lowercase (might be valid depending on server)
+			"COMPUTER01$$", // Multiple dollar signs
+			"",             // Empty
 		}
 
 		for _, name := range validNames {
@@ -350,7 +350,7 @@ func TestComputerSAMAccountNameFormat(t *testing.T) {
 
 		for _, name := range invalidNames {
 			if name != "" {
-				assert.False(t, strings.HasSuffix(name, "$") && !strings.HasSuffix(name, "$$"), 
+				assert.False(t, strings.HasSuffix(name, "$") && !strings.HasSuffix(name, "$$"),
 					"Invalid computer name: %s", name)
 			}
 		}
@@ -364,14 +364,14 @@ func TestErrComputerNotFound(t *testing.T) {
 func TestComputerIntegration(t *testing.T) {
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
-	
+
 	client := tc.GetLDAPClient(t)
 
 	// Integration test that would work with proper Active Directory computer objects
 	t.Run("computer search integration", func(t *testing.T) {
 		// Step 1: Try to list all computers
 		computers, err := client.FindComputers()
-		
+
 		if err != nil {
 			t.Logf("Computer search failed (expected due to test schema): %v", err)
 			return
@@ -382,7 +382,7 @@ func TestComputerIntegration(t *testing.T) {
 			firstComputer := computers[0]
 			foundComputer, err := client.FindComputerByDN(firstComputer.DN())
 			require.NoError(t, err)
-			
+
 			// Step 3: Verify they match
 			assert.Equal(t, firstComputer.DN(), foundComputer.DN())
 			assert.Equal(t, firstComputer.CN(), foundComputer.CN())
@@ -396,9 +396,9 @@ func TestComputerIntegration(t *testing.T) {
 func BenchmarkFindComputerBySAMAccountName(b *testing.B) {
 	tc := SetupTestContainer(&testing.T{})
 	defer tc.Close(&testing.T{})
-	
+
 	client := tc.GetLDAPClient(&testing.T{})
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, err := client.FindComputerBySAMAccountName("WORKSTATION01$")
@@ -412,9 +412,9 @@ func BenchmarkFindComputerBySAMAccountName(b *testing.B) {
 func BenchmarkFindComputers(b *testing.B) {
 	tc := SetupTestContainer(&testing.T{})
 	defer tc.Close(&testing.T{})
-	
+
 	client := tc.GetLDAPClient(&testing.T{})
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		computers, err := client.FindComputers()

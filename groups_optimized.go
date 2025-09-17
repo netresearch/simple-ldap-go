@@ -24,7 +24,7 @@ func (l *LDAP) FindGroupByDNOptimized(ctx context.Context, dn string, options *S
 	if options == nil {
 		options = DefaultSearchOptions()
 	}
-	
+
 	// Start performance monitoring
 	var recordFunc func(bool, error, int)
 	if l.perfMonitor != nil {
@@ -32,16 +32,24 @@ func (l *LDAP) FindGroupByDNOptimized(ctx context.Context, dn string, options *S
 	} else {
 		recordFunc = func(bool, error, int) {} // No-op
 	}
-	
+
 	cacheHit := false
-	defer func() { recordFunc(cacheHit, err, func() int { if group != nil { return 1 } else { return 0 } }()) }()
-	
+	defer func() {
+		recordFunc(cacheHit, err, func() int {
+			if group != nil {
+				return 1
+			} else {
+				return 0
+			}
+		}())
+	}()
+
 	// Generate cache key
 	cacheKey := options.CacheKey
 	if cacheKey == "" {
 		cacheKey = GenerateCacheKey("group:dn", dn)
 	}
-	
+
 	// Try cache first if enabled
 	if l.cache != nil {
 		if cached, found := l.cache.GetContext(ctx, cacheKey); found {
@@ -62,23 +70,23 @@ func (l *LDAP) FindGroupByDNOptimized(ctx context.Context, dn string, options *S
 			}
 		}
 	}
-	
+
 	// Cache miss - fetch from LDAP
 	l.logger.Debug("group_cache_miss_fetching",
 		slog.String("operation", "FindGroupByDN"),
 		slog.String("dn", dn))
-	
+
 	start := time.Now()
 	group, err = l.findGroupByDNDirect(ctx, dn, options)
 	duration := time.Since(start)
-	
+
 	// Cache the result
 	if l.cache != nil && err == nil && group != nil {
 		cacheTTL := options.TTL
 		if cacheTTL == 0 {
 			cacheTTL = l.config.Cache.TTL
 		}
-		
+
 		if cacheErr := l.cache.SetContext(ctx, cacheKey, group, cacheTTL); cacheErr != nil {
 			l.logger.Debug("group_cache_set_failed",
 				slog.String("error", cacheErr.Error()),
@@ -90,10 +98,10 @@ func (l *LDAP) FindGroupByDNOptimized(ctx context.Context, dn string, options *S
 				slog.String("cache_key", cacheKey),
 				slog.Duration("ttl", cacheTTL))
 		}
-		
+
 		// Cache group membership information for faster user group lookups
 		go l.cacheGroupMembers(group, cacheTTL)
-		
+
 	} else if l.cache != nil && err == ErrGroupNotFound && options.UseNegativeCache {
 		// Cache negative result
 		negativeTTL := l.config.Cache.NegativeCacheTTL
@@ -105,14 +113,14 @@ func (l *LDAP) FindGroupByDNOptimized(ctx context.Context, dn string, options *S
 				slog.Duration("ttl", negativeTTL))
 		}
 	}
-	
+
 	l.logger.Debug("group_search_by_dn_completed",
 		slog.String("operation", "FindGroupByDN"),
 		slog.String("dn", dn),
 		slog.Duration("duration", duration),
 		slog.Bool("cache_hit", cacheHit),
 		slog.Bool("found", group != nil))
-	
+
 	return group, err
 }
 
@@ -130,7 +138,7 @@ func (l *LDAP) FindGroupsOptimized(ctx context.Context, options *SearchOptions) 
 	if options == nil {
 		options = DefaultSearchOptions()
 	}
-	
+
 	// Start performance monitoring
 	var recordFunc func(bool, error, int)
 	if l.perfMonitor != nil {
@@ -138,16 +146,16 @@ func (l *LDAP) FindGroupsOptimized(ctx context.Context, options *SearchOptions) 
 	} else {
 		recordFunc = func(bool, error, int) {} // No-op
 	}
-	
+
 	cacheHit := false
 	defer func() { recordFunc(cacheHit, err, len(groups)) }()
-	
+
 	// Generate cache key for all groups list
 	cacheKey := options.CacheKey
 	if cacheKey == "" {
 		cacheKey = GenerateCacheKey("groups:all", l.config.BaseDN)
 	}
-	
+
 	// Try cache first if enabled
 	if l.cache != nil {
 		if cached, found := l.cache.GetContext(ctx, cacheKey); found {
@@ -160,35 +168,35 @@ func (l *LDAP) FindGroupsOptimized(ctx context.Context, options *SearchOptions) 
 			}
 		}
 	}
-	
+
 	// Cache miss - fetch from LDAP
 	start := time.Now()
 	groups, err = l.findGroupsDirect(ctx, options)
 	duration := time.Since(start)
-	
+
 	// Cache the result
 	if l.cache != nil && err == nil && len(groups) > 0 {
 		cacheTTL := options.TTL
 		if cacheTTL == 0 {
 			cacheTTL = l.config.Cache.TTL
 		}
-		
+
 		// Cache the full groups list
 		if cacheErr := l.cache.SetContext(ctx, cacheKey, groups, cacheTTL); cacheErr != nil {
 			l.logger.Debug("groups_cache_set_failed",
 				slog.String("error", cacheErr.Error()))
 		}
-		
+
 		// Also cache individual groups for faster lookups
 		go l.cacheIndividualGroups(groups, cacheTTL)
 	}
-	
+
 	l.logger.Debug("groups_search_completed",
 		slog.String("operation", "FindGroups"),
 		slog.Int("group_count", len(groups)),
 		slog.Duration("duration", duration),
 		slog.Bool("cache_hit", cacheHit))
-	
+
 	return groups, err
 }
 
@@ -207,7 +215,7 @@ func (l *LDAP) GetUserGroupsOptimized(ctx context.Context, userDN string, option
 	if options == nil {
 		options = DefaultSearchOptions()
 	}
-	
+
 	// Start performance monitoring
 	var recordFunc func(bool, error, int)
 	if l.perfMonitor != nil {
@@ -215,16 +223,16 @@ func (l *LDAP) GetUserGroupsOptimized(ctx context.Context, userDN string, option
 	} else {
 		recordFunc = func(bool, error, int) {} // No-op
 	}
-	
+
 	cacheHit := false
 	defer func() { recordFunc(cacheHit, err, len(groups)) }()
-	
+
 	// Generate cache key for user's groups
 	cacheKey := options.CacheKey
 	if cacheKey == "" {
 		cacheKey = GenerateCacheKey("user:groups", userDN)
 	}
-	
+
 	// Try cache first if enabled
 	if l.cache != nil {
 		if cached, found := l.cache.GetContext(ctx, cacheKey); found {
@@ -238,19 +246,19 @@ func (l *LDAP) GetUserGroupsOptimized(ctx context.Context, userDN string, option
 			}
 		}
 	}
-	
+
 	// Cache miss - fetch from LDAP
 	start := time.Now()
 	groups, err = l.getUserGroupsDirect(ctx, userDN, options)
 	duration := time.Since(start)
-	
+
 	// Cache the result
 	if l.cache != nil && err == nil {
 		cacheTTL := options.TTL
 		if cacheTTL == 0 {
 			cacheTTL = l.config.Cache.TTL
 		}
-		
+
 		if cacheErr := l.cache.SetContext(ctx, cacheKey, groups, cacheTTL); cacheErr == nil {
 			l.logger.Debug("user_groups_cached",
 				slog.String("operation", "GetUserGroups"),
@@ -259,14 +267,14 @@ func (l *LDAP) GetUserGroupsOptimized(ctx context.Context, userDN string, option
 				slog.Duration("ttl", cacheTTL))
 		}
 	}
-	
+
 	l.logger.Debug("user_groups_search_completed",
 		slog.String("operation", "GetUserGroups"),
 		slog.String("user_dn", userDN),
 		slog.Int("group_count", len(groups)),
 		slog.Duration("duration", duration),
 		slog.Bool("cache_hit", cacheHit))
-	
+
 	return groups, err
 }
 
@@ -285,7 +293,7 @@ func (l *LDAP) GetGroupMembersOptimized(ctx context.Context, groupDN string, opt
 	if options == nil {
 		options = DefaultSearchOptions()
 	}
-	
+
 	// Start performance monitoring
 	var recordFunc func(bool, error, int)
 	if l.perfMonitor != nil {
@@ -293,16 +301,16 @@ func (l *LDAP) GetGroupMembersOptimized(ctx context.Context, groupDN string, opt
 	} else {
 		recordFunc = func(bool, error, int) {} // No-op
 	}
-	
+
 	cacheHit := false
 	defer func() { recordFunc(cacheHit, err, len(members)) }()
-	
+
 	// Generate cache key for group members
 	cacheKey := options.CacheKey
 	if cacheKey == "" {
 		cacheKey = GenerateCacheKey("group:members", groupDN)
 	}
-	
+
 	// Try cache first if enabled
 	if l.cache != nil {
 		if cached, found := l.cache.GetContext(ctx, cacheKey); found {
@@ -316,19 +324,19 @@ func (l *LDAP) GetGroupMembersOptimized(ctx context.Context, groupDN string, opt
 			}
 		}
 	}
-	
+
 	// Cache miss - fetch from LDAP
 	start := time.Now()
 	members, err = l.getGroupMembersDirect(ctx, groupDN, options)
 	duration := time.Since(start)
-	
+
 	// Cache the result
 	if l.cache != nil && err == nil {
 		cacheTTL := options.TTL
 		if cacheTTL == 0 {
 			cacheTTL = l.config.Cache.TTL
 		}
-		
+
 		if cacheErr := l.cache.SetContext(ctx, cacheKey, members, cacheTTL); cacheErr == nil {
 			l.logger.Debug("group_members_cached",
 				slog.String("operation", "GetGroupMembers"),
@@ -336,18 +344,18 @@ func (l *LDAP) GetGroupMembersOptimized(ctx context.Context, groupDN string, opt
 				slog.Int("member_count", len(members)),
 				slog.Duration("ttl", cacheTTL))
 		}
-		
+
 		// Also cache individual members
 		go l.cacheIndividualUsers(members, cacheTTL)
 	}
-	
+
 	l.logger.Debug("group_members_search_completed",
 		slog.String("operation", "GetGroupMembers"),
 		slog.String("group_dn", groupDN),
 		slog.Int("member_count", len(members)),
 		slog.Duration("duration", duration),
 		slog.Bool("cache_hit", cacheHit))
-	
+
 	return members, err
 }
 
@@ -368,21 +376,21 @@ func (l *LDAP) AddUserToGroupOptimized(ctx context.Context, userDN, groupDN stri
 	} else {
 		recordFunc = func(bool, error, int) {} // No-op
 	}
-	
+
 	defer func() { recordFunc(false, nil, 1) }() // Write operations don't use cache
-	
+
 	start := time.Now()
 	l.logger.Info("user_group_add_started",
 		slog.String("operation", "AddUserToGroup"),
 		slog.String("user_dn", userDN),
 		slog.String("group_dn", groupDN))
-	
+
 	c, err := l.GetConnectionContext(ctx)
 	if err != nil {
 		return err
 	}
 	defer c.Close()
-	
+
 	// Check for context cancellation before modify operation
 	select {
 	case <-ctx.Done():
@@ -393,10 +401,10 @@ func (l *LDAP) AddUserToGroupOptimized(ctx context.Context, userDN, groupDN stri
 		return ctx.Err()
 	default:
 	}
-	
+
 	req := ldap.NewModifyRequest(groupDN, nil)
 	req.Add("member", []string{userDN})
-	
+
 	err = c.Modify(req)
 	if err != nil {
 		l.logger.Error("user_group_add_failed",
@@ -407,18 +415,18 @@ func (l *LDAP) AddUserToGroupOptimized(ctx context.Context, userDN, groupDN stri
 			slog.Duration("duration", time.Since(start)))
 		return err
 	}
-	
+
 	// Invalidate relevant cache entries
 	if l.cache != nil {
 		l.invalidateGroupCache(userDN, groupDN)
 	}
-	
+
 	l.logger.Info("user_group_add_successful",
 		slog.String("operation", "AddUserToGroup"),
 		slog.String("user_dn", userDN),
 		slog.String("group_dn", groupDN),
 		slog.Duration("duration", time.Since(start)))
-	
+
 	return nil
 }
 
@@ -439,21 +447,21 @@ func (l *LDAP) RemoveUserFromGroupOptimized(ctx context.Context, userDN, groupDN
 	} else {
 		recordFunc = func(bool, error, int) {} // No-op
 	}
-	
+
 	defer func() { recordFunc(false, nil, 1) }() // Write operations don't use cache
-	
+
 	start := time.Now()
 	l.logger.Info("user_group_remove_started",
 		slog.String("operation", "RemoveUserFromGroup"),
 		slog.String("user_dn", userDN),
 		slog.String("group_dn", groupDN))
-	
+
 	c, err := l.GetConnectionContext(ctx)
 	if err != nil {
 		return err
 	}
 	defer c.Close()
-	
+
 	// Check for context cancellation before modify operation
 	select {
 	case <-ctx.Done():
@@ -464,10 +472,10 @@ func (l *LDAP) RemoveUserFromGroupOptimized(ctx context.Context, userDN, groupDN
 		return ctx.Err()
 	default:
 	}
-	
+
 	req := ldap.NewModifyRequest(groupDN, nil)
 	req.Delete("member", []string{userDN})
-	
+
 	err = c.Modify(req)
 	if err != nil {
 		l.logger.Error("user_group_remove_failed",
@@ -478,18 +486,18 @@ func (l *LDAP) RemoveUserFromGroupOptimized(ctx context.Context, userDN, groupDN
 			slog.Duration("duration", time.Since(start)))
 		return err
 	}
-	
+
 	// Invalidate relevant cache entries
 	if l.cache != nil {
 		l.invalidateGroupCache(userDN, groupDN)
 	}
-	
+
 	l.logger.Info("user_group_remove_successful",
 		slog.String("operation", "RemoveUserFromGroup"),
 		slog.String("user_dn", userDN),
 		slog.String("group_dn", groupDN),
 		slog.Duration("duration", time.Since(start)))
-	
+
 	return nil
 }
 
@@ -502,7 +510,7 @@ func (l *LDAP) findGroupByDNDirect(ctx context.Context, dn string, options *Sear
 		return nil, fmt.Errorf("failed to get connection for group DN search: %w", err)
 	}
 	defer c.Close()
-	
+
 	// Apply timeout if specified in options
 	searchCtx := ctx
 	if options.Timeout > 0 {
@@ -510,21 +518,21 @@ func (l *LDAP) findGroupByDNDirect(ctx context.Context, dn string, options *Sear
 		searchCtx, cancel = context.WithTimeout(ctx, options.Timeout)
 		defer cancel()
 	}
-	
+
 	// Check for context cancellation before search
 	select {
 	case <-searchCtx.Done():
 		return nil, fmt.Errorf("group search cancelled for DN %s: %w", dn, WrapLDAPError("FindGroupByDN", l.config.Server, searchCtx.Err()))
 	default:
 	}
-	
+
 	attributes := []string{"cn", "member"}
 	if options.AttributeFilter != nil {
 		attributes = options.AttributeFilter
 	}
-	
+
 	filter := "(|(objectClass=group)(objectClass=groupOfNames))"
-	
+
 	r, err := c.Search(&ldap.SearchRequest{
 		BaseDN:       dn,
 		Scope:        ldap.ScopeBaseObject,
@@ -538,20 +546,20 @@ func (l *LDAP) findGroupByDNDirect(ctx context.Context, dn string, options *Sear
 		}
 		return nil, fmt.Errorf("group search failed for DN %s: %w", dn, WrapLDAPError("FindGroupByDN", l.config.Server, err))
 	}
-	
+
 	if len(r.Entries) == 0 {
 		return nil, ErrGroupNotFound
 	}
-	
+
 	if len(r.Entries) > 1 {
 		return nil, ErrDNDuplicated
 	}
-	
+
 	group := &Group{
 		Object:  objectFromEntry(r.Entries[0]),
 		Members: r.Entries[0].GetAttributeValues("member"),
 	}
-	
+
 	return group, nil
 }
 
@@ -562,7 +570,7 @@ func (l *LDAP) findGroupsDirect(ctx context.Context, options *SearchOptions) ([]
 		return nil, err
 	}
 	defer c.Close()
-	
+
 	// Apply timeout if specified in options
 	searchCtx := ctx
 	if options.Timeout > 0 {
@@ -570,21 +578,21 @@ func (l *LDAP) findGroupsDirect(ctx context.Context, options *SearchOptions) ([]
 		searchCtx, cancel = context.WithTimeout(ctx, options.Timeout)
 		defer cancel()
 	}
-	
+
 	// Check for context cancellation before search
 	select {
 	case <-searchCtx.Done():
 		return nil, searchCtx.Err()
 	default:
 	}
-	
+
 	attributes := []string{"cn", "member"}
 	if options.AttributeFilter != nil {
 		attributes = options.AttributeFilter
 	}
-	
+
 	filter := "(|(objectClass=group)(objectClass=groupOfNames))"
-	
+
 	r, err := c.Search(&ldap.SearchRequest{
 		BaseDN:       l.config.BaseDN,
 		Scope:        ldap.ScopeWholeSubtree,
@@ -596,7 +604,7 @@ func (l *LDAP) findGroupsDirect(ctx context.Context, options *SearchOptions) ([]
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var groups []Group
 	for _, entry := range r.Entries {
 		// Check for context cancellation during processing
@@ -605,16 +613,16 @@ func (l *LDAP) findGroupsDirect(ctx context.Context, options *SearchOptions) ([]
 			return nil, searchCtx.Err()
 		default:
 		}
-		
+
 		members := entry.GetAttributeValues("member")
 		group := Group{
 			Object:  objectFromEntry(entry),
 			Members: members,
 		}
-		
+
 		groups = append(groups, group)
 	}
-	
+
 	return groups, nil
 }
 
@@ -625,7 +633,7 @@ func (l *LDAP) getUserGroupsDirect(ctx context.Context, userDN string, options *
 		return nil, err
 	}
 	defer c.Close()
-	
+
 	// Apply timeout if specified in options
 	searchCtx := ctx
 	if options.Timeout > 0 {
@@ -633,21 +641,21 @@ func (l *LDAP) getUserGroupsDirect(ctx context.Context, userDN string, options *
 		searchCtx, cancel = context.WithTimeout(ctx, options.Timeout)
 		defer cancel()
 	}
-	
+
 	select {
 	case <-searchCtx.Done():
 		return nil, searchCtx.Err()
 	default:
 	}
-	
+
 	attributes := []string{"cn", "member"}
 	if options.AttributeFilter != nil {
 		attributes = options.AttributeFilter
 	}
-	
+
 	// Search for groups that have this user as a member
 	filter := fmt.Sprintf("(&(|(objectClass=group)(objectClass=groupOfNames))(member=%s))", ldap.EscapeFilter(userDN))
-	
+
 	r, err := c.Search(&ldap.SearchRequest{
 		BaseDN:       l.config.BaseDN,
 		Scope:        ldap.ScopeWholeSubtree,
@@ -659,7 +667,7 @@ func (l *LDAP) getUserGroupsDirect(ctx context.Context, userDN string, options *
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var groups []Group
 	for _, entry := range r.Entries {
 		select {
@@ -667,15 +675,15 @@ func (l *LDAP) getUserGroupsDirect(ctx context.Context, userDN string, options *
 			return nil, searchCtx.Err()
 		default:
 		}
-		
+
 		group := Group{
 			Object:  objectFromEntry(entry),
 			Members: entry.GetAttributeValues("member"),
 		}
-		
+
 		groups = append(groups, group)
 	}
-	
+
 	return groups, nil
 }
 
@@ -686,11 +694,11 @@ func (l *LDAP) getGroupMembersDirect(ctx context.Context, groupDN string, option
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if len(group.Members) == 0 {
 		return []User{}, nil
 	}
-	
+
 	// Now fetch each member user object
 	var members []User
 	for _, memberDN := range group.Members {
@@ -700,7 +708,7 @@ func (l *LDAP) getGroupMembersDirect(ctx context.Context, groupDN string, option
 			return nil, ctx.Err()
 		default:
 		}
-		
+
 		// Try to get from cache first if available
 		var user *User
 		if l.cache != nil {
@@ -711,7 +719,7 @@ func (l *LDAP) getGroupMembersDirect(ctx context.Context, groupDN string, option
 				}
 			}
 		}
-		
+
 		// If not in cache, fetch from LDAP
 		if user == nil {
 			fetchedUser, err := l.findUserByDNDirect(ctx, memberDN, options)
@@ -730,10 +738,10 @@ func (l *LDAP) getGroupMembersDirect(ctx context.Context, groupDN string, option
 			}
 			user = fetchedUser
 		}
-		
+
 		members = append(members, *user)
 	}
-	
+
 	return members, nil
 }
 
@@ -745,10 +753,10 @@ func (l *LDAP) cacheIndividualGroups(groups []Group, cacheTTL time.Duration) {
 		// Cache by DN
 		dnCacheKey := GenerateCacheKey("group:dn", group.DN())
 		l.cache.Set(dnCacheKey, &group, cacheTTL)
-		
+
 		// Cache group membership information
-		}
-	
+	}
+
 	l.logger.Debug("individual_groups_cached",
 		slog.Int("group_count", len(groups)),
 		slog.Duration("ttl", cacheTTL))
@@ -759,13 +767,13 @@ func (l *LDAP) cacheGroupMembers(group *Group, cacheTTL time.Duration) {
 	if len(group.Members) == 0 {
 		return
 	}
-	
+
 	// Cache reverse lookup: for each member, cache that they belong to this group
 	for _, memberDN := range group.Members {
 		membershipKey := GenerateCacheKey("membership", memberDN, group.DN())
 		l.cache.Set(membershipKey, true, cacheTTL)
 	}
-	
+
 	l.logger.Debug("group_membership_cached",
 		slog.String("group_dn", group.DN()),
 		slog.Int("member_count", len(group.Members)))
@@ -776,23 +784,23 @@ func (l *LDAP) invalidateGroupCache(userDN, groupDN string) {
 	// Invalidate user's groups cache
 	userGroupsKey := GenerateCacheKey("user:groups", userDN)
 	l.cache.Delete(userGroupsKey)
-	
+
 	// Invalidate group members cache
 	groupMembersKey := GenerateCacheKey("group:members", groupDN)
 	l.cache.Delete(groupMembersKey)
-	
+
 	// Invalidate group object cache (member count may have changed)
 	groupDNKey := GenerateCacheKey("group:dn", groupDN)
 	l.cache.Delete(groupDNKey)
-	
+
 	// Invalidate all groups cache
 	allGroupsKey := GenerateCacheKey("groups:all", l.config.BaseDN)
 	l.cache.Delete(allGroupsKey)
-	
+
 	// Invalidate membership cache
 	membershipKey := GenerateCacheKey("membership", userDN, groupDN)
 	l.cache.Delete(membershipKey)
-	
+
 	l.logger.Debug("group_cache_invalidated",
 		slog.String("user_dn", userDN),
 		slog.String("group_dn", groupDN))

@@ -55,7 +55,7 @@ func TestNew(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			client, err := New(tt.config, tt.user, tt.password)
-			
+
 			if tt.expectError {
 				assert.Error(t, err)
 				assert.Nil(t, client)
@@ -74,13 +74,13 @@ func TestNew(t *testing.T) {
 func TestWithCredentials(t *testing.T) {
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
-	
+
 	// Create initial client
 	client := tc.GetLDAPClient(t)
 	require.NotNil(t, client)
-	
+
 	testData := tc.GetTestData()
-	
+
 	tests := []struct {
 		name        string
 		dn          string
@@ -110,7 +110,7 @@ func TestWithCredentials(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			newClient, err := client.WithCredentials(tt.dn, tt.password)
-			
+
 			if tt.expectError {
 				assert.Error(t, err)
 				assert.Nil(t, newClient)
@@ -128,7 +128,7 @@ func TestWithCredentials(t *testing.T) {
 func TestGetConnection(t *testing.T) {
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
-	
+
 	client := tc.GetLDAPClient(t)
 	require.NotNil(t, client)
 
@@ -136,7 +136,7 @@ func TestGetConnection(t *testing.T) {
 		conn, err := client.GetConnection()
 		require.NoError(t, err)
 		require.NotNil(t, conn)
-		
+
 		// Test that connection is actually authenticated by performing a search
 		searchReq := ldap.NewSearchRequest(
 			tc.BaseDN,
@@ -147,11 +147,11 @@ func TestGetConnection(t *testing.T) {
 			[]string{"dc"},
 			nil,
 		)
-		
+
 		result, err := conn.Search(searchReq)
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
-		
+
 		conn.Close()
 	})
 
@@ -160,14 +160,14 @@ func TestGetConnection(t *testing.T) {
 		configWithOpts.DialOptions = []ldap.DialOpt{
 			ldap.DialWithDialer(nil),
 		}
-		
+
 		clientWithOpts, err := New(configWithOpts, tc.AdminUser, tc.AdminPass)
 		require.NoError(t, err)
-		
+
 		conn, err := clientWithOpts.GetConnection()
 		require.NoError(t, err)
 		require.NotNil(t, conn)
-		
+
 		conn.Close()
 	})
 }
@@ -211,7 +211,7 @@ func TestConfigValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := New(tt.config, tc.AdminUser, tc.AdminPass)
-			
+
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
@@ -228,20 +228,20 @@ func TestIsActiveDirectoryFlag(t *testing.T) {
 	t.Run("IsActiveDirectory false", func(t *testing.T) {
 		config := tc.Config
 		config.IsActiveDirectory = false
-		
+
 		client, err := New(config, tc.AdminUser, tc.AdminPass)
 		require.NoError(t, err)
-		
+
 		assert.False(t, client.config.IsActiveDirectory)
 	})
 
 	t.Run("IsActiveDirectory true", func(t *testing.T) {
 		config := tc.Config
 		config.IsActiveDirectory = true
-		
+
 		client, err := New(config, tc.AdminUser, tc.AdminPass)
 		require.NoError(t, err)
-		
+
 		assert.True(t, client.config.IsActiveDirectory)
 	})
 }
@@ -254,7 +254,7 @@ func TestErrDNDuplicated(t *testing.T) {
 func BenchmarkNewConnection(b *testing.B) {
 	tc := SetupTestContainer(&testing.T{})
 	defer tc.Close(&testing.T{})
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		client, err := New(tc.Config, tc.AdminUser, tc.AdminPass)
@@ -268,9 +268,9 @@ func BenchmarkNewConnection(b *testing.B) {
 func BenchmarkGetConnection(b *testing.B) {
 	tc := SetupTestContainer(&testing.T{})
 	defer tc.Close(&testing.T{})
-	
+
 	client := tc.GetLDAPClient(&testing.T{})
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		conn, err := client.GetConnection()

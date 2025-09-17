@@ -63,57 +63,57 @@ func DefaultCacheConfig() *CacheConfig {
 // CacheStats provides detailed statistics about cache performance
 type CacheStats struct {
 	// Hit metrics
-	Hits           int64 // Total cache hits
-	Misses         int64 // Total cache misses
-	HitRatio       float64 // Hit ratio percentage
-	
+	Hits     int64   // Total cache hits
+	Misses   int64   // Total cache misses
+	HitRatio float64 // Hit ratio percentage
+
 	// Entry metrics
-	TotalEntries   int32 // Current number of entries
-	MaxEntries     int32 // Maximum entries reached
-	
+	TotalEntries int32 // Current number of entries
+	MaxEntries   int32 // Maximum entries reached
+
 	// Memory metrics
-	MemoryUsageBytes int64 // Approximate memory usage in bytes
-	MemoryUsageMB   float64 // Memory usage in MB
-	
+	MemoryUsageBytes int64   // Approximate memory usage in bytes
+	MemoryUsageMB    float64 // Memory usage in MB
+
 	// Operation metrics
-	Sets           int64 // Total set operations
-	Deletes        int64 // Total delete operations
-	Evictions      int64 // Total evictions due to size/memory limits
-	Expirations    int64 // Total expirations due to TTL
-	
+	Sets        int64 // Total set operations
+	Deletes     int64 // Total delete operations
+	Evictions   int64 // Total evictions due to size/memory limits
+	Expirations int64 // Total expirations due to TTL
+
 	// Performance metrics
-	AvgGetTime     time.Duration // Average get operation time
-	AvgSetTime     time.Duration // Average set operation time
-	
+	AvgGetTime time.Duration // Average get operation time
+	AvgSetTime time.Duration // Average set operation time
+
 	// Negative cache metrics
-	NegativeHits   int64 // Cache hits for negative results
+	NegativeHits    int64 // Cache hits for negative results
 	NegativeEntries int32 // Current negative cache entries
-	
+
 	// Background task metrics
-	RefreshOps     int64 // Background refresh operations
-	CleanupOps     int64 // Background cleanup operations
+	RefreshOps int64 // Background refresh operations
+	CleanupOps int64 // Background cleanup operations
 }
 
 // CacheEntry represents a cached item with metadata
 type CacheEntry struct {
 	// Core data
-	Key        string
-	Value      interface{}
-	
+	Key   string
+	Value interface{}
+
 	// Timing information
 	CreatedAt  time.Time
 	LastAccess time.Time
 	ExpiresAt  time.Time
 	TTL        time.Duration
-	
+
 	// Metadata
-	Size       int32    // Approximate size in bytes
-	AccessCount int64   // Number of times accessed
-	IsNegative bool     // Whether this is a negative cache entry (not found result)
-	Compressed bool     // Whether the value is compressed
-	
+	Size        int32 // Approximate size in bytes
+	AccessCount int64 // Number of times accessed
+	IsNegative  bool  // Whether this is a negative cache entry (not found result)
+	Compressed  bool  // Whether the value is compressed
+
 	// LRU list element
-	element    *list.Element
+	element *list.Element
 }
 
 // IsExpired checks if the cache entry has expired
@@ -134,15 +134,15 @@ type Cache interface {
 	Set(key string, value interface{}, ttl time.Duration) error
 	Delete(key string) bool
 	Clear()
-	
+
 	// Context-aware operations
 	GetContext(ctx context.Context, key string) (interface{}, bool)
 	SetContext(ctx context.Context, key string, value interface{}, ttl time.Duration) error
-	
+
 	// Advanced operations
 	GetWithRefresh(key string, refreshFunc func() (interface{}, error)) (interface{}, error)
 	SetNegative(key string, ttl time.Duration) error
-	
+
 	// Statistics and management
 	Stats() CacheStats
 	Close() error
@@ -152,23 +152,23 @@ type Cache interface {
 type LRUCache struct {
 	config *CacheConfig
 	logger *slog.Logger
-	
+
 	// Core data structures
-	items    map[string]*CacheEntry // Key -> CacheEntry mapping
-	lruList  *list.List             // LRU ordering
-	mu       sync.RWMutex           // Read-write mutex for thread safety
-	
+	items   map[string]*CacheEntry // Key -> CacheEntry mapping
+	lruList *list.List             // LRU ordering
+	mu      sync.RWMutex           // Read-write mutex for thread safety
+
 	// Statistics (atomic for thread safety)
 	stats CacheStats
-	
+
 	// Background tasks
-	ticker     *time.Ticker
-	stopChan   chan struct{}
-	wg         sync.WaitGroup
-	
+	ticker   *time.Ticker
+	stopChan chan struct{}
+	wg       sync.WaitGroup
+
 	// Memory management
 	memoryUsage int64 // Atomic counter for memory usage
-	
+
 	// Performance timing
 	getTimes []time.Duration
 	setTimes []time.Duration
@@ -180,11 +180,11 @@ func NewLRUCache(config *CacheConfig, logger *slog.Logger) (*LRUCache, error) {
 	if config == nil {
 		config = DefaultCacheConfig()
 	}
-	
+
 	if logger == nil {
 		logger = slog.Default()
 	}
-	
+
 	// Validate and set defaults
 	if config.TTL <= 0 {
 		config.TTL = 5 * time.Minute
@@ -204,7 +204,7 @@ func NewLRUCache(config *CacheConfig, logger *slog.Logger) (*LRUCache, error) {
 	if config.CompressionThreshold <= 0 {
 		config.CompressionThreshold = 1024
 	}
-	
+
 	cache := &LRUCache{
 		config:   config,
 		logger:   logger,
@@ -214,7 +214,7 @@ func NewLRUCache(config *CacheConfig, logger *slog.Logger) (*LRUCache, error) {
 		getTimes: make([]time.Duration, 0, 1000),
 		setTimes: make([]time.Duration, 0, 1000),
 	}
-	
+
 	// Start background maintenance if cache is enabled
 	if config.Enabled {
 		cache.startBackgroundTasks()
@@ -224,7 +224,7 @@ func NewLRUCache(config *CacheConfig, logger *slog.Logger) (*LRUCache, error) {
 			slog.Int("max_memory_mb", config.MaxMemoryMB),
 			slog.Bool("compression_enabled", config.CompressionEnabled))
 	}
-	
+
 	return cache, nil
 }
 
@@ -238,26 +238,26 @@ func (c *LRUCache) GetContext(ctx context.Context, key string) (interface{}, boo
 	if !c.config.Enabled {
 		return nil, false
 	}
-	
+
 	start := time.Now()
-	defer c.recordGetTime(time.Since(start))
-	
+	defer func() { c.recordGetTime(time.Since(start)) }()
+
 	// Check for context cancellation
 	select {
 	case <-ctx.Done():
 		return nil, false
 	default:
 	}
-	
+
 	c.mu.RLock()
 	entry, exists := c.items[key]
 	c.mu.RUnlock()
-	
+
 	if !exists {
 		atomic.AddInt64(&c.stats.Misses, 1)
 		return nil, false
 	}
-	
+
 	// Check expiration
 	if entry.IsExpired() {
 		c.mu.Lock()
@@ -267,7 +267,7 @@ func (c *LRUCache) GetContext(ctx context.Context, key string) (interface{}, boo
 		atomic.AddInt64(&c.stats.Expirations, 1)
 		return nil, false
 	}
-	
+
 	// Update access information
 	c.mu.Lock()
 	entry.LastAccess = time.Now()
@@ -275,19 +275,19 @@ func (c *LRUCache) GetContext(ctx context.Context, key string) (interface{}, boo
 	// Move to front of LRU list
 	c.lruList.MoveToFront(entry.element)
 	c.mu.Unlock()
-	
+
 	// Check if entry is negative
 	if entry.IsNegative {
 		atomic.AddInt64(&c.stats.NegativeHits, 1)
 	}
-	
+
 	atomic.AddInt64(&c.stats.Hits, 1)
-	
+
 	c.logger.Debug("cache_hit",
 		slog.String("key", key),
 		slog.Bool("is_negative", entry.IsNegative),
 		slog.Duration("age", time.Since(entry.CreatedAt)))
-	
+
 	return entry.Value, true
 }
 
@@ -301,24 +301,24 @@ func (c *LRUCache) SetContext(ctx context.Context, key string, value interface{}
 	if !c.config.Enabled {
 		return ErrCacheDisabled
 	}
-	
+
 	start := time.Now()
-	defer c.recordSetTime(time.Since(start))
-	
+	defer func() { c.recordSetTime(time.Since(start)) }()
+
 	// Check for context cancellation
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
 	default:
 	}
-	
+
 	if ttl <= 0 {
 		ttl = c.config.TTL
 	}
-	
+
 	// Estimate entry size
 	entrySize := c.estimateEntrySize(key, value)
-	
+
 	// Check memory limits
 	currentMemory := atomic.LoadInt64(&c.memoryUsage)
 	maxMemoryBytes := int64(c.config.MaxMemoryMB * 1024 * 1024)
@@ -328,7 +328,7 @@ func (c *LRUCache) SetContext(ctx context.Context, key string, value interface{}
 			return err
 		}
 	}
-	
+
 	now := time.Now()
 	entry := &CacheEntry{
 		Key:         key,
@@ -342,7 +342,7 @@ func (c *LRUCache) SetContext(ctx context.Context, key string, value interface{}
 		IsNegative:  false,
 		Compressed:  false,
 	}
-	
+
 	// Compress large entries if enabled
 	if c.config.CompressionEnabled && entrySize > int32(c.config.CompressionThreshold) {
 		if compressedValue, err := c.compressValue(value); err == nil {
@@ -351,29 +351,29 @@ func (c *LRUCache) SetContext(ctx context.Context, key string, value interface{}
 			entry.Size = c.estimateEntrySize(key, compressedValue)
 		}
 	}
-	
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	
+
 	// Check if entry already exists
 	if existingEntry, exists := c.items[key]; exists {
 		// Update existing entry
 		atomic.AddInt64(&c.memoryUsage, -int64(existingEntry.Size))
 		c.lruList.Remove(existingEntry.element)
 	}
-	
+
 	// Check size limits
 	if len(c.items) >= c.config.MaxSize && c.items[key] == nil {
 		// Evict LRU entry
 		c.evictLRU()
 	}
-	
+
 	// Add to LRU list
 	entry.element = c.lruList.PushFront(entry)
 	c.items[key] = entry
 	atomic.AddInt64(&c.memoryUsage, int64(entry.Size))
 	atomic.AddInt64(&c.stats.Sets, 1)
-	
+
 	// Update max entries stat
 	currentEntries := int32(len(c.items))
 	for {
@@ -382,13 +382,13 @@ func (c *LRUCache) SetContext(ctx context.Context, key string, value interface{}
 			break
 		}
 	}
-	
+
 	c.logger.Debug("cache_set",
 		slog.String("key", key),
 		slog.Duration("ttl", ttl),
 		slog.Int("size", int(entrySize)),
 		slog.Bool("compressed", entry.Compressed))
-	
+
 	return nil
 }
 
@@ -397,11 +397,11 @@ func (c *LRUCache) SetNegative(key string, ttl time.Duration) error {
 	if !c.config.Enabled {
 		return ErrCacheDisabled
 	}
-	
+
 	if ttl <= 0 {
 		ttl = c.config.NegativeCacheTTL
 	}
-	
+
 	now := time.Now()
 	entry := &CacheEntry{
 		Key:         key,
@@ -415,30 +415,30 @@ func (c *LRUCache) SetNegative(key string, ttl time.Duration) error {
 		IsNegative:  true,
 		Compressed:  false,
 	}
-	
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	
+
 	// Check if entry already exists
 	if existingEntry, exists := c.items[key]; exists {
 		atomic.AddInt64(&c.memoryUsage, -int64(existingEntry.Size))
 		c.lruList.Remove(existingEntry.element)
 	}
-	
+
 	// Check size limits
 	if len(c.items) >= c.config.MaxSize && c.items[key] == nil {
 		c.evictLRU()
 	}
-	
+
 	entry.element = c.lruList.PushFront(entry)
 	c.items[key] = entry
 	atomic.AddInt64(&c.memoryUsage, int64(entry.Size))
 	atomic.AddInt32(&c.stats.NegativeEntries, 1)
-	
+
 	c.logger.Debug("negative_cache_set",
 		slog.String("key", key),
 		slog.Duration("ttl", ttl))
-	
+
 	return nil
 }
 
@@ -447,21 +447,21 @@ func (c *LRUCache) Delete(key string) bool {
 	if !c.config.Enabled {
 		return false
 	}
-	
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	
+
 	entry, exists := c.items[key]
 	if !exists {
 		return false
 	}
-	
+
 	c.removeEntry(key, entry)
 	atomic.AddInt64(&c.stats.Deletes, 1)
-	
+
 	c.logger.Debug("cache_delete",
 		slog.String("key", key))
-	
+
 	return true
 }
 
@@ -470,16 +470,16 @@ func (c *LRUCache) Clear() {
 	if !c.config.Enabled {
 		return
 	}
-	
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	
+
 	entryCount := len(c.items)
-	
+
 	for key, entry := range c.items {
 		c.removeEntry(key, entry)
 	}
-	
+
 	c.logger.Info("cache_cleared",
 		slog.Int("entries_removed", entryCount))
 }
@@ -490,7 +490,7 @@ func (c *LRUCache) GetWithRefresh(key string, refreshFunc func() (interface{}, e
 		// Fall back to refresh function if cache is disabled
 		return refreshFunc()
 	}
-	
+
 	// Try to get from cache first
 	if value, found := c.Get(key); found {
 		// Check if entry is stale and needs refresh
@@ -498,11 +498,11 @@ func (c *LRUCache) GetWithRefresh(key string, refreshFunc func() (interface{}, e
 		entry := c.items[key]
 		isStale := entry != nil && entry.IsStale()
 		c.mu.RUnlock()
-		
+
 		if !isStale {
 			return value, nil
 		}
-		
+
 		// Entry is stale, refresh in background and return current value
 		go func() {
 			if newValue, err := refreshFunc(); err == nil {
@@ -510,10 +510,10 @@ func (c *LRUCache) GetWithRefresh(key string, refreshFunc func() (interface{}, e
 				atomic.AddInt64(&c.stats.RefreshOps, 1)
 			}
 		}()
-		
+
 		return value, nil
 	}
-	
+
 	// Not in cache, fetch and cache
 	value, err := refreshFunc()
 	if err != nil {
@@ -521,7 +521,7 @@ func (c *LRUCache) GetWithRefresh(key string, refreshFunc func() (interface{}, e
 		c.SetNegative(key, c.config.NegativeCacheTTL)
 		return nil, err
 	}
-	
+
 	c.Set(key, value, c.config.TTL)
 	return value, nil
 }
@@ -537,24 +537,24 @@ func (c *LRUCache) Stats() CacheStats {
 		}
 	}
 	c.mu.RUnlock()
-	
+
 	hits := atomic.LoadInt64(&c.stats.Hits)
 	misses := atomic.LoadInt64(&c.stats.Misses)
 	total := hits + misses
-	
+
 	var hitRatio float64
 	if total > 0 {
 		hitRatio = float64(hits) / float64(total) * 100
 	}
-	
+
 	memoryBytes := atomic.LoadInt64(&c.memoryUsage)
 	memoryMB := float64(memoryBytes) / (1024 * 1024)
-	
+
 	c.timingMu.Lock()
 	avgGetTime := c.calculateAverageTime(c.getTimes)
 	avgSetTime := c.calculateAverageTime(c.setTimes)
 	c.timingMu.Unlock()
-	
+
 	return CacheStats{
 		Hits:             hits,
 		Misses:           misses,
@@ -581,23 +581,23 @@ func (c *LRUCache) Close() error {
 	if !c.config.Enabled {
 		return nil
 	}
-	
+
 	if c.stopChan != nil {
 		close(c.stopChan)
 		c.wg.Wait()
 	}
-	
+
 	if c.ticker != nil {
 		c.ticker.Stop()
 	}
-	
+
 	c.Clear()
-	
+
 	c.logger.Info("cache_closed",
 		slog.Int64("total_hits", atomic.LoadInt64(&c.stats.Hits)),
 		slog.Int64("total_misses", atomic.LoadInt64(&c.stats.Misses)),
 		slog.Float64("final_hit_ratio", c.Stats().HitRatio))
-	
+
 	return nil
 }
 
@@ -620,13 +620,13 @@ func (c *LRUCache) evictLRU() {
 	if c.lruList.Len() == 0 {
 		return
 	}
-	
+
 	oldest := c.lruList.Back()
 	if oldest != nil {
 		entry := oldest.Value.(*CacheEntry)
 		c.removeEntry(entry.Key, entry)
 		atomic.AddInt64(&c.stats.Evictions, 1)
-		
+
 		c.logger.Debug("cache_eviction",
 			slog.String("key", entry.Key),
 			slog.Duration("age", time.Since(entry.CreatedAt)))
@@ -637,22 +637,22 @@ func (c *LRUCache) evictLRU() {
 func (c *LRUCache) evictForSpace(neededBytes int64) error {
 	maxMemoryBytes := int64(c.config.MaxMemoryMB * 1024 * 1024)
 	currentMemory := atomic.LoadInt64(&c.memoryUsage)
-	
+
 	if currentMemory+neededBytes <= maxMemoryBytes {
 		return nil // No eviction needed
 	}
-	
+
 	bytesToFree := (currentMemory + neededBytes) - maxMemoryBytes
 	bytesFreed := int64(0)
 	evictions := 0
-	
+
 	// Evict LRU entries until we have enough space
 	for bytesFreed < bytesToFree && c.lruList.Len() > 0 {
 		oldest := c.lruList.Back()
 		if oldest == nil {
 			break
 		}
-		
+
 		entry := oldest.Value.(*CacheEntry)
 		entrySize := int64(entry.Size)
 		c.removeEntry(entry.Key, entry)
@@ -660,26 +660,26 @@ func (c *LRUCache) evictForSpace(neededBytes int64) error {
 		evictions++
 		atomic.AddInt64(&c.stats.Evictions, 1)
 	}
-	
+
 	if bytesFreed < bytesToFree {
 		return ErrCacheFull
 	}
-	
+
 	c.logger.Debug("cache_space_eviction",
 		slog.Int("evictions", evictions),
 		slog.Int64("bytes_freed", bytesFreed))
-	
+
 	return nil
 }
 
 // estimateEntrySize calculates approximate memory usage for a cache entry
 func (c *LRUCache) estimateEntrySize(key string, value interface{}) int32 {
 	size := len(key) + 8 // Key string + basic overhead
-	
+
 	if value == nil {
 		return int32(size + 16) // Base entry overhead
 	}
-	
+
 	switch v := value.(type) {
 	case string:
 		size += len(v)
@@ -711,7 +711,7 @@ func (c *LRUCache) estimateEntrySize(key string, value interface{}) int32 {
 		// For unknown types, use a conservative estimate
 		size += 256
 	}
-	
+
 	return int32(size + 64) // Add overhead for CacheEntry struct
 }
 
@@ -726,7 +726,7 @@ func (c *LRUCache) compressValue(value interface{}) (interface{}, error) {
 func (c *LRUCache) recordGetTime(duration time.Duration) {
 	c.timingMu.Lock()
 	defer c.timingMu.Unlock()
-	
+
 	if len(c.getTimes) >= 1000 {
 		// Keep only the most recent 1000 timings
 		copy(c.getTimes, c.getTimes[1:])
@@ -740,7 +740,7 @@ func (c *LRUCache) recordGetTime(duration time.Duration) {
 func (c *LRUCache) recordSetTime(duration time.Duration) {
 	c.timingMu.Lock()
 	defer c.timingMu.Unlock()
-	
+
 	if len(c.setTimes) >= 1000 {
 		// Keep only the most recent 1000 timings
 		copy(c.setTimes, c.setTimes[1:])
@@ -755,24 +755,24 @@ func (c *LRUCache) calculateAverageTime(times []time.Duration) time.Duration {
 	if len(times) == 0 {
 		return 0
 	}
-	
+
 	var total time.Duration
 	for _, t := range times {
 		total += t
 	}
-	
+
 	return total / time.Duration(len(times))
 }
 
 // startBackgroundTasks starts maintenance routines
 func (c *LRUCache) startBackgroundTasks() {
 	c.ticker = time.NewTicker(c.config.RefreshInterval)
-	
+
 	c.wg.Add(1)
 	go func() {
 		defer c.wg.Done()
 		defer c.ticker.Stop()
-		
+
 		for {
 			select {
 			case <-c.ticker.C:
@@ -782,7 +782,7 @@ func (c *LRUCache) startBackgroundTasks() {
 			}
 		}
 	}()
-	
+
 	c.logger.Debug("cache_background_tasks_started",
 		slog.Duration("refresh_interval", c.config.RefreshInterval))
 }
@@ -790,10 +790,10 @@ func (c *LRUCache) startBackgroundTasks() {
 // performMaintenance performs periodic cache maintenance
 func (c *LRUCache) performMaintenance() {
 	start := time.Now()
-	
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	
+
 	// Remove expired entries
 	var expiredKeys []string
 	for key, entry := range c.items {
@@ -801,22 +801,22 @@ func (c *LRUCache) performMaintenance() {
 			expiredKeys = append(expiredKeys, key)
 		}
 	}
-	
+
 	for _, key := range expiredKeys {
 		entry := c.items[key]
 		c.removeEntry(key, entry)
 		atomic.AddInt64(&c.stats.Expirations, 1)
 	}
-	
+
 	// Force GC if memory usage is high
 	memoryUsage := atomic.LoadInt64(&c.memoryUsage)
 	maxMemoryBytes := int64(c.config.MaxMemoryMB * 1024 * 1024)
 	if memoryUsage > maxMemoryBytes*8/10 { // 80% threshold
 		runtime.GC()
 	}
-	
+
 	atomic.AddInt64(&c.stats.CleanupOps, 1)
-	
+
 	if len(expiredKeys) > 0 {
 		c.logger.Debug("cache_maintenance_completed",
 			slog.Int("expired_removed", len(expiredKeys)),
@@ -835,7 +835,7 @@ func GenerateCacheKey(operation string, components ...string) string {
 		hasher.Write([]byte(comp))
 	}
 	hash := hex.EncodeToString(hasher.Sum(nil))
-	
+
 	// Create a human-readable prefix
 	prefix := operation
 	if len(components) > 0 {
@@ -844,6 +844,6 @@ func GenerateCacheKey(operation string, components ...string) string {
 	if len(prefix) > 32 {
 		prefix = prefix[:32]
 	}
-	
+
 	return fmt.Sprintf("%s:%s", prefix, hash[:16])
 }

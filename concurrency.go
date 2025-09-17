@@ -22,7 +22,7 @@ type WorkerPool[T any] struct {
 	wg          sync.WaitGroup
 	client      *LDAP
 	logger      *slog.Logger
-	
+
 	// Metrics
 	processed   atomic.Int64
 	errors      atomic.Int64
@@ -76,7 +76,7 @@ func DefaultWorkerPoolConfig() *WorkerPoolConfig {
 //	    Timeout: 2 * time.Minute,
 //	})
 //	defer pool.Close()
-//	
+//
 //	// Submit work items
 //	for _, user := range users {
 //	    pool.Submit(WorkItem[*FullUser]{
@@ -88,7 +88,7 @@ func DefaultWorkerPoolConfig() *WorkerPoolConfig {
 //	        },
 //	    })
 //	}
-//	
+//
 //	// Collect results
 //	results := pool.Results()
 //	for result := range results {
@@ -102,7 +102,7 @@ func NewWorkerPool[T any](client *LDAP, config *WorkerPoolConfig) *WorkerPool[T]
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), config.Timeout)
-	
+
 	pool := &WorkerPool[T]{
 		workerCount: config.WorkerCount,
 		workChan:    make(chan WorkItem[T], config.BufferSize),
@@ -159,7 +159,7 @@ func (p *WorkerPool[T]) worker(id int, failFast bool) {
 					p.cancel()
 				}
 			}
-			
+
 			// Update average duration (simple moving average)
 			oldAvg := p.avgDuration.Load()
 			newAvg := (oldAvg + duration.Nanoseconds()) / 2
@@ -231,14 +231,14 @@ func (p *WorkerPool[T]) Stats() WorkerPoolStats {
 // Pipeline provides a pipeline pattern for streaming LDAP operations.
 // This pattern is useful for processing large datasets with multiple stages.
 type Pipeline[T, U any] struct {
-	stages  []PipelineStage[any, any]
-	input   chan T
-	output  chan U
-	ctx     context.Context
-	cancel  context.CancelFunc
-	wg      sync.WaitGroup
-	logger  *slog.Logger
-	
+	stages []PipelineStage[any, any]
+	input  chan T
+	output chan U
+	ctx    context.Context
+	cancel context.CancelFunc
+	wg     sync.WaitGroup
+	logger *slog.Logger
+
 	// Error handling
 	errorChan chan error
 	errors    []error
@@ -257,13 +257,13 @@ type PipelineStage[T, U any] struct {
 // Example:
 //
 //	pipeline := NewPipeline[string, *User](ctx, logger, 100)
-//	
+//
 //	// Add stages
 //	pipeline.AddStage("parse", func(ctx context.Context, dn string) (*FullUser, error) {
 //	    // Parse DN and create user object
 //	    return parseUserFromDN(dn), nil
 //	}, 5)
-//	
+//
 //	pipeline.AddStage("create", func(ctx context.Context, user *FullUser) (*User, error) {
 //	    // Create user in LDAP
 //	    dn, err := client.CreateUserContext(ctx, *user, "password")
@@ -272,23 +272,23 @@ type PipelineStage[T, U any] struct {
 //	    }
 //	    return client.FindUserByDNContext(ctx, dn)
 //	}, 10)
-//	
+//
 //	// Process items
 //	go pipeline.Start()
-//	
+//
 //	// Send input
 //	for _, dn := range userDNs {
 //	    pipeline.Input() <- dn
 //	}
 //	close(pipeline.Input())
-//	
+//
 //	// Receive output
 //	for user := range pipeline.Output() {
 //	    fmt.Printf("Created user: %s\n", user.CN())
 //	}
 func NewPipeline[T, U any](ctx context.Context, logger *slog.Logger, bufferSize int) *Pipeline[T, U] {
 	pipelineCtx, cancel := context.WithCancel(ctx)
-	
+
 	return &Pipeline[T, U]{
 		stages:    make([]PipelineStage[any, any], 0),
 		input:     make(chan T, bufferSize),
@@ -306,13 +306,13 @@ func (p *Pipeline[T, U]) AddStage(name string, transform func(context.Context, a
 	if parallel <= 0 {
 		parallel = 1
 	}
-	
+
 	stage := PipelineStage[any, any]{
 		Name:      name,
 		Transform: transform,
 		Parallel:  parallel,
 	}
-	
+
 	p.stages = append(p.stages, stage)
 }
 
@@ -362,7 +362,7 @@ func (p *Pipeline[T, U]) Start() {
 	for i, stage := range p.stages {
 		inChan := channels[i]
 		outChan := channels[i+1]
-		
+
 		// Start parallel workers for this stage
 		for j := 0; j < stage.Parallel; j++ {
 			p.wg.Add(1)
@@ -387,7 +387,7 @@ func (p *Pipeline[T, U]) Start() {
 
 	// Wait for all stages to complete
 	p.wg.Wait()
-	
+
 	// Close intermediate channels
 	for i := 1; i < len(channels); i++ {
 		close(channels[i])
@@ -402,7 +402,7 @@ func (p *Pipeline[T, U]) stageProcessor(stage PipelineStage[any, any], input <-c
 		select {
 		case <-p.ctx.Done():
 			return
-			
+
 		case item, ok := <-input:
 			if !ok {
 				return
@@ -417,7 +417,7 @@ func (p *Pipeline[T, U]) stageProcessor(stage PipelineStage[any, any], input <-c
 					slog.String("stage", stage.Name),
 					slog.String("error", err.Error()),
 					slog.Duration("duration", duration))
-				
+
 				select {
 				case p.errorChan <- fmt.Errorf("stage %s: %w", stage.Name, err):
 				default:
@@ -451,7 +451,7 @@ func (p *Pipeline[T, U]) collectErrors() {
 func (p *Pipeline[T, U]) Errors() []error {
 	p.errorMu.RLock()
 	defer p.errorMu.RUnlock()
-	
+
 	errorsCopy := make([]error, len(p.errors))
 	copy(errorsCopy, p.errors)
 	return errorsCopy
@@ -480,30 +480,30 @@ type FanOut[T, U any] struct {
 // Example:
 //
 //	fanOut := NewFanOut[string, *User](ctx, logger, 100)
-//	
+//
 //	// Add workers
 //	fanOut.AddWorker(func(ctx context.Context, dn string) (*User, error) {
 //	    return client.FindUserByDNContext(ctx, dn)
 //	})
 //	fanOut.AddWorker(func(ctx context.Context, dn string) (*User, error) {
-//	    return client.FindUserByDNContext(ctx, dn)  
+//	    return client.FindUserByDNContext(ctx, dn)
 //	})
-//	
+//
 //	go fanOut.Start()
-//	
+//
 //	// Send work
 //	for _, dn := range userDNs {
 //	    fanOut.Input() <- dn
 //	}
 //	close(fanOut.Input())
-//	
+//
 //	// Collect results
 //	for user := range fanOut.Output() {
 //	    fmt.Printf("Found user: %s\n", user.CN())
 //	}
 func NewFanOut[T, U any](ctx context.Context, logger *slog.Logger, bufferSize int) *FanOut[T, U] {
 	fanOutCtx, cancel := context.WithCancel(ctx)
-	
+
 	return &FanOut[T, U]{
 		workers:    make([]func(context.Context, T) (U, error), 0),
 		inputChan:  make(chan T, bufferSize),
@@ -619,20 +619,20 @@ type BatchProcessor[T any] struct {
 	timeout   time.Duration
 	processor func(context.Context, *LDAP, []T) error
 	logger    *slog.Logger
-	
-	batch     []T
-	batchMu   sync.Mutex
-	timer     *time.Timer
-	ctx       context.Context
-	cancel    context.CancelFunc
-	wg        sync.WaitGroup
+
+	batch   []T
+	batchMu sync.Mutex
+	timer   *time.Timer
+	ctx     context.Context
+	cancel  context.CancelFunc
+	wg      sync.WaitGroup
 }
 
 // NewBatchProcessor creates a new batch processor.
 //
 // Example:
 //
-//	processor := NewBatchProcessor(client, 10, 1*time.Second, 
+//	processor := NewBatchProcessor(client, 10, 1*time.Second,
 //	    func(ctx context.Context, client *LDAP, users []*FullUser) error {
 //	        // Process batch of users
 //	        for _, user := range users {
@@ -643,18 +643,18 @@ type BatchProcessor[T any] struct {
 //	        }
 //	        return nil
 //	    })
-//	
+//
 //	defer processor.Close()
-//	
+//
 //	// Add items for processing
 //	for _, user := range users {
 //	    processor.Add(user)
 //	}
-func NewBatchProcessor[T any](client *LDAP, batchSize int, timeout time.Duration, 
+func NewBatchProcessor[T any](client *LDAP, batchSize int, timeout time.Duration,
 	processor func(context.Context, *LDAP, []T) error) *BatchProcessor[T] {
-	
+
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	bp := &BatchProcessor[T]{
 		client:    client,
 		batchSize: batchSize,
@@ -665,10 +665,10 @@ func NewBatchProcessor[T any](client *LDAP, batchSize int, timeout time.Duration
 		ctx:       ctx,
 		cancel:    cancel,
 	}
-	
+
 	bp.timer = time.AfterFunc(timeout, bp.flush)
 	bp.timer.Stop() // Start stopped
-	
+
 	return bp
 }
 
@@ -676,14 +676,14 @@ func NewBatchProcessor[T any](client *LDAP, batchSize int, timeout time.Duration
 func (bp *BatchProcessor[T]) Add(item T) {
 	bp.batchMu.Lock()
 	defer bp.batchMu.Unlock()
-	
+
 	bp.batch = append(bp.batch, item)
-	
+
 	// Start timer on first item
 	if len(bp.batch) == 1 {
 		bp.timer.Reset(bp.timeout)
 	}
-	
+
 	// Process when batch is full
 	if len(bp.batch) >= bp.batchSize {
 		bp.timer.Stop()
@@ -709,19 +709,19 @@ func (bp *BatchProcessor[T]) processBatch() {
 		bp.batchMu.Unlock()
 		return
 	}
-	
+
 	batch := make([]T, len(bp.batch))
 	copy(batch, bp.batch)
 	bp.batch = bp.batch[:0] // Reset batch
 	bp.batchMu.Unlock()
-	
+
 	bp.wg.Add(1)
 	defer bp.wg.Done()
-	
+
 	start := time.Now()
 	err := bp.processor(bp.ctx, bp.client, batch)
 	duration := time.Since(start)
-	
+
 	if err != nil {
 		bp.logger.Error("batch_processor_error",
 			slog.Int("batch_size", len(batch)),
@@ -738,10 +738,10 @@ func (bp *BatchProcessor[T]) processBatch() {
 func (bp *BatchProcessor[T]) Close() {
 	bp.cancel()
 	bp.timer.Stop()
-	
+
 	// Process remaining items
 	bp.processBatch()
-	
+
 	// Wait for any running batch processing
 	bp.wg.Wait()
 }
@@ -783,7 +783,7 @@ func (s *Semaphore) WithSemaphore(ctx context.Context, fn func() error) error {
 		return err
 	}
 	defer s.Release()
-	
+
 	return fn()
 }
 
@@ -807,21 +807,21 @@ func NewConcurrentOperations(client *LDAP, maxConcurrency int) *ConcurrentLDAPOp
 func (co *ConcurrentLDAPOperations) BulkCreateUsers(ctx context.Context, users []FullUser, password string) []error {
 	var wg sync.WaitGroup
 	errors := make([]error, len(users))
-	
+
 	for i, user := range users {
 		wg.Add(1)
 		go func(index int, u FullUser) {
 			defer wg.Done()
-			
+
 			err := co.semaphore.WithSemaphore(ctx, func() error {
 				_, err := co.client.CreateUserContext(ctx, u, password)
 				return err
 			})
-			
+
 			errors[index] = err
 		}(i, user)
 	}
-	
+
 	wg.Wait()
 	return errors
 }
@@ -831,20 +831,20 @@ func (co *ConcurrentLDAPOperations) BulkFindUsers(ctx context.Context, dns []str
 	var wg sync.WaitGroup
 	users := make([]*User, len(dns))
 	errors := make([]error, len(dns))
-	
+
 	for i, dn := range dns {
 		wg.Add(1)
 		go func(index int, userDN string) {
 			defer wg.Done()
-			
+
 			var user *User
 			var err error
-			
+
 			semErr := co.semaphore.WithSemaphore(ctx, func() error {
 				user, err = co.client.FindUserByDNContext(ctx, userDN)
 				return err
 			})
-			
+
 			if semErr != nil {
 				errors[index] = semErr
 			} else {
@@ -853,7 +853,7 @@ func (co *ConcurrentLDAPOperations) BulkFindUsers(ctx context.Context, dns []str
 			}
 		}(i, dn)
 	}
-	
+
 	wg.Wait()
 	return users, errors
 }
@@ -862,20 +862,20 @@ func (co *ConcurrentLDAPOperations) BulkFindUsers(ctx context.Context, dns []str
 func (co *ConcurrentLDAPOperations) BulkDeleteUsers(ctx context.Context, dns []string) []error {
 	var wg sync.WaitGroup
 	errors := make([]error, len(dns))
-	
+
 	for i, dn := range dns {
 		wg.Add(1)
 		go func(index int, userDN string) {
 			defer wg.Done()
-			
+
 			err := co.semaphore.WithSemaphore(ctx, func() error {
 				return co.client.DeleteUserContext(ctx, userDN)
 			})
-			
+
 			errors[index] = err
 		}(i, dn)
 	}
-	
+
 	wg.Wait()
 	return errors
 }
