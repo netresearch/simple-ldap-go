@@ -26,7 +26,7 @@ func NewTestLogBuffer(level slog.Level) *TestLogBuffer {
 		Level: level,
 	})
 	logger := slog.New(handler)
-	
+
 	return &TestLogBuffer{
 		buf:    buf,
 		logger: logger,
@@ -37,7 +37,7 @@ func NewTestLogBuffer(level slog.Level) *TestLogBuffer {
 func (tlb *TestLogBuffer) GetLogEntries() []map[string]interface{} {
 	lines := strings.Split(strings.TrimSpace(tlb.buf.String()), "\n")
 	var entries []map[string]interface{}
-	
+
 	for _, line := range lines {
 		if line == "" {
 			continue
@@ -47,7 +47,7 @@ func (tlb *TestLogBuffer) GetLogEntries() []map[string]interface{} {
 			entries = append(entries, entry)
 		}
 	}
-	
+
 	return entries
 }
 
@@ -58,28 +58,28 @@ func (tlb *TestLogBuffer) Reset() {
 
 func TestStructuredLoggingConfiguration(t *testing.T) {
 	testBuf := NewTestLogBuffer(slog.LevelDebug)
-	
+
 	config := Config{
 		Server:            "ldap://test:389",
 		BaseDN:            "DC=test,DC=com",
 		IsActiveDirectory: false,
 		Logger:            testBuf.logger,
 	}
-	
+
 	// This will fail but should generate initialization logs
 	_, err := New(config, "test", "test")
 	require.Error(t, err) // Expected to fail since no real server
-	
+
 	entries := testBuf.GetLogEntries()
 	require.NotEmpty(t, entries)
-	
+
 	// Check initialization log
 	initLog := entries[0]
 	assert.Equal(t, "ldap_client_initializing", initLog["msg"])
 	assert.Equal(t, "ldap://test:389", initLog["server"])
 	assert.Equal(t, "DC=test,DC=com", initLog["base_dn"])
 	assert.Equal(t, false, initLog["is_active_directory"])
-	
+
 	// Check error log
 	found := false
 	for _, entry := range entries {
@@ -97,12 +97,12 @@ func TestStructuredLoggingConfiguration(t *testing.T) {
 func TestNoOpLogger(t *testing.T) {
 	// Test with no logger configured (should use no-op)
 	config := Config{
-		Server:            "ldap://test:389", 
+		Server:            "ldap://test:389",
 		BaseDN:            "DC=test,DC=com",
 		IsActiveDirectory: false,
 		// Logger is nil
 	}
-	
+
 	// This should not panic and should not generate any output
 	_, err := New(config, "test", "test")
 	require.Error(t, err) // Expected to fail since no real server
@@ -130,23 +130,23 @@ func TestLogLevels(t *testing.T) {
 			expected: []string{"ldap_connection_dial_failed", "ldap_client_initialization_failed"},
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			testBuf := NewTestLogBuffer(tt.logLevel)
-			
+
 			config := Config{
 				Server:            "ldap://nonexistent:389",
-				BaseDN:            "DC=test,DC=com", 
+				BaseDN:            "DC=test,DC=com",
 				IsActiveDirectory: false,
 				Logger:            testBuf.logger,
 			}
-			
+
 			_, err := New(config, "test", "test")
 			require.Error(t, err)
-			
+
 			entries := testBuf.GetLogEntries()
-			
+
 			// Check that we have the expected log messages
 			foundMsgs := make(map[string]bool)
 			for _, entry := range entries {
@@ -154,7 +154,7 @@ func TestLogLevels(t *testing.T) {
 					foundMsgs[msg] = true
 				}
 			}
-			
+
 			for _, expectedMsg := range tt.expected {
 				assert.True(t, foundMsgs[expectedMsg], "Should contain log message: %s", expectedMsg)
 			}
@@ -164,7 +164,7 @@ func TestLogLevels(t *testing.T) {
 
 func TestAuthenticationLogging(t *testing.T) {
 	testBuf := NewTestLogBuffer(slog.LevelDebug)
-	
+
 	// Test with invalid server - will generate connection logs
 	config := Config{
 		Server:            "ldap://nonexistent:389",
@@ -172,13 +172,13 @@ func TestAuthenticationLogging(t *testing.T) {
 		IsActiveDirectory: false,
 		Logger:            testBuf.logger,
 	}
-	
+
 	client, err := New(config, "test", "test")
 	require.Error(t, err) // Expected to fail
 	require.Nil(t, client)
-	
+
 	entries := testBuf.GetLogEntries()
-	
+
 	// Should have initialization and connection attempt logs
 	var initLog, connLog, errorLog map[string]interface{}
 	for _, entry := range entries {
@@ -191,14 +191,14 @@ func TestAuthenticationLogging(t *testing.T) {
 			errorLog = entry
 		}
 	}
-	
+
 	assert.NotNil(t, initLog, "Should log client initialization")
 	assert.Equal(t, "ldap://nonexistent:389", initLog["server"])
 	assert.Equal(t, "DC=test,DC=com", initLog["base_dn"])
-	
+
 	assert.NotNil(t, connLog, "Should log connection attempt")
 	assert.Equal(t, "ldap://nonexistent:389", connLog["server"])
-	
+
 	assert.NotNil(t, errorLog, "Should log connection failure")
 	assert.Contains(t, errorLog, "error")
 	assert.Contains(t, errorLog, "duration")
@@ -208,19 +208,19 @@ func TestSearchOperationLogging(t *testing.T) {
 	// This test demonstrates that search operations would log appropriately
 	// In a real scenario with a running LDAP server, these logs would be generated
 	testBuf := NewTestLogBuffer(slog.LevelDebug)
-	
+
 	config := Config{
 		Server:            "ldap://localhost:389", // Non-existent server for testing
 		BaseDN:            "DC=test,DC=com",
 		IsActiveDirectory: false,
 		Logger:            testBuf.logger,
 	}
-	
+
 	_, err := New(config, "cn=admin,dc=test,dc=com", "password")
 	require.Error(t, err) // Will fail to connect but generate logs
-	
+
 	entries := testBuf.GetLogEntries()
-	
+
 	// Verify we get proper connection and error logs
 	foundTypes := make(map[string]bool)
 	for _, entry := range entries {
@@ -228,7 +228,7 @@ func TestSearchOperationLogging(t *testing.T) {
 			foundTypes[msgType] = true
 		}
 	}
-	
+
 	// Should have initialization and connection logs
 	assert.True(t, foundTypes["ldap_client_initializing"], "Should log initialization")
 	assert.True(t, foundTypes["ldap_connection_establishing"], "Should log connection attempt")
@@ -237,45 +237,45 @@ func TestSearchOperationLogging(t *testing.T) {
 
 func TestLogSecurity(t *testing.T) {
 	testBuf := NewTestLogBuffer(slog.LevelDebug)
-	
+
 	config := Config{
 		Server:            "ldap://test:389",
 		BaseDN:            "DC=test,DC=com",
 		IsActiveDirectory: false,
 		Logger:            testBuf.logger,
 	}
-	
+
 	// This will fail but should not log the password
 	_, err := New(config, "testuser", "supersecretpassword")
 	require.Error(t, err)
-	
+
 	allLogs := testBuf.buf.String()
-	
+
 	// Verify passwords are never logged
 	assert.NotContains(t, allLogs, "supersecretpassword", "Password should never appear in logs")
-	
+
 	// Verify usernames do not appear (they should only be logged during actual operations)
 	assert.NotContains(t, allLogs, "testuser", "Username should not appear in connection logs for security")
 }
 
 func TestPerformanceLogging(t *testing.T) {
 	testBuf := NewTestLogBuffer(slog.LevelDebug)
-	
+
 	config := Config{
 		Server:            "ldap://timeout-server:389",
 		BaseDN:            "DC=test,DC=com",
 		IsActiveDirectory: false,
 		Logger:            testBuf.logger,
 	}
-	
+
 	// This will fail but should log duration
 	start := time.Now()
 	_, err := New(config, "test", "test")
 	actualDuration := time.Since(start)
 	require.Error(t, err)
-	
+
 	entries := testBuf.GetLogEntries()
-	
+
 	// Find error log with duration
 	var errorLog map[string]interface{}
 	for _, entry := range entries {
@@ -284,13 +284,13 @@ func TestPerformanceLogging(t *testing.T) {
 			break
 		}
 	}
-	
+
 	require.NotNil(t, errorLog, "Should have error log with duration")
-	
+
 	// Verify duration is present (could be string or number)
 	duration := errorLog["duration"]
 	require.NotNil(t, duration, "Duration should be present")
-	
+
 	// Check if it's parseable as a duration string or is a number
 	if durationStr, ok := duration.(string); ok {
 		loggedDuration, err := time.ParseDuration(durationStr)

@@ -110,7 +110,7 @@ func NewWithOptions(config Config, username, password string, opts ...Option) (*
 			return nil, fmt.Errorf("failed to initialize connection pool: %w", WrapLDAPError("NewConnectionPool", l.config.Server, err))
 		}
 		l.pool = pool
-		
+
 		l.logger.Info("ldap_modern_client_initialized_with_pool",
 			slog.String("server", l.config.Server),
 			slog.Int("max_connections", l.config.Pool.MaxConnections),
@@ -120,7 +120,7 @@ func NewWithOptions(config Config, username, password string, opts ...Option) (*
 		// Validate connection without pooling
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		
+
 		c, err := l.GetConnectionContext(ctx)
 		if err != nil {
 			l.logger.Error("ldap_modern_client_initialization_failed",
@@ -159,11 +159,11 @@ func NewWithOptions(config Config, username, password string, opts ...Option) (*
 	if perfConfig == nil {
 		perfConfig = DefaultPerformanceConfig()
 	}
-	
+
 	if perfConfig.Enabled {
 		perfMonitor := NewPerformanceMonitor(perfConfig, l.logger)
 		l.perfMonitor = perfMonitor
-		
+
 		// Link cache and pool to performance monitor for integrated metrics
 		if l.cache != nil {
 			perfMonitor.SetCache(l.cache)
@@ -171,7 +171,7 @@ func NewWithOptions(config Config, username, password string, opts ...Option) (*
 		if l.pool != nil {
 			perfMonitor.SetConnectionPool(l.pool)
 		}
-		
+
 		l.logger.Info("ldap_modern_client_performance_monitor_initialized",
 			slog.String("server", l.config.Server),
 			slog.Duration("slow_query_threshold", perfConfig.SlowQueryThreshold))
@@ -235,14 +235,14 @@ func (l *LDAP) WithConnection(ctx context.Context, fn func(*ldap.Conn) error) er
 //	    if err != nil {
 //	        return err
 //	    }
-//	    
+//
 //	    err = tx.AddUserToGroup(user.DN(), groupDN)
 //	    if err != nil {
 //	        // Attempt cleanup
 //	        tx.DeleteUser(user.DN())
 //	        return err
 //	    }
-//	    
+//
 //	    return nil
 //	})
 type Transaction struct {
@@ -315,9 +315,9 @@ func NewPooledClient(config Config, username, password string, maxConnections in
 	return NewWithOptions(config, username, password,
 		WithConnectionPool(poolConfig),
 		WithPerformanceMonitoring(&PerformanceConfig{
-			Enabled:            true,
-			SlowQueryThreshold: 500 * time.Millisecond,
-			MetricsRetentionPeriod:    1 * time.Minute,
+			Enabled:                true,
+			SlowQueryThreshold:     500 * time.Millisecond,
+			MetricsRetentionPeriod: 1 * time.Minute,
 		}),
 	)
 }
@@ -335,9 +335,9 @@ func NewCachedClient(config Config, username, password string, cacheSize int, ca
 	return NewWithOptions(config, username, password,
 		WithCache(cacheConfig),
 		WithPerformanceMonitoring(&PerformanceConfig{
-			Enabled:            true,
-			SlowQueryThreshold: 200 * time.Millisecond,
-			MetricsRetentionPeriod:    30 * time.Second,
+			Enabled:                true,
+			SlowQueryThreshold:     200 * time.Millisecond,
+			MetricsRetentionPeriod: 30 * time.Second,
 		}),
 	)
 }
@@ -379,18 +379,18 @@ func NewSecureClient(config Config, username, password string) (*LDAP, error) {
 	connOptions := &ConnectionOptions{
 		ConnectionTimeout:    30 * time.Second,
 		OperationTimeout:     60 * time.Second,
-		MaxRetries:          3,
-		RetryDelay:          2 * time.Second,
-		EnableTLS:           true,
+		MaxRetries:           3,
+		RetryDelay:           2 * time.Second,
+		EnableTLS:            true,
 		ValidateCertificates: true,
 	}
 
 	return NewWithOptions(config, username, password,
 		WithConnectionOptions(connOptions),
 		WithPerformanceMonitoring(&PerformanceConfig{
-			Enabled:            true,
-			SlowQueryThreshold: 1 * time.Second,
-			MetricsRetentionPeriod:    1 * time.Minute,
+			Enabled:                true,
+			SlowQueryThreshold:     1 * time.Second,
+			MetricsRetentionPeriod: 1 * time.Minute,
 		}),
 	)
 }
@@ -418,9 +418,9 @@ func NewReadOnlyClient(config Config, username, password string) (*LDAP, error) 
 		WithConnectionPool(poolConfig),
 		WithCache(cacheConfig),
 		WithPerformanceMonitoring(&PerformanceConfig{
-			Enabled:            true,
-			SlowQueryThreshold: 200 * time.Millisecond,
-			MetricsRetentionPeriod:    30 * time.Second,
+			Enabled:                true,
+			SlowQueryThreshold:     200 * time.Millisecond,
+			MetricsRetentionPeriod: 30 * time.Second,
 		}),
 	)
 }

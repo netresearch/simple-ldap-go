@@ -10,7 +10,7 @@ import (
 func TestFindGroupByDNIntegration(t *testing.T) {
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
-	
+
 	client := tc.GetLDAPClient(t)
 	testData := tc.GetTestData()
 
@@ -66,16 +66,16 @@ func TestFindGroupByDNIntegration(t *testing.T) {
 func TestFindGroupsIntegration(t *testing.T) {
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
-	
+
 	client := tc.GetLDAPClient(t)
 
 	groups, err := client.FindGroups()
 	require.NoError(t, err)
 	require.NotNil(t, groups)
-	
+
 	// We should have at least 3 test groups created in the test setup
 	assert.GreaterOrEqual(t, len(groups), 3)
-	
+
 	// Verify group properties
 	for _, group := range groups {
 		assert.NotEmpty(t, group.CN())
@@ -88,7 +88,7 @@ func TestFindGroupsIntegration(t *testing.T) {
 func TestGroupSearchAndValidation(t *testing.T) {
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
-	
+
 	client := tc.GetLDAPClient(t)
 	testData := tc.GetTestData()
 
@@ -96,22 +96,22 @@ func TestGroupSearchAndValidation(t *testing.T) {
 		group, err := client.FindGroupByDN(testData.ValidGroupDN)
 		require.NoError(t, err)
 		require.NotNil(t, group)
-		
+
 		// Verify basic properties
 		assert.Equal(t, testData.ValidGroupCN, group.CN())
 		assert.Equal(t, testData.ValidGroupDN, group.DN())
-		
+
 		// Group should have at least one member (admin user was added as a placeholder)
 		assert.NotEmpty(t, group.Members)
 		t.Logf("Group %s has %d members: %v", group.CN(), len(group.Members), group.Members)
 	})
-	
+
 	t.Run("verify group membership", func(t *testing.T) {
 		// Find the admins group
 		group, err := client.FindGroupByDN(testData.ValidGroupDN)
 		require.NoError(t, err)
 		require.NotNil(t, group)
-		
+
 		// The group should contain valid member DNs
 		for _, member := range group.Members {
 			assert.NotEmpty(t, member)

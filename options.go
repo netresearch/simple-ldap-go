@@ -106,7 +106,7 @@ func WithConnectionOptions(connOptions *ConnectionOptions) Option {
 		if connOptions != nil {
 			// Apply connection configuration
 			if connOptions.ConnectionTimeout > 0 {
-				l.config.DialOptions = append(l.config.DialOptions, 
+				l.config.DialOptions = append(l.config.DialOptions,
 					ldap.DialWithDialer(&net.Dialer{
 						Timeout: connOptions.ConnectionTimeout,
 					}))
@@ -156,12 +156,12 @@ func WithDialOptions(dialOpts ...ldap.DialOpt) Option {
 //
 // Example:
 //
-//	client, err := New(config, username, password, 
+//	client, err := New(config, username, password,
 //	    WithTimeout(30*time.Second, 60*time.Second))
 func WithTimeout(connectionTimeout, operationTimeout time.Duration) Option {
 	return func(l *LDAP) {
 		if connectionTimeout > 0 {
-			l.config.DialOptions = append(l.config.DialOptions, 
+			l.config.DialOptions = append(l.config.DialOptions,
 				ldap.DialWithDialer(&net.Dialer{
 					Timeout: connectionTimeout,
 				}))
@@ -194,9 +194,9 @@ func DefaultConnectionOptions() *ConnectionOptions {
 	return &ConnectionOptions{
 		ConnectionTimeout:    30 * time.Second,
 		OperationTimeout:     60 * time.Second,
-		MaxRetries:          3,
-		RetryDelay:          1 * time.Second,
-		EnableTLS:           true,
+		MaxRetries:           3,
+		RetryDelay:           1 * time.Second,
+		EnableTLS:            true,
 		ValidateCertificates: true,
 	}
 }

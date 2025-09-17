@@ -53,7 +53,7 @@ type LDAP struct {
 
 	user     string
 	password string
-	
+
 	// Connection pool (optional)
 	pool *ConnectionPool
 
@@ -114,9 +114,9 @@ func New(config Config, user, password string) (*LDAP, error) {
 	}
 
 	l := &LDAP{
-		config: config,
-		logger: logger,
-		user:   user,
+		config:   config,
+		logger:   logger,
+		user:     user,
 		password: password,
 	}
 
@@ -140,7 +140,7 @@ func New(config Config, user, password string) (*LDAP, error) {
 			return nil, fmt.Errorf("failed to initialize connection pool: %w", WrapLDAPError("NewConnectionPool", config.Server, err))
 		}
 		l.pool = pool
-		
+
 		logger.Info("ldap_client_initialized_with_pool",
 			slog.String("server", config.Server),
 			slog.Int("max_connections", config.Pool.MaxConnections),
@@ -186,11 +186,11 @@ func New(config Config, user, password string) (*LDAP, error) {
 	if perfConfig == nil {
 		perfConfig = DefaultPerformanceConfig()
 	}
-	
+
 	if perfConfig.Enabled {
 		perfMonitor := NewPerformanceMonitor(perfConfig, logger)
 		l.perfMonitor = perfMonitor
-		
+
 		// Link cache and pool to performance monitor for integrated metrics
 		if l.cache != nil {
 			perfMonitor.SetCache(l.cache)
@@ -198,7 +198,7 @@ func New(config Config, user, password string) (*LDAP, error) {
 		if l.pool != nil {
 			perfMonitor.SetConnectionPool(l.pool)
 		}
-		
+
 		logger.Info("ldap_client_performance_monitor_initialized",
 			slog.String("server", config.Server),
 			slog.Duration("slow_query_threshold", perfConfig.SlowQueryThreshold))
@@ -281,10 +281,10 @@ func (l LDAP) GetConnectionContext(ctx context.Context) (*ldap.Conn, error) {
 				slog.String("error", err.Error()))
 			return nil, fmt.Errorf("failed to get connection from pool: %w", WrapLDAPError("GetConnectionFromPool", l.config.Server, err))
 		}
-		
+
 		l.logger.Debug("connection_retrieved_from_pool",
 			slog.String("server", l.config.Server))
-		
+
 		// Note: The caller must call Close() which will return this connection to the pool
 		// This is handled by the pool's Put method when the connection is closed
 		return conn, nil
@@ -362,7 +362,7 @@ func (l *LDAP) GetPoolStats() *PoolStats {
 	if l.pool == nil {
 		return nil
 	}
-	
+
 	stats := l.pool.Stats()
 	return &stats
 }
@@ -379,7 +379,7 @@ func (l *LDAP) GetCacheStats() CacheStats {
 	if l.cache == nil {
 		return CacheStats{}
 	}
-	
+
 	return l.cache.Stats()
 }
 
@@ -395,7 +395,7 @@ func (l *LDAP) GetPerformanceStats() PerformanceStats {
 	if l.perfMonitor == nil {
 		return PerformanceStats{}
 	}
-	
+
 	return l.perfMonitor.GetStats()
 }
 
@@ -426,7 +426,7 @@ func (l *LDAP) ClearCache() {
 //	defer client.Close()
 func (l *LDAP) Close() error {
 	var errors []error
-	
+
 	// Close performance monitor first
 	if l.perfMonitor != nil {
 		if err := l.perfMonitor.Close(); err != nil {
@@ -434,7 +434,7 @@ func (l *LDAP) Close() error {
 		}
 		l.perfMonitor = nil
 	}
-	
+
 	// Close cache
 	if l.cache != nil {
 		if err := l.cache.Close(); err != nil {
@@ -442,7 +442,7 @@ func (l *LDAP) Close() error {
 		}
 		l.cache = nil
 	}
-	
+
 	// Close connection pool
 	if l.pool != nil {
 		if err := l.pool.Close(); err != nil {
@@ -450,11 +450,11 @@ func (l *LDAP) Close() error {
 		}
 		l.pool = nil
 	}
-	
+
 	if len(errors) > 0 {
 		return fmt.Errorf("multiple close errors: %v", errors)
 	}
-	
+
 	l.logger.Info("ldap_client_closed")
 	return nil
 }

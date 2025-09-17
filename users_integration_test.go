@@ -10,7 +10,7 @@ import (
 func TestFindUserByMailIntegration(t *testing.T) {
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
-	
+
 	client := tc.GetLDAPClient(t)
 	testData := tc.GetTestData()
 
@@ -61,16 +61,16 @@ func TestFindUserByMailIntegration(t *testing.T) {
 func TestFindUsersIntegration(t *testing.T) {
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
-	
+
 	client := tc.GetLDAPClient(t)
 
 	users, err := client.FindUsers()
 	require.NoError(t, err)
 	require.NotNil(t, users)
-	
+
 	// We should have at least 4 test users created in the test setup
 	assert.GreaterOrEqual(t, len(users), 4)
-	
+
 	// Verify user properties
 	for _, user := range users {
 		assert.NotEmpty(t, user.CN())
@@ -83,7 +83,7 @@ func TestFindUsersIntegration(t *testing.T) {
 func TestUserGroupMembershipIntegration(t *testing.T) {
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
-	
+
 	client := tc.GetLDAPClient(t)
 	testData := tc.GetTestData()
 
@@ -94,7 +94,7 @@ func TestUserGroupMembershipIntegration(t *testing.T) {
 		// The important thing is that the method executes without panicking
 		t.Logf("AddUserToGroup result: %v", err)
 	})
-	
+
 	t.Run("remove user from group", func(t *testing.T) {
 		// This tests the method but may not actually work with OpenLDAP permissions
 		err := client.RemoveUserFromGroup(testData.ValidUserDN, testData.ValidGroupDN)
@@ -107,7 +107,7 @@ func TestUserGroupMembershipIntegration(t *testing.T) {
 func TestUserCRUDOperationsIntegration(t *testing.T) {
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
-	
+
 	client := tc.GetLDAPClient(t)
 
 	t.Run("create user", func(t *testing.T) {
@@ -120,11 +120,11 @@ func TestUserCRUDOperationsIntegration(t *testing.T) {
 				NormalAccount: true,
 			},
 		}
-		
+
 		dn, err := client.CreateUser(testUser, "password123")
 		// This may fail due to OpenLDAP schema differences, but we test the code path
 		t.Logf("CreateUser result: dn=%s, err=%v", dn, err)
-		
+
 		// If creation succeeded, try to clean up
 		if err == nil && dn != "" {
 			err = client.DeleteUser(dn)

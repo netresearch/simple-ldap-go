@@ -12,8 +12,8 @@ import (
 func main() {
 	// Example configuration - update with your LDAP server details
 	config := ldap.Config{
-		Server:           "ldap://localhost:389",  // or "ldaps://ad.company.com:636"
-		BaseDN:           "DC=example,DC=com",     // Your domain base DN
+		Server:            "ldap://localhost:389", // or "ldaps://ad.company.com:636"
+		BaseDN:            "DC=example,DC=com",    // Your domain base DN
 		IsActiveDirectory: false,                  // Set to true for Active Directory
 	}
 

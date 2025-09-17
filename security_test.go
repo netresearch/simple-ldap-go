@@ -28,7 +28,7 @@ func TestValidateDN(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := ValidateDN(tt.dn)
-			
+
 			if tt.expectError && err == nil {
 				t.Errorf("Expected error for DN %q, but got none", tt.dn)
 			}
@@ -66,7 +66,7 @@ func TestValidateLDAPFilter(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := ValidateLDAPFilter(tt.filter)
-			
+
 			if tt.expectValid && err != nil {
 				t.Errorf("Expected valid filter %q, but got error: %v", tt.filter, err)
 			}
@@ -126,7 +126,7 @@ func TestValidateSAMAccountName(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := ValidateSAMAccountName(tt.sam)
-			
+
 			if tt.expectValid && err != nil {
 				t.Errorf("Expected valid SAM %q, but got error: %v", tt.sam, err)
 			}
@@ -159,7 +159,7 @@ func TestValidateEmail(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := ValidateEmail(tt.email)
-			
+
 			if tt.expectValid && err != nil {
 				t.Errorf("Expected valid email %q, but got error: %v", tt.email, err)
 			}
@@ -189,7 +189,7 @@ func TestValidatePassword(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := ValidatePassword(tt.password)
-			
+
 			if tt.expectValid && err != nil {
 				t.Errorf("Expected valid password %q, but got error: %v", tt.password, err)
 			}
@@ -219,7 +219,7 @@ func TestValidateServerURL(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := ValidateServerURL(tt.url)
-			
+
 			if tt.expectValid && err != nil {
 				t.Errorf("Expected valid URL %q, but got error: %v", tt.url, err)
 			}
@@ -235,35 +235,35 @@ func TestSecureCredential(t *testing.T) {
 		username := "testuser"
 		password := "secretPassword123"
 		timeout := 5 * time.Minute
-		
+
 		cred := NewSecureCredential(username, password, timeout)
-		
+
 		if cred.IsExpired() {
 			t.Error("New credential should not be expired")
 		}
-		
+
 		user, pass := cred.GetCredentials()
 		if user != username || pass != password {
 			t.Error("Credentials do not match original values")
 		}
-		
+
 		cred.Zeroize()
-		
+
 		if !cred.IsExpired() {
 			t.Error("Credential should be expired after Zeroize()")
 		}
-		
+
 		user, pass = cred.GetCredentials()
 		if user != "" || pass != "" {
 			t.Error("Zeroized credential should return empty strings")
 		}
 	})
-	
+
 	t.Run("Multiple zeroize calls", func(t *testing.T) {
 		cred := NewSecureCredential("testuser", "testpass", 5*time.Minute)
 		cred.Zeroize()
 		cred.Zeroize() // Should not panic
-		
+
 		if !cred.IsExpired() {
 			t.Error("Credential should remain expired")
 		}
@@ -273,22 +273,22 @@ func TestSecureCredential(t *testing.T) {
 func TestValidateTLSConfig(t *testing.T) {
 	// Test with secure configuration
 	secureTLSConfig := &tls.Config{
-		MinVersion:       tls.VersionTLS12,
-		CipherSuites:     []uint16{tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384},
+		MinVersion:         tls.VersionTLS12,
+		CipherSuites:       []uint16{tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384},
 		InsecureSkipVerify: false,
 	}
-	
+
 	err := ValidateTLSConfig(secureTLSConfig)
 	if err != nil {
 		t.Errorf("Expected secure TLS config to be valid, got error: %v", err)
 	}
-	
+
 	// Test with insecure configuration
 	insecureTLSConfig := &tls.Config{
 		MinVersion:         tls.VersionTLS10, // Too old
 		InsecureSkipVerify: true,             // Insecure
 	}
-	
+
 	err = ValidateTLSConfig(insecureTLSConfig)
 	if err == nil {
 		t.Error("Expected insecure TLS config to be invalid")
@@ -301,16 +301,16 @@ func TestCreateSecureTLSConfig(t *testing.T) {
 		MinVersion:         tls.VersionTLS12,
 		InsecureSkipVerify: false,
 	}
-	
+
 	tlsConfig := CreateSecureTLSConfig(cfg)
 	if tlsConfig == nil {
 		t.Error("Expected TLS config to be created")
 	}
-	
+
 	if tlsConfig.MinVersion != tls.VersionTLS12 {
 		t.Errorf("Expected MinVersion to be TLS 1.2, got %d", tlsConfig.MinVersion)
 	}
-	
+
 	if tlsConfig.InsecureSkipVerify {
 		t.Error("Expected InsecureSkipVerify to be false")
 	}
@@ -329,11 +329,11 @@ func TestValidateIPWhitelist(t *testing.T) {
 		{"Empty slice", []string{}, false},
 		{"Mixed valid/invalid", []string{"192.168.1.0/24", "invalid"}, true},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := ValidateIPWhitelist(tt.whitelist)
-			
+
 			if tt.expectErr && err == nil {
 				t.Error("Expected error for invalid whitelist")
 			}

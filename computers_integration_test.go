@@ -10,15 +10,15 @@ import (
 func TestFindComputerBySAMAccountNameIntegration(t *testing.T) {
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
-	
+
 	client := tc.GetLDAPClient(t)
 	testData := tc.GetTestData()
 
 	tests := []struct {
-		name              string
-		samAccountName    string
-		expectError       bool
-		expectedError     error
+		name           string
+		samAccountName string
+		expectError    bool
+		expectedError  error
 	}{
 		{
 			name:           "valid computer name",
@@ -61,16 +61,16 @@ func TestFindComputerBySAMAccountNameIntegration(t *testing.T) {
 func TestFindComputersIntegration(t *testing.T) {
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
-	
+
 	client := tc.GetLDAPClient(t)
 
 	computers, err := client.FindComputers()
 	require.NoError(t, err)
 	require.NotNil(t, computers)
-	
+
 	// We should have at least 2 test computers created in the test setup
 	assert.GreaterOrEqual(t, len(computers), 2)
-	
+
 	// Verify computer properties
 	for _, computer := range computers {
 		assert.NotEmpty(t, computer.CN())
@@ -83,7 +83,7 @@ func TestFindComputersIntegration(t *testing.T) {
 func TestComputerOperationsIntegration(t *testing.T) {
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
-	
+
 	client := tc.GetLDAPClient(t)
 	testData := tc.GetTestData()
 
@@ -91,18 +91,18 @@ func TestComputerOperationsIntegration(t *testing.T) {
 		computer, err := client.FindComputerByDN(testData.ValidComputerDN)
 		require.NoError(t, err)
 		require.NotNil(t, computer)
-		
+
 		assert.Equal(t, testData.ValidComputerCN, computer.CN())
 		assert.Equal(t, testData.ValidComputerDN, computer.DN())
 		assert.Equal(t, testData.ValidComputerCN, computer.SAMAccountName)
 		assert.True(t, computer.Enabled)
 	})
-	
+
 	t.Run("find computer by SAM account name", func(t *testing.T) {
 		computer, err := client.FindComputerBySAMAccountName(testData.ValidComputerCN)
 		require.NoError(t, err)
 		require.NotNil(t, computer)
-		
+
 		assert.Equal(t, testData.ValidComputerCN, computer.CN())
 		assert.Equal(t, testData.ValidComputerDN, computer.DN())
 		assert.Equal(t, testData.ValidComputerCN, computer.SAMAccountName)

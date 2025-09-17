@@ -53,38 +53,38 @@ func (e *LDAPError) Is(target error) bool {
 // These provide a stable API for error classification while maintaining backward compatibility.
 var (
 	// Connection errors
-	ErrConnectionFailed = errors.New("ldap: connection failed")
+	ErrConnectionFailed  = errors.New("ldap: connection failed")
 	ErrServerUnavailable = errors.New("ldap: server unavailable")
-	
+
 	// Authentication errors
 	ErrAuthenticationFailed = errors.New("ldap: authentication failed")
 	ErrInvalidCredentials   = errors.New("ldap: invalid credentials")
 	ErrAccountDisabled      = errors.New("ldap: account disabled")
 	ErrAccountLocked        = errors.New("ldap: account locked")
 	ErrPasswordExpired      = errors.New("ldap: password expired")
-	
+
 	// Authorization errors
 	ErrInsufficientAccess = errors.New("ldap: insufficient access")
 	ErrPermissionDenied   = errors.New("ldap: permission denied")
-	
+
 	// Data validation errors
-	ErrInvalidDN          = errors.New("ldap: invalid distinguished name")
-	ErrInvalidFilter      = errors.New("ldap: invalid filter")
-	ErrInvalidAttribute   = errors.New("ldap: invalid attribute")
-	ErrMalformedEntry     = errors.New("ldap: malformed entry")
-	
+	ErrInvalidDN        = errors.New("ldap: invalid distinguished name")
+	ErrInvalidFilter    = errors.New("ldap: invalid filter")
+	ErrInvalidAttribute = errors.New("ldap: invalid attribute")
+	ErrMalformedEntry   = errors.New("ldap: malformed entry")
+
 	// Object existence errors
-	ErrObjectNotFound     = errors.New("ldap: object not found")
-	ErrObjectExists       = errors.New("ldap: object already exists")
+	ErrObjectNotFound      = errors.New("ldap: object not found")
+	ErrObjectExists        = errors.New("ldap: object already exists")
 	ErrConstraintViolation = errors.New("ldap: constraint violation")
-	
+
 	// Protocol errors
-	ErrProtocolError      = errors.New("ldap: protocol error")
+	ErrProtocolError        = errors.New("ldap: protocol error")
 	ErrUnsupportedOperation = errors.New("ldap: unsupported operation")
-	ErrTimeout            = errors.New("ldap: operation timeout")
-	
+	ErrTimeout              = errors.New("ldap: operation timeout")
+
 	// Context errors
-	ErrContextCancelled   = errors.New("ldap: context cancelled")
+	ErrContextCancelled        = errors.New("ldap: context cancelled")
 	ErrContextDeadlineExceeded = errors.New("ldap: context deadline exceeded")
 )
 
@@ -156,13 +156,13 @@ func classifyLDAPError(op, server string, ldapErr *ldap.Error) error {
 	case ldap.LDAPResultUnwillingToPerform:
 		// Often indicates account disabled or policy violations
 		return ldapError.WithContext("error_type", "account_disabled")
-	
+
 	// Object existence
 	case ldap.LDAPResultNoSuchObject:
 		return ldapError.WithContext("error_type", "not_found")
 	case ldap.LDAPResultEntryAlreadyExists:
 		return ldapError.WithContext("error_type", "already_exists")
-	
+
 	// Data validation
 	case ldap.LDAPResultInvalidDNSyntax:
 		return ldapError.WithContext("error_type", "invalid_dn")
@@ -170,7 +170,7 @@ func classifyLDAPError(op, server string, ldapErr *ldap.Error) error {
 		return ldapError.WithContext("error_type", "invalid_attribute")
 	case ldap.LDAPResultConstraintViolation:
 		return ldapError.WithContext("error_type", "constraint_violation")
-	
+
 	// Connection issues
 	case ldap.LDAPResultUnavailable, ldap.LDAPResultServerDown:
 		return ldapError.WithContext("error_type", "server_unavailable")
@@ -178,13 +178,13 @@ func classifyLDAPError(op, server string, ldapErr *ldap.Error) error {
 		return ldapError.WithContext("error_type", "timeout")
 	case ldap.LDAPResultBusy:
 		return ldapError.WithContext("error_type", "server_busy")
-	
+
 	// Protocol errors
 	case ldap.LDAPResultProtocolError:
 		return ldapError.WithContext("error_type", "protocol_error")
 	case ldap.LDAPResultOperationsError:
 		return ldapError.WithContext("error_type", "unsupported_operation")
-	
+
 	default:
 		// Return the enhanced error for unknown result codes
 		return ldapError.WithContext("error_type", "unknown")
@@ -202,14 +202,14 @@ func IsAuthenticationError(err error) bool {
 		errors.Is(err, ErrPasswordExpired) {
 		return true
 	}
-	
+
 	// Check for LDAP error with authentication-related result codes
 	var enhancedErr *LDAPError
 	if errors.As(err, &enhancedErr) {
 		switch enhancedErr.Code {
-		case int(ldap.LDAPResultInvalidCredentials), 
-			 int(ldap.LDAPResultInsufficientAccessRights),
-			 int(ldap.LDAPResultUnwillingToPerform):
+		case int(ldap.LDAPResultInvalidCredentials),
+			int(ldap.LDAPResultInsufficientAccessRights),
+			int(ldap.LDAPResultUnwillingToPerform):
 			return true
 		}
 		if errorType, exists := enhancedErr.Context["error_type"]; exists {
@@ -219,7 +219,7 @@ func IsAuthenticationError(err error) bool {
 			}
 		}
 	}
-	
+
 	return false
 }
 
@@ -239,7 +239,7 @@ func IsNotFoundError(err error) bool {
 		errors.Is(err, ErrComputerNotFound) {
 		return true
 	}
-	
+
 	// Check for LDAP error with not-found result codes
 	var enhancedErr *LDAPError
 	if errors.As(err, &enhancedErr) {
@@ -250,7 +250,7 @@ func IsNotFoundError(err error) bool {
 			return errorType == "not_found"
 		}
 	}
-	
+
 	return false
 }
 
@@ -275,13 +275,13 @@ func GetLDAPResultCode(err error) int {
 	if ldapErr, ok := err.(*ldap.Error); ok {
 		return int(ldapErr.ResultCode)
 	}
-	
+
 	// Check for wrapped enhanced LDAP error
 	var enhancedErr *LDAPError
 	if errors.As(err, &enhancedErr) {
 		return enhancedErr.Code
 	}
-	
+
 	return -1
 }
 
@@ -323,22 +323,22 @@ func FormatErrorWithContext(err error) string {
 	}
 
 	msg := enhancedErr.Error()
-	
+
 	if enhancedErr.Code != 0 {
 		msg += fmt.Sprintf(" (LDAP code: %d)", enhancedErr.Code)
 	}
-	
+
 	if len(enhancedErr.Context) > 0 {
 		msg += " - Context:"
 		for key, value := range enhancedErr.Context {
 			msg += fmt.Sprintf(" %s=%v", key, value)
 		}
 	}
-	
+
 	if !enhancedErr.Timestamp.IsZero() {
 		msg += fmt.Sprintf(" (occurred at: %s)", enhancedErr.Timestamp.Format(time.RFC3339))
 	}
-	
+
 	return msg
 }
 
@@ -373,23 +373,23 @@ func GetErrorSeverity(err error) ErrorSeverity {
 	if IsConnectionError(err) {
 		return SeverityCritical
 	}
-	
+
 	if IsAuthenticationError(err) {
 		return SeverityError
 	}
-	
+
 	if IsNotFoundError(err) {
 		return SeverityWarning
 	}
-	
+
 	if IsValidationError(err) {
 		return SeverityWarning
 	}
-	
+
 	if IsContextError(err) {
 		return SeverityInfo
 	}
-	
+
 	// Check LDAP result codes for severity
 	code := GetLDAPResultCode(err)
 	switch code {
@@ -439,16 +439,16 @@ func IsRetryable(err error) bool {
 	if retryErr, ok := err.(RetryableError); ok {
 		return retryErr.IsRetryable()
 	}
-	
+
 	// Determine retry capability based on error type
 	if IsConnectionError(err) && !errors.Is(err, ErrPoolExhausted) {
 		return true // Connection issues might be temporary
 	}
-	
+
 	if IsContextError(err) {
 		return false // Context errors should not be retried
 	}
-	
+
 	// Check LDAP result codes
 	code := GetLDAPResultCode(err)
 	switch code {
@@ -473,25 +473,25 @@ func isLDAPErrorCode(err error, code uint16) bool {
 
 // IsInvalidCredentialsError checks if error is specifically about invalid credentials
 func IsInvalidCredentialsError(err error) bool {
-	return errors.Is(err, ErrInvalidCredentials) || 
+	return errors.Is(err, ErrInvalidCredentials) ||
 		isLDAPErrorCode(err, ldap.LDAPResultInvalidCredentials)
 }
 
 // IsInsufficientAccessError checks if error is about insufficient access rights
 func IsInsufficientAccessError(err error) bool {
-	return errors.Is(err, ErrInsufficientAccess) || 
+	return errors.Is(err, ErrInsufficientAccess) ||
 		isLDAPErrorCode(err, ldap.LDAPResultInsufficientAccessRights)
 }
 
 // IsNoSuchObjectError checks if error indicates object doesn't exist
 func IsNoSuchObjectError(err error) bool {
-	return IsNotFoundError(err) || 
+	return IsNotFoundError(err) ||
 		isLDAPErrorCode(err, ldap.LDAPResultNoSuchObject)
 }
 
 // IsConstraintViolationError checks if error is about constraint violations
 func IsConstraintViolationError(err error) bool {
-	return errors.Is(err, ErrConstraintViolation) || 
+	return errors.Is(err, ErrConstraintViolation) ||
 		isLDAPErrorCode(err, ldap.LDAPResultConstraintViolation)
 }
 
@@ -550,19 +550,19 @@ func (m *MultiError) Error() string {
 	if len(m.Errors) == 0 {
 		return "no errors"
 	}
-	
+
 	if len(m.Errors) == 1 {
 		if m.Op != "" {
 			return fmt.Sprintf("%s: %v", m.Op, m.Errors[0])
 		}
 		return m.Errors[0].Error()
 	}
-	
+
 	var msgs []string
 	for _, err := range m.Errors {
 		msgs = append(msgs, err.Error())
 	}
-	
+
 	if m.Op != "" {
 		return fmt.Sprintf("%s: multiple errors: %s", m.Op, strings.Join(msgs, "; "))
 	}
@@ -679,7 +679,7 @@ func (o *OperationError) IsRetryable() bool {
 func NewOperationError(operation, dn, server string, err error) *OperationError {
 	retryable := IsRetryable(err)
 	code := GetLDAPResultCode(err)
-	
+
 	return &OperationError{
 		Operation: operation,
 		DN:        dn,

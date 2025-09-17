@@ -26,8 +26,8 @@ func TestModernClientCreation(t *testing.T) {
 		{
 			name: "basic_client_success",
 			config: Config{
-				Server: "ldaps://test.example.com:636",
-				BaseDN: "DC=test,DC=example,DC=com",
+				Server:            "ldaps://test.example.com:636",
+				BaseDN:            "DC=test,DC=example,DC=com",
 				IsActiveDirectory: true,
 			},
 			username:    "CN=test,CN=Users,DC=test,DC=example,DC=com",
@@ -38,8 +38,8 @@ func TestModernClientCreation(t *testing.T) {
 		{
 			name: "client_with_logger",
 			config: Config{
-				Server: "ldaps://test.example.com:636",
-				BaseDN: "DC=test,DC=example,DC=com",
+				Server:            "ldaps://test.example.com:636",
+				BaseDN:            "DC=test,DC=example,DC=com",
 				IsActiveDirectory: true,
 			},
 			username: "CN=test,CN=Users,DC=test,DC=example,DC=com",
@@ -52,8 +52,8 @@ func TestModernClientCreation(t *testing.T) {
 		{
 			name: "client_with_connection_pool",
 			config: Config{
-				Server: "ldaps://test.example.com:636",
-				BaseDN: "DC=test,DC=example,DC=com",
+				Server:            "ldaps://test.example.com:636",
+				BaseDN:            "DC=test,DC=example,DC=com",
 				IsActiveDirectory: true,
 			},
 			username: "CN=test,CN=Users,DC=test,DC=example,DC=com",
@@ -70,8 +70,8 @@ func TestModernClientCreation(t *testing.T) {
 		{
 			name: "client_with_cache",
 			config: Config{
-				Server: "ldaps://test.example.com:636",
-				BaseDN: "DC=test,DC=example,DC=com",
+				Server:            "ldaps://test.example.com:636",
+				BaseDN:            "DC=test,DC=example,DC=com",
 				IsActiveDirectory: true,
 			},
 			username: "CN=test,CN=Users,DC=test,DC=example,DC=com",
@@ -88,8 +88,8 @@ func TestModernClientCreation(t *testing.T) {
 		{
 			name: "client_with_all_options",
 			config: Config{
-				Server: "ldaps://test.example.com:636",
-				BaseDN: "DC=test,DC=example,DC=com",
+				Server:            "ldaps://test.example.com:636",
+				BaseDN:            "DC=test,DC=example,DC=com",
 				IsActiveDirectory: true,
 			},
 			username: "CN=test,CN=Users,DC=test,DC=example,DC=com",
@@ -120,8 +120,8 @@ func TestModernClientCreation(t *testing.T) {
 		{
 			name: "invalid_server_url",
 			config: Config{
-				Server: "invalid://test.example.com",
-				BaseDN: "DC=test,DC=example,DC=com",
+				Server:            "invalid://test.example.com",
+				BaseDN:            "DC=test,DC=example,DC=com",
 				IsActiveDirectory: true,
 			},
 			username:    "CN=test,CN=Users,DC=test,DC=example,DC=com",
@@ -161,8 +161,8 @@ func TestModernClientCreation(t *testing.T) {
 // TestFactoryMethods tests the convenience factory methods using subtests.
 func TestFactoryMethods(t *testing.T) {
 	config := Config{
-		Server: "ldaps://test.example.com:636",
-		BaseDN: "DC=test,DC=example,DC=com",
+		Server:            "ldaps://test.example.com:636",
+		BaseDN:            "DC=test,DC=example,DC=com",
 		IsActiveDirectory: true,
 	}
 	username := "CN=test,CN=Users,DC=test,DC=example,DC=com"
@@ -502,8 +502,8 @@ func TestConnectionOptions(t *testing.T) {
 // BenchmarkClientCreation benchmarks different client creation methods.
 func BenchmarkClientCreation(b *testing.B) {
 	config := Config{
-		Server: "ldaps://test.example.com:636",
-		BaseDN: "DC=test,DC=example,DC=com",
+		Server:            "ldaps://test.example.com:636",
+		BaseDN:            "DC=test,DC=example,DC=com",
 		IsActiveDirectory: true,
 	}
 	username := "CN=test,CN=Users,DC=test,DC=example,DC=com"
@@ -655,8 +655,8 @@ type TestHelper struct {
 func NewTestHelper() *TestHelper {
 	return &TestHelper{
 		Config: Config{
-			Server: "ldaps://test.example.com:636",
-			BaseDN: "DC=test,DC=example,DC=com",
+			Server:            "ldaps://test.example.com:636",
+			BaseDN:            "DC=test,DC=example,DC=com",
 			IsActiveDirectory: true,
 		},
 		Username: "CN=test,CN=Users,DC=test,DC=example,DC=com",
@@ -727,7 +727,7 @@ func (m *MockLDAP) AddMockUser(dn string, user *User) {
 // Example of how to use the mock in tests.
 func TestWithMockLDAP(t *testing.T) {
 	mock := NewMockLDAP()
-	
+
 	// Add a test user
 	testUser := &User{
 		Object: Object{

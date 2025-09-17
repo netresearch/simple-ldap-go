@@ -96,7 +96,7 @@ func TestUACFromUint32(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := UACFromUint32(tt.value)
-			
+
 			// Compare each field individually for better error reporting
 			assert.Equal(t, tt.expected.LogonScript, result.LogonScript, "LogonScript")
 			assert.Equal(t, tt.expected.AccountDisabled, result.AccountDisabled, "AccountDisabled")
@@ -188,24 +188,24 @@ func TestUACRoundTrip(t *testing.T) {
 		originalValue uint32
 		expectedValue uint32 // May differ from original if unsupported bits are filtered out
 	}{
-		{0x0, 0x0},               // No flags
-		{0x200, 0x200},           // Normal account
-		{0x202, 0x202},           // Disabled normal account
-		{0x1000, 0x1000},         // Workstation trust account
-		{0x2000, 0x2000},         // Server trust account
-		{0x10200, 0x10200},       // Normal account with no password expiration
-		{0x40200, 0x40200},       // Normal account with smart card required
-		{0xFFFFFFFF, 0x1ff3bfb},  // All flags - only supported bits preserved (calculated from actual UAC implementation)
+		{0x0, 0x0},              // No flags
+		{0x200, 0x200},          // Normal account
+		{0x202, 0x202},          // Disabled normal account
+		{0x1000, 0x1000},        // Workstation trust account
+		{0x2000, 0x2000},        // Server trust account
+		{0x10200, 0x10200},      // Normal account with no password expiration
+		{0x40200, 0x40200},      // Normal account with smart card required
+		{0xFFFFFFFF, 0x1ff3bfb}, // All flags - only supported bits preserved (calculated from actual UAC implementation)
 	}
 
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("roundtrip_%x", test.originalValue), func(t *testing.T) {
 			// Convert uint32 to UAC
 			uac := UACFromUint32(test.originalValue)
-			
+
 			// Convert back to uint32
 			convertedValue := uac.Uint32()
-			
+
 			// Should match expected value (may filter out unsupported bits)
 			assert.Equal(t, test.expectedValue, convertedValue)
 		})
@@ -260,16 +260,16 @@ func TestUACString(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := tt.uac.String()
-			
+
 			if tt.expectedEmpty {
 				assert.Empty(t, result)
 			} else {
 				assert.NotEmpty(t, result)
-				
+
 				for _, expectedSubstring := range tt.expectedContains {
 					assert.Contains(t, result, expectedSubstring)
 				}
-				
+
 				// Should not end with trailing comma and space
 				assert.False(t, strings.HasSuffix(result, ", "))
 			}
@@ -418,14 +418,14 @@ func TestUACIndividualFlags(t *testing.T) {
 			// Test setting individual flag
 			uac := UAC{}
 			tt.setValue(&uac)
-			
+
 			// Verify the flag is set
 			assert.True(t, tt.getValue(uac), "Flag should be set")
-			
+
 			// Verify the correct bit is set in uint32 conversion
 			value := uac.Uint32()
 			assert.Equal(t, tt.flagBit, value, "Should set correct bit value")
-			
+
 			// Verify round-trip conversion
 			reconstructed := UACFromUint32(value)
 			assert.True(t, tt.getValue(reconstructed), "Flag should survive round-trip conversion")
@@ -491,11 +491,11 @@ func TestUACCommonScenarios(t *testing.T) {
 				// Test UAC to uint32 conversion
 				value := scenario.uac.Uint32()
 				assert.Equal(t, scenario.expected, value)
-				
+
 				// Test uint32 to UAC conversion
 				reconstructed := UACFromUint32(scenario.expected)
 				assert.Equal(t, scenario.uac, reconstructed)
-				
+
 				// Test enabled/disabled logic
 				isEnabled := !scenario.uac.AccountDisabled
 				assert.Equal(t, scenario.enabled, isEnabled)
@@ -515,7 +515,7 @@ func TestUACFlagCombinations(t *testing.T) {
 		}
 
 		expectedValue := uint32(0x200 | 0x10000 | 0x40000 | 0x1000000) // 0x1050200
-		
+
 		actualValue := uac.Uint32()
 		assert.Equal(t, expectedValue, actualValue)
 
@@ -535,7 +535,7 @@ func TestUACFlagCombinations(t *testing.T) {
 // Benchmark UAC operations
 func BenchmarkUACFromUint32(b *testing.B) {
 	value := uint32(0x10200) // Normal account with no password expiration
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = UACFromUint32(value)
@@ -548,7 +548,7 @@ func BenchmarkUACUint32(b *testing.B) {
 		NoPasswordExpiration: true,
 		SmartCardRequired:    true,
 	}
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = uac.Uint32()
@@ -562,7 +562,7 @@ func BenchmarkUACString(b *testing.B) {
 		SmartCardRequired:    true,
 		AccountDisabled:      true,
 	}
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = uac.String()

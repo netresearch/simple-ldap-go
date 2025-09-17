@@ -184,7 +184,7 @@ func Search[T LDAPObject](ctx context.Context, l *LDAP, filter string, baseDN st
 //	    SAMAccountName: "jdoe",
 //	    Mail: stringPtr("john.doe@example.com"),
 //	}
-//	
+//
 //	dn, err := Create[*FullUser](ctx, client, user)
 //	if err != nil {
 //	    return err
@@ -244,7 +244,7 @@ func Create[T LDAPObject](ctx context.Context, l *LDAP, obj T) (string, error) {
 //	    "description": {"Updated description"},
 //	    "mail": {"new.email@example.com"},
 //	}
-//	
+//
 //	err := Modify[*User](ctx, client, user, changes)
 //	if err != nil {
 //	    return err
@@ -460,12 +460,12 @@ type BatchResult[T LDAPObject] struct {
 //	    {Operation: "modify", Object: existingUser, Changes: changes},
 //	    {Operation: "delete", Object: oldUser},
 //	}
-//	
+//
 //	results, err := BatchProcess[*User](ctx, client, operations)
 //	if err != nil {
 //	    return err
 //	}
-//	
+//
 //	for i, result := range results {
 //	    if result.Error != nil {
 //	        fmt.Printf("Operation %d failed: %v\n", i, result.Error)

@@ -307,7 +307,7 @@ func (l *LDAP) ChangePasswordForSAMAccountNameContext(ctx context.Context, sAMAc
 			slog.String("username", sAMAccountName),
 			slog.String("server", l.config.Server),
 			slog.String("error", ErrActiveDirectoryMustBeLDAPS.Error()))
-		return fmt.Errorf("password change for user %s on Active Directory server %s: %w", 
+		return fmt.Errorf("password change for user %s on Active Directory server %s: %w",
 			sAMAccountName, l.config.Server, ErrActiveDirectoryMustBeLDAPS)
 	}
 

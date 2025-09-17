@@ -134,12 +134,12 @@ type DirectoryManager interface {
 	UserManager
 	GroupManager
 	ComputerManager
-	
+
 	// Connection management
 	GetConnection() (Connection, error)
 	GetConnectionContext(ctx context.Context) (Connection, error)
 	Close() error
-	
+
 	// Statistics and monitoring
 	GetPoolStats() *PoolStats
 	GetCacheStats() CacheStats
@@ -153,11 +153,11 @@ type Connection interface {
 	// Basic connection operations
 	Close() error
 	Bind(username, password string) error
-	
+
 	// Search operations
 	Search(searchRequest *SearchRequest) (*SearchResult, error)
 	SearchContext(ctx context.Context, searchRequest *SearchRequest) (*SearchResult, error)
-	
+
 	// Modify operations
 	Add(addRequest *AddRequest) error
 	AddContext(ctx context.Context, addRequest *AddRequest) error
@@ -165,7 +165,7 @@ type Connection interface {
 	ModifyContext(ctx context.Context, modifyRequest *ModifyRequest) error
 	Del(delRequest *DelRequest) error
 	DelRequest(ctx context.Context, delRequest *DelRequest) error
-	
+
 	// Password operations
 	PasswordModify(passwordModifyRequest *PasswordModifyRequest) error
 	PasswordModifyContext(ctx context.Context, passwordModifyRequest *PasswordModifyRequest) error
@@ -252,11 +252,11 @@ type ReadOnlyDirectory interface {
 	UserReader
 	GroupReader
 	ComputerReader
-	
+
 	// Connection management (read-only)
 	GetConnection() (Connection, error)
 	GetConnectionContext(ctx context.Context) (Connection, error)
-	
+
 	// Statistics and monitoring (read-only)
 	GetPoolStats() *PoolStats
 	GetCacheStats() CacheStats
@@ -269,7 +269,7 @@ type WriteOnlyDirectory interface {
 	UserWriter
 	GroupWriter
 	ComputerWriter
-	
+
 	// Connection management
 	GetConnection() (Connection, error)
 	GetConnectionContext(ctx context.Context) (Connection, error)

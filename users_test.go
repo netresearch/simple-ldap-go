@@ -11,7 +11,7 @@ import (
 func TestFindUserByDN(t *testing.T) {
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
-	
+
 	client := tc.GetLDAPClient(t)
 	testData := tc.GetTestData()
 
@@ -65,7 +65,7 @@ func TestFindUserByDN(t *testing.T) {
 				assert.NoError(t, err)
 				assert.NotNil(t, user)
 				assert.Equal(t, strings.ToLower(tt.dn), strings.ToLower(user.DN()))
-				
+
 				if tt.validateUser != nil {
 					tt.validateUser(t, user)
 				}
@@ -77,16 +77,16 @@ func TestFindUserByDN(t *testing.T) {
 func TestFindUserBySAMAccountName(t *testing.T) {
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
-	
+
 	client := tc.GetLDAPClient(t)
 	testData := tc.GetTestData()
 
 	tests := []struct {
-		name             string
-		sAMAccountName   string
-		expectError      bool
-		expectedError    error
-		validateUser     func(*testing.T, *User)
+		name           string
+		sAMAccountName string
+		expectError    bool
+		expectedError  error
+		validateUser   func(*testing.T, *User)
 	}{
 		{
 			name:           "valid sAMAccountName",
@@ -107,10 +107,10 @@ func TestFindUserBySAMAccountName(t *testing.T) {
 			},
 		},
 		{
-			name:             "nonexistent sAMAccountName",
-			sAMAccountName:   testData.InvalidUserUID,
-			expectError:      true,
-			expectedError:    ErrUserNotFound,
+			name:           "nonexistent sAMAccountName",
+			sAMAccountName: testData.InvalidUserUID,
+			expectError:    true,
+			expectedError:  ErrUserNotFound,
 		},
 		{
 			name:           "disabled user",
@@ -137,7 +137,7 @@ func TestFindUserBySAMAccountName(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 				assert.NotNil(t, user)
-				
+
 				if tt.validateUser != nil {
 					tt.validateUser(t, user)
 				}
@@ -149,7 +149,7 @@ func TestFindUserBySAMAccountName(t *testing.T) {
 func TestFindUserByMail(t *testing.T) {
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
-	
+
 	client := tc.GetLDAPClient(t)
 	testData := tc.GetTestData()
 
@@ -203,7 +203,7 @@ func TestFindUserByMail(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 				assert.NotNil(t, user)
-				
+
 				if tt.validateUser != nil {
 					tt.validateUser(t, user)
 				}
@@ -215,16 +215,16 @@ func TestFindUserByMail(t *testing.T) {
 func TestFindUsers(t *testing.T) {
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
-	
+
 	client := tc.GetLDAPClient(t)
 
 	users, err := client.FindUsers()
 	require.NoError(t, err)
 	require.NotNil(t, users)
-	
+
 	// Should find at least the test users we created
 	assert.GreaterOrEqual(t, len(users), 4)
-	
+
 	// Validate that all users have required fields
 	for _, user := range users {
 		assert.NotEmpty(t, user.CN())
@@ -233,7 +233,7 @@ func TestFindUsers(t *testing.T) {
 		// Mail might be nil for some users
 		// Groups might be empty for some users
 	}
-	
+
 	// Find specific test user
 	var johnDoe *User
 	for i, user := range users {
@@ -242,7 +242,7 @@ func TestFindUsers(t *testing.T) {
 			break
 		}
 	}
-	
+
 	require.NotNil(t, johnDoe, "Should find John Doe in user list")
 	assert.Contains(t, strings.ToLower(johnDoe.CN()), "john doe")
 	assert.NotNil(t, johnDoe.Mail)
@@ -254,7 +254,7 @@ func TestFindUsers(t *testing.T) {
 func TestAddUserToGroup(t *testing.T) {
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
-	
+
 	client := tc.GetLDAPClient(t)
 	testData := tc.GetTestData()
 
@@ -262,7 +262,7 @@ func TestAddUserToGroup(t *testing.T) {
 		// Add Alice to the admins group (she's not in it initially)
 		aliceUserDN := "uid=abrown,ou=people,dc=example,dc=org"
 		adminsGroupDN := testData.ValidGroupDN
-		
+
 		err := client.AddUserToGroup(aliceUserDN, adminsGroupDN)
 		// Note: This might fail in OpenLDAP if the user is already a member
 		// or if we don't have write permissions, but we test the API
@@ -287,7 +287,7 @@ func TestAddUserToGroup(t *testing.T) {
 func TestRemoveUserFromGroup(t *testing.T) {
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
-	
+
 	client := tc.GetLDAPClient(t)
 	testData := tc.GetTestData()
 
@@ -308,15 +308,15 @@ func TestRemoveUserFromGroup(t *testing.T) {
 func TestCreateUser(t *testing.T) {
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
-	
+
 	client := tc.GetLDAPClient(t)
-	
+
 	// Test user creation (this might fail due to permissions in test environment)
 	t.Run("create basic user", func(t *testing.T) {
 		samAccountName := "testuser"
 		email := "testuser@example.com"
 		description := "Test user created by unit test"
-		
+
 		fullUser := FullUser{
 			CN:                 "Test User",
 			SAMAccountName:     &samAccountName,
@@ -326,7 +326,7 @@ func TestCreateUser(t *testing.T) {
 			Description:        &description,
 			UserAccountControl: UAC{NormalAccount: true},
 		}
-		
+
 		dn, err := client.CreateUser(fullUser, "")
 		if err != nil {
 			t.Logf("Create user failed (expected in read-only test env): %v", err)
@@ -343,7 +343,7 @@ func TestCreateUser(t *testing.T) {
 			FirstName: "Minimal",
 			LastName:  "User",
 		}
-		
+
 		dn, err := client.CreateUser(fullUser, "")
 		if err != nil {
 			t.Logf("Create minimal user failed (expected): %v", err)
@@ -360,7 +360,7 @@ func TestCreateUser(t *testing.T) {
 			LastName:  "User",
 			Path:      &path,
 		}
-		
+
 		dn, err := client.CreateUser(fullUser, "")
 		if err != nil {
 			t.Logf("Create user with path failed (expected): %v", err)
@@ -373,7 +373,7 @@ func TestCreateUser(t *testing.T) {
 func TestDeleteUser(t *testing.T) {
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
-	
+
 	client := tc.GetLDAPClient(t)
 
 	t.Run("delete nonexistent user", func(t *testing.T) {
@@ -393,7 +393,7 @@ func TestUserFromEntry(t *testing.T) {
 	// This is testing the internal userFromEntry function indirectly
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
-	
+
 	client := tc.GetLDAPClient(t)
 	testData := tc.GetTestData()
 
@@ -415,7 +415,7 @@ func TestUserFromEntry(t *testing.T) {
 func TestUserStructValidation(t *testing.T) {
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
-	
+
 	client := tc.GetLDAPClient(t)
 	testData := tc.GetTestData()
 
@@ -456,7 +456,7 @@ func TestUserStructValidation(t *testing.T) {
 func TestUserErrorConditions(t *testing.T) {
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
-	
+
 	client := tc.GetLDAPClient(t)
 
 	t.Run("malformed search filters", func(t *testing.T) {
@@ -476,10 +476,10 @@ func TestUserErrorConditions(t *testing.T) {
 func BenchmarkFindUserBySAMAccountName(b *testing.B) {
 	tc := SetupTestContainer(&testing.T{})
 	defer tc.Close(&testing.T{})
-	
+
 	client := tc.GetLDAPClient(&testing.T{})
 	testData := tc.GetTestData()
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, err := client.FindUserBySAMAccountName(testData.ValidUserUID)
@@ -492,9 +492,9 @@ func BenchmarkFindUserBySAMAccountName(b *testing.B) {
 func BenchmarkFindUsers(b *testing.B) {
 	tc := SetupTestContainer(&testing.T{})
 	defer tc.Close(&testing.T{})
-	
+
 	client := tc.GetLDAPClient(&testing.T{})
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, err := client.FindUsers()

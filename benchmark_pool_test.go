@@ -17,7 +17,7 @@ import (
 // of the connection pooling implementation vs direct connections
 func BenchmarkConnectionPoolPerformance(b *testing.B) {
 	server := os.Getenv("LDAP_SERVER")
-	baseDN := os.Getenv("LDAP_BASE_DN") 
+	baseDN := os.Getenv("LDAP_BASE_DN")
 	bindDN := os.Getenv("LDAP_BIND_DN")
 	bindPassword := os.Getenv("LDAP_BIND_PASSWORD")
 
@@ -213,7 +213,7 @@ func BenchmarkConcurrentLoad(b *testing.B) {
 	}
 
 	concurrencyLevels := []int{1, 5, 10, 20, 50}
-	
+
 	for _, concurrency := range concurrencyLevels {
 		b.Run(fmt.Sprintf("Pooled_Concurrency_%d", concurrency), func(b *testing.B) {
 			config := Config{
@@ -242,7 +242,7 @@ func BenchmarkConcurrentLoad(b *testing.B) {
 				go func() {
 					defer wg.Done()
 					ctx := context.Background()
-					
+
 					for j := 0; j < b.N/concurrency; j++ {
 						_, err := client.FindUsersContext(ctx)
 						if err == nil {
@@ -255,9 +255,9 @@ func BenchmarkConcurrentLoad(b *testing.B) {
 
 			duration := time.Since(startTime)
 			opsPerSecond := float64(operations) / duration.Seconds()
-			
+
 			b.ReportMetric(opsPerSecond, "ops/sec")
-			
+
 			if stats := client.GetPoolStats(); stats != nil {
 				hitRatio := float64(stats.PoolHits) / float64(stats.PoolHits+stats.PoolMisses) * 100
 				b.ReportMetric(hitRatio, "hit_ratio_%")
@@ -289,7 +289,7 @@ func BenchmarkConcurrentLoad(b *testing.B) {
 					go func() {
 						defer wg.Done()
 						ctx := context.Background()
-						
+
 						for j := 0; j < b.N/concurrency; j++ {
 							_, err := client.FindUsersContext(ctx)
 							if err == nil {
@@ -302,7 +302,7 @@ func BenchmarkConcurrentLoad(b *testing.B) {
 
 				duration := time.Since(startTime)
 				opsPerSecond := float64(operations) / duration.Seconds()
-				
+
 				b.ReportMetric(opsPerSecond, "ops/sec")
 			})
 		}
@@ -321,10 +321,10 @@ func BenchmarkPoolEfficiency(b *testing.B) {
 	}
 
 	scenarios := map[string]struct {
-		poolConfig   *PoolConfig
-		workPattern  string
-		operations   int
-		concurrency  int
+		poolConfig  *PoolConfig
+		workPattern string
+		operations  int
+		concurrency int
 	}{
 		"HighReuse": {
 			poolConfig: &PoolConfig{
@@ -394,19 +394,19 @@ func BenchmarkPoolEfficiency(b *testing.B) {
 			wg.Wait()
 
 			duration := time.Since(startTime)
-			
+
 			stats := client.GetPoolStats()
 			if stats != nil {
 				hitRatio := float64(stats.PoolHits) / float64(stats.PoolHits+stats.PoolMisses) * 100
 				efficiency := float64(stats.PoolHits) / float64(totalOperations) * 100
 				connectionsPerOp := float64(stats.ConnectionsCreated) / float64(totalOperations)
-				
+
 				b.ReportMetric(hitRatio, "hit_ratio_%")
 				b.ReportMetric(efficiency, "efficiency_%")
 				b.ReportMetric(connectionsPerOp, "conn_per_op")
 				b.ReportMetric(float64(stats.TotalConnections), "peak_connections")
 				b.ReportMetric(duration.Seconds(), "duration_sec")
-				
+
 				b.Logf("Scenario %s: %.1f%% hit ratio, %.1f%% efficiency, %.3f conn/op, peak=%d conn",
 					name, hitRatio, efficiency, connectionsPerOp, stats.TotalConnections)
 			}

@@ -54,7 +54,7 @@ func createUser(client *ldap.LDAP) {
 		FirstName: "Test",
 		LastName:  "User",
 
-		// Optional fields  
+		// Optional fields
 		SAMAccountName: &samAccountName,
 		DisplayName:    &displayName,
 		Description:    &description,

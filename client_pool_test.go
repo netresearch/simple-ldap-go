@@ -141,7 +141,7 @@ func TestLDAP_WithConnectionPool(t *testing.T) {
 
 		// Stats should have progressed
 		assert.GreaterOrEqual(t, finalStats.PoolHits, initialStats.PoolHits)
-		
+
 		t.Logf("Stats progression: initial_hits=%d, final_hits=%d",
 			initialStats.PoolHits, finalStats.PoolHits)
 	})
@@ -257,7 +257,7 @@ func TestLDAP_PooledConnectionInterface(t *testing.T) {
 
 		// Should have reused connections
 		assert.Greater(t, finalStats.PoolHits, initialStats.PoolHits)
-		
+
 		t.Logf("Connection reuse test: hits increased by %d",
 			finalStats.PoolHits-initialStats.PoolHits)
 	})
