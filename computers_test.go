@@ -10,6 +10,9 @@ import (
 )
 
 func TestFindComputerByDN(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 
@@ -82,6 +85,9 @@ func TestFindComputerByDN(t *testing.T) {
 }
 
 func TestFindComputerBySAMAccountName(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 
@@ -144,6 +150,9 @@ func TestFindComputerBySAMAccountName(t *testing.T) {
 }
 
 func TestFindComputers(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 
@@ -196,6 +205,9 @@ func TestComputerStructValidation(t *testing.T) {
 }
 
 func TestComputerSearchFilters(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 
@@ -245,6 +257,9 @@ func TestComputerAttributes(t *testing.T) {
 }
 
 func TestComputerErrorConditions(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 
@@ -273,6 +288,9 @@ func TestComputerErrorConditions(t *testing.T) {
 
 	t.Run("DN pointing to non-computer object", func(t *testing.T) {
 		// Try to find a user DN as if it's a computer
+		if testing.Short() {
+			t.Skip("Skipping integration test in short mode")
+		}
 		tc := SetupTestContainer(t)
 		defer tc.Close(t)
 
@@ -362,6 +380,9 @@ func TestErrComputerNotFound(t *testing.T) {
 }
 
 func TestComputerIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 
@@ -394,6 +415,9 @@ func TestComputerIntegration(t *testing.T) {
 // Note: These benchmark tests will likely show poor performance due to ErrComputerNotFound
 // In a real Active Directory environment with computer objects, they would be more meaningful
 func BenchmarkFindComputerBySAMAccountName(b *testing.B) {
+	if testing.Short() {
+		b.Skip("Skipping integration benchmark in short mode")
+	}
 	tc := SetupTestContainer(&testing.T{})
 	defer tc.Close(&testing.T{})
 
@@ -410,6 +434,9 @@ func BenchmarkFindComputerBySAMAccountName(b *testing.B) {
 }
 
 func BenchmarkFindComputers(b *testing.B) {
+	if testing.Short() {
+		b.Skip("Skipping integration benchmark in short mode")
+	}
 	tc := SetupTestContainer(&testing.T{})
 	defer tc.Close(&testing.T{})
 

@@ -9,6 +9,9 @@ import (
 )
 
 func TestNew(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 
@@ -72,6 +75,9 @@ func TestNew(t *testing.T) {
 }
 
 func TestWithCredentials(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 
@@ -126,6 +132,9 @@ func TestWithCredentials(t *testing.T) {
 }
 
 func TestGetConnection(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 
@@ -173,6 +182,9 @@ func TestGetConnection(t *testing.T) {
 }
 
 func TestConfigValidation(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 
@@ -222,6 +234,9 @@ func TestConfigValidation(t *testing.T) {
 }
 
 func TestIsActiveDirectoryFlag(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 
@@ -252,6 +267,9 @@ func TestErrDNDuplicated(t *testing.T) {
 
 // Benchmark tests for performance monitoring
 func BenchmarkNewConnection(b *testing.B) {
+	if testing.Short() {
+		b.Skip("Skipping integration benchmark in short mode")
+	}
 	tc := SetupTestContainer(&testing.T{})
 	defer tc.Close(&testing.T{})
 
@@ -266,6 +284,9 @@ func BenchmarkNewConnection(b *testing.B) {
 }
 
 func BenchmarkGetConnection(b *testing.B) {
+	if testing.Short() {
+		b.Skip("Skipping integration benchmark in short mode")
+	}
 	tc := SetupTestContainer(&testing.T{})
 	defer tc.Close(&testing.T{})
 
