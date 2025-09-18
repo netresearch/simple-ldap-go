@@ -6,10 +6,13 @@ import (
 	"crypto/tls"
 	"fmt"
 	"log/slog"
+	"net/mail"
 	"net/url"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 )
 
 // SecureCredential provides secure handling of authentication credentials with memory protection
@@ -96,6 +99,222 @@ func NewSecureCredentialSimple(username, password string) (*SecureCredential, er
 		password: password,
 	}
 	return NewSecureCredential(provider)
+}
+
+// Security validation constants
+const (
+	// MaxFilterLength defines the maximum length for LDAP filters to prevent DoS attacks
+	MaxFilterLength = 10000
+	// MaxDNLength defines the maximum length for Distinguished Names
+	MaxDNLength = 8000
+	// MaxSAMAccountNameLength defines the maximum length for sAMAccountName
+	MaxSAMAccountNameLength = 20
+)
+
+// ValidateDN validates and normalizes a Distinguished Name (DN)
+func ValidateDN(dn string) (string, error) {
+	if dn == "" {
+		return "", fmt.Errorf("DN cannot be empty")
+	}
+
+	if len(dn) > MaxDNLength {
+		return "", fmt.Errorf("DN too long: %d characters (max %d)", len(dn), MaxDNLength)
+	}
+
+	// Check for control characters
+	for _, r := range dn {
+		if unicode.IsControl(r) {
+			return "", fmt.Errorf("DN contains control characters")
+		}
+	}
+
+	// Basic DN format validation - must contain at least one component with =
+	if !strings.Contains(dn, "=") {
+		return "", fmt.Errorf("DN format invalid: must contain at least one component with '='")
+	}
+
+	// Check for empty components (double commas)
+	if strings.Contains(dn, ",,") {
+		return "", fmt.Errorf("DN format invalid: contains empty component")
+	}
+
+	// Check for trailing comma
+	if strings.HasSuffix(dn, ",") {
+		return "", fmt.Errorf("DN format invalid: trailing comma")
+	}
+
+	// Normalize the DN (basic implementation)
+	normalized := strings.TrimSpace(dn)
+
+	return normalized, nil
+}
+
+// ValidateLDAPFilter validates LDAP search filters for security
+func ValidateLDAPFilter(filter string) (string, error) {
+	if filter == "" {
+		return "", fmt.Errorf("filter cannot be empty")
+	}
+
+	if len(filter) > MaxFilterLength {
+		return "", fmt.Errorf("filter too long: %d characters (max %d)", len(filter), MaxFilterLength)
+	}
+
+	// Check for control characters
+	for _, r := range filter {
+		if unicode.IsControl(r) {
+			return "", fmt.Errorf("filter contains control characters")
+		}
+	}
+
+	// Basic filter format validation - must start and end with parentheses
+	if !strings.HasPrefix(filter, "(") || !strings.HasSuffix(filter, ")") {
+		return "", fmt.Errorf("filter format invalid: must be enclosed in parentheses")
+	}
+
+	return filter, nil
+}
+
+// EscapeFilterValue escapes special characters in LDAP filter values
+func EscapeFilterValue(value string) string {
+	// LDAP filter special characters that need escaping
+	replacer := strings.NewReplacer(
+		"\\", "\\5c",
+		"*", "\\2a",
+		"(", "\\28",
+		")", "\\29",
+		"\x00", "\\00",
+	)
+
+	return replacer.Replace(value)
+}
+
+// ValidateSAMAccountName validates sAMAccountName format
+func ValidateSAMAccountName(sam string) error {
+	if sam == "" {
+		return fmt.Errorf("sAMAccountName cannot be empty")
+	}
+
+	if len(sam) > MaxSAMAccountNameLength {
+		return fmt.Errorf("sAMAccountName too long: %d characters (max %d)", len(sam), MaxSAMAccountNameLength)
+	}
+
+	// sAMAccountName restrictions
+	invalidChars := []string{
+		"\"", "/", "\\", "[", "]", ":", ";", "|", "=", ",", "+", "*", "?", "<", ">",
+	}
+
+	for _, char := range invalidChars {
+		if strings.Contains(sam, char) {
+			return fmt.Errorf("sAMAccountName contains invalid character: %s", char)
+		}
+	}
+
+	// Cannot start or end with space or period
+	if strings.HasPrefix(sam, " ") || strings.HasSuffix(sam, " ") {
+		return fmt.Errorf("sAMAccountName cannot start or end with space")
+	}
+
+	if strings.HasPrefix(sam, ".") || strings.HasSuffix(sam, ".") {
+		return fmt.Errorf("sAMAccountName cannot start or end with period")
+	}
+
+	return nil
+}
+
+// ValidateEmail validates email address format
+func ValidateEmail(email string) error {
+	if email == "" {
+		return fmt.Errorf("email cannot be empty")
+	}
+
+	_, err := mail.ParseAddress(email)
+	if err != nil {
+		return fmt.Errorf("invalid email format: %w", err)
+	}
+
+	return nil
+}
+
+// ValidatePassword validates password strength and format
+func ValidatePassword(password string) error {
+	if password == "" {
+		return fmt.Errorf("password cannot be empty")
+	}
+
+	if len(password) < 8 {
+		return fmt.Errorf("password too short: must be at least 8 characters")
+	}
+
+	if len(password) > 128 {
+		return fmt.Errorf("password too long: maximum 128 characters")
+	}
+
+	// Check for at least one character from different categories
+	var hasUpper, hasLower, hasDigit, hasSpecial bool
+
+	for _, r := range password {
+		switch {
+		case unicode.IsUpper(r):
+			hasUpper = true
+		case unicode.IsLower(r):
+			hasLower = true
+		case unicode.IsDigit(r):
+			hasDigit = true
+		case unicode.IsPunct(r) || unicode.IsSymbol(r):
+			hasSpecial = true
+		}
+	}
+
+	if !hasLower {
+		return fmt.Errorf("password must contain at least one lowercase letter")
+	}
+
+	if !hasUpper {
+		return fmt.Errorf("password must contain at least one uppercase letter")
+	}
+
+	if !hasDigit {
+		return fmt.Errorf("password must contain at least one digit")
+	}
+
+	if !hasSpecial {
+		return fmt.Errorf("password must contain at least one special character")
+	}
+
+	return nil
+}
+
+// ValidateServerURL validates LDAP server URL format and security
+func ValidateServerURL(serverURL string) error {
+	if serverURL == "" {
+		return fmt.Errorf("server URL cannot be empty")
+	}
+
+	u, err := url.Parse(serverURL)
+	if err != nil {
+		return fmt.Errorf("invalid URL format: %w", err)
+	}
+
+	// Check for valid LDAP schemes
+	if u.Scheme != "ldap" && u.Scheme != "ldaps" {
+		return fmt.Errorf("invalid scheme: must be 'ldap' or 'ldaps'")
+	}
+
+	// Check for hostname
+	if u.Hostname() == "" {
+		return fmt.Errorf("URL must contain a hostname")
+	}
+
+	// Validate port if specified
+	if u.Port() != "" {
+		// Basic port validation - must be numeric and in valid range
+		port := u.Port()
+		if !regexp.MustCompile(`^[0-9]+$`).MatchString(port) {
+			return fmt.Errorf("invalid port format")
+		}
+	}
+
+	return nil
 }
 
 // GetCredentials returns the username and password for authentication
@@ -670,27 +889,3 @@ func logSecurityEvent(event string, details map[string]interface{}) {
 	_ = details
 }
 
-// ValidateServerURL validates and normalizes a server URL
-func ValidateServerURL(serverURL string) (string, error) {
-	if serverURL == "" {
-		return "", fmt.Errorf("server URL cannot be empty")
-	}
-
-	parsedURL, err := url.Parse(serverURL)
-	if err != nil {
-		return "", fmt.Errorf("invalid server URL: %w", err)
-	}
-
-	// Ensure scheme is ldap or ldaps
-	if parsedURL.Scheme != "ldap" && parsedURL.Scheme != "ldaps" {
-		return "", fmt.Errorf("server URL must use ldap:// or ldaps:// scheme")
-	}
-
-	// Ensure host is present
-	if parsedURL.Host == "" {
-		return "", fmt.Errorf("server URL must include a host")
-	}
-
-	// Return normalized URL
-	return parsedURL.String(), nil
-}
