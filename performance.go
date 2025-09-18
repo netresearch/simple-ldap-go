@@ -13,34 +13,49 @@ import (
 // PerformanceConfig holds configuration for performance monitoring
 type PerformanceConfig struct {
 	// Enabled controls whether performance monitoring is active (default: true)
-	Enabled bool
+	Enabled bool `json:"enabled"`
 	// MetricsRetentionPeriod is how long to keep detailed metrics (default: 1 hour)
-	MetricsRetentionPeriod time.Duration
+	MetricsRetentionPeriod time.Duration `json:"metrics_retention_period"`
 	// SlowQueryThreshold defines what constitutes a slow query (default: 1 second)
-	SlowQueryThreshold time.Duration
+	SlowQueryThreshold time.Duration `json:"slow_query_threshold"`
 	// SampleRate controls what percentage of operations to track in detail (default: 100%)
-	SampleRate float64
+	SampleRate float64 `json:"sample_rate"`
 	// MaxSearchResults limits the number of results returned by searches (default: 0 = no limit)
-	MaxSearchResults int
+	MaxSearchResults int `json:"max_search_results"`
 	// SearchTimeout is the per-search timeout (default: 30 seconds)
-	SearchTimeout time.Duration
+	SearchTimeout time.Duration `json:"search_timeout"`
 	// EnablePrefetch enables prefetching of related objects (default: false)
-	EnablePrefetch bool
+	EnablePrefetch bool `json:"enable_prefetch"`
 	// EnableBulkOperations enables batch processing optimizations (default: true)
-	EnableBulkOperations bool
+	EnableBulkOperations bool `json:"enable_bulk_operations"`
+
+	// Alert Thresholds for configurable monitoring
+	// HighResponseTimeThreshold defines when response time is considered too high (default: 5 seconds)
+	HighResponseTimeThreshold time.Duration `json:"high_response_time_threshold"`
+	// ErrorRateThreshold defines the maximum acceptable error rate percentage (default: 10%)
+	ErrorRateThreshold float64 `json:"error_rate_threshold"`
+	// TimeoutRateThreshold defines the maximum acceptable timeout rate percentage (default: 5%)
+	TimeoutRateThreshold float64 `json:"timeout_rate_threshold"`
+	// MemoryUsageThreshold defines high memory usage threshold in MB (default: 512MB)
+	MemoryUsageThreshold int64 `json:"memory_usage_threshold"`
 }
 
 // DefaultPerformanceConfig returns a PerformanceConfig with sensible defaults
 func DefaultPerformanceConfig() *PerformanceConfig {
 	return &PerformanceConfig{
-		Enabled:                true,
-		MetricsRetentionPeriod: 1 * time.Hour,
-		SlowQueryThreshold:     1 * time.Second,
-		SampleRate:             1.0, // 100%
-		MaxSearchResults:       0,   // No limit
-		SearchTimeout:          30 * time.Second,
-		EnablePrefetch:         false,
-		EnableBulkOperations:   true,
+		Enabled:                   true,
+		MetricsRetentionPeriod:    1 * time.Hour,
+		SlowQueryThreshold:        1 * time.Second,
+		SampleRate:                1.0, // 100%
+		MaxSearchResults:          0,   // No limit
+		SearchTimeout:             30 * time.Second,
+		EnablePrefetch:            false,
+		EnableBulkOperations:      true,
+		// Configurable alert thresholds
+		HighResponseTimeThreshold: 5 * time.Second,
+		ErrorRateThreshold:        10.0, // 10%
+		TimeoutRateThreshold:      5.0,  // 5%
+		MemoryUsageThreshold:      512,  // 512MB
 	}
 }
 
