@@ -57,7 +57,7 @@ func TestNew(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client, err := New(tt.config, tt.user, tt.password)
+			client, err := New(&tt.config, tt.user, tt.password)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -170,7 +170,7 @@ func TestGetConnection(t *testing.T) {
 			ldap.DialWithDialer(nil),
 		}
 
-		clientWithOpts, err := New(configWithOpts, tc.AdminUser, tc.AdminPass)
+		clientWithOpts, err := New(&configWithOpts, tc.AdminUser, tc.AdminPass)
 		require.NoError(t, err)
 
 		conn, err := clientWithOpts.GetConnection()
@@ -222,7 +222,7 @@ func TestConfigValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := New(tt.config, tc.AdminUser, tc.AdminPass)
+			_, err := New(&tt.config, tc.AdminUser, tc.AdminPass)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -244,7 +244,7 @@ func TestIsActiveDirectoryFlag(t *testing.T) {
 		config := tc.Config
 		config.IsActiveDirectory = false
 
-		client, err := New(config, tc.AdminUser, tc.AdminPass)
+		client, err := New(&config, tc.AdminUser, tc.AdminPass)
 		require.NoError(t, err)
 
 		assert.False(t, client.config.IsActiveDirectory)
@@ -254,7 +254,7 @@ func TestIsActiveDirectoryFlag(t *testing.T) {
 		config := tc.Config
 		config.IsActiveDirectory = true
 
-		client, err := New(config, tc.AdminUser, tc.AdminPass)
+		client, err := New(&config, tc.AdminUser, tc.AdminPass)
 		require.NoError(t, err)
 
 		assert.True(t, client.config.IsActiveDirectory)
@@ -275,7 +275,7 @@ func BenchmarkNewConnection(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		client, err := New(tc.Config, tc.AdminUser, tc.AdminPass)
+		client, err := New(&tc.Config, tc.AdminUser, tc.AdminPass)
 		if err != nil {
 			b.Fatal(err)
 		}

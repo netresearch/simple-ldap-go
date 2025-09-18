@@ -34,7 +34,7 @@ func Example_connectionPooling() {
 	}
 
 	// Create client with connection pooling
-	client, err := ldap.New(config, "CN=admin,CN=Users,DC=example,DC=com", "password")
+	client, err := ldap.New(&config, "CN=admin,CN=Users,DC=example,DC=com", "password")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -52,13 +52,12 @@ func Example_connectionPooling() {
 	fmt.Printf("Found %d users\n", len(users))
 
 	// Check pool statistics
-	if stats := client.GetPoolStats(); stats != nil {
-		fmt.Printf("Pool stats: %d active, %d idle, %d total connections\n",
-			stats.ActiveConnections, stats.IdleConnections, stats.TotalConnections)
-		fmt.Printf("Pool efficiency: %d hits, %d misses (%.1f%% hit ratio)\n",
-			stats.PoolHits, stats.PoolMisses,
-			float64(stats.PoolHits)/float64(stats.PoolHits+stats.PoolMisses)*100)
-	}
+	stats := client.GetPoolStats()
+	fmt.Printf("Pool stats: %d active, %d idle, %d total connections\n",
+		stats.ActiveConnections, stats.IdleConnections, stats.TotalConnections)
+	fmt.Printf("Pool efficiency: %d hits, %d misses (%.1f%% hit ratio)\n",
+		stats.PoolHits, stats.PoolMisses,
+		float64(stats.PoolHits)/float64(stats.PoolHits+stats.PoolMisses)*100)
 
 	// Output:
 	// Found 150 users
@@ -78,7 +77,7 @@ func Example_concurrentOperations() {
 		},
 	}
 
-	client, err := ldap.New(config, "cn=admin,dc=example,dc=org", "password")
+	client, err := ldap.New(&config, "cn=admin,dc=example,dc=org", "password")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -115,23 +114,22 @@ func Example_concurrentOperations() {
 	// Display performance results
 	fmt.Printf("Completed %d operations in %v\n", numWorkers*operationsPerWorker, duration)
 
-	if stats := client.GetPoolStats(); stats != nil {
-		fmt.Printf("Final pool stats:\n")
-		fmt.Printf("  Total connections created: %d\n", stats.ConnectionsCreated)
-		fmt.Printf("  Peak connections: %d\n", stats.TotalConnections)
-		fmt.Printf("  Pool hits: %d, misses: %d\n", stats.PoolHits, stats.PoolMisses)
+	stats := client.GetPoolStats()
+	fmt.Printf("Final pool stats:\n")
+	fmt.Printf("  Total connections created: %d\n", stats.ConnectionsCreated)
+	fmt.Printf("  Peak connections: %d\n", stats.TotalConnections)
+	fmt.Printf("  Pool hits: %d, misses: %d\n", stats.PoolHits, stats.PoolMisses)
 
-		if stats.PoolHits+stats.PoolMisses > 0 {
-			hitRatio := float64(stats.PoolHits) / float64(stats.PoolHits+stats.PoolMisses) * 100
-			fmt.Printf("  Hit ratio: %.1f%%\n", hitRatio)
-		}
-
-		// Calculate efficiency metrics
-		totalOps := int64(numWorkers * operationsPerWorker)
-		connectionsPerOp := float64(stats.ConnectionsCreated) / float64(totalOps)
-		fmt.Printf("  Efficiency: %.3f connections per operation\n", connectionsPerOp)
-		fmt.Printf("  Operations per second: %.1f\n", float64(totalOps)/duration.Seconds())
+	if stats.PoolHits+stats.PoolMisses > 0 {
+		hitRatio := float64(stats.PoolHits) / float64(stats.PoolHits+stats.PoolMisses) * 100
+		fmt.Printf("  Hit ratio: %.1f%%\n", hitRatio)
 	}
+
+	// Calculate efficiency metrics
+	totalOps := int64(numWorkers * operationsPerWorker)
+	connectionsPerOp := float64(stats.ConnectionsCreated) / float64(totalOps)
+	fmt.Printf("  Efficiency: %.3f connections per operation\n", connectionsPerOp)
+	fmt.Printf("  Operations per second: %.1f\n", float64(totalOps)/duration.Seconds())
 
 	// Expected output (performance will vary):
 	// Completed 200 operations in 2.5s
@@ -156,7 +154,7 @@ func Example_poolMonitoring() {
 		},
 	}
 
-	client, err := ldap.New(config, "cn=admin,dc=example,dc=org", "password")
+	client, err := ldap.New(&config, "cn=admin,dc=example,dc=org", "password")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -176,17 +174,15 @@ func Example_poolMonitoring() {
 		select {
 		case <-ticker.C:
 			stats := client.GetPoolStats()
-			if stats != nil {
-				fmt.Printf("%s\t%d\t%d\t%d\t%d\t%d\t%d/%d\n",
-					time.Now().Format("15:04:05"),
-					stats.ActiveConnections,
-					stats.IdleConnections,
-					stats.TotalConnections,
-					stats.PoolHits,
-					stats.PoolMisses,
-					stats.HealthChecksPassed,
-					stats.HealthChecksFailed)
-			}
+			fmt.Printf("%s\t%d\t%d\t%d\t%d\t%d\t%d/%d\n",
+				time.Now().Format("15:04:05"),
+				stats.ActiveConnections,
+				stats.IdleConnections,
+				stats.TotalConnections,
+				stats.PoolHits,
+				stats.PoolMisses,
+				stats.HealthChecksPassed,
+				stats.HealthChecksFailed)
 
 			// Perform some operations to generate activity
 			go func() {
@@ -221,7 +217,7 @@ func Example_backwardCompatibility() {
 		// Pool: nil - no pooling, legacy behavior
 	}
 
-	client, err := ldap.New(config, "cn=admin,dc=example,dc=org", "password")
+	client, err := ldap.New(&config, "cn=admin,dc=example,dc=org", "password")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -237,8 +233,9 @@ func Example_backwardCompatibility() {
 
 	fmt.Printf("Found %d users using direct connections\n", len(users))
 
-	// Pool stats will be nil when pooling is disabled
-	if stats := client.GetPoolStats(); stats == nil {
+	// Pool stats will show no activity when pooling is disabled
+	stats := client.GetPoolStats()
+	if stats.PoolHits == 0 && stats.PoolMisses == 0 {
 		fmt.Println("No connection pooling configured - using direct connections")
 	}
 
@@ -323,7 +320,7 @@ func Example_poolConfiguration() {
 		fmt.Println()
 
 		// Note: In real usage, you would create and use the client here
-		// client, err := ldap.New(config, bindDN, password)
+		// client, err := ldap.New(&config, bindDN, password)
 		// if err != nil { ... }
 		// defer client.Close()
 	}

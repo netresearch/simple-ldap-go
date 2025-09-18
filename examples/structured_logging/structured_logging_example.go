@@ -22,7 +22,7 @@ func demonstrateStructuredLogging() {
 		Logger:            jsonLogger,
 	}
 
-	client, err := ldap.New(config, "CN=admin,CN=Users,DC=example,DC=com", "password")
+	client, err := ldap.New(&config, "CN=admin,CN=Users,DC=example,DC=com", "password")
 	if err != nil {
 		slog.Error("Failed to create LDAP client", slog.String("error", err.Error()))
 		return
@@ -43,7 +43,7 @@ func demonstrateStructuredLogging() {
 	configWithTextLogger := config
 	configWithTextLogger.Logger = textLogger
 
-	_, err = ldap.New(configWithTextLogger, "CN=admin,CN=Users,DC=example,DC=com", "password")
+	_, err = ldap.New(&configWithTextLogger, "CN=admin,CN=Users,DC=example,DC=com", "password")
 	if err != nil {
 		slog.Error("Failed to create second LDAP client", slog.String("error", err.Error()))
 		return
@@ -90,7 +90,7 @@ func demonstrateStructuredLogging() {
 		// Logger is nil - will use no-op logger
 	}
 
-	client3, err := ldap.New(configNoLogging, "CN=admin,CN=Users,DC=example,DC=com", "password")
+	client3, err := ldap.New(&configNoLogging, "CN=admin,CN=Users,DC=example,DC=com", "password")
 	if err != nil {
 		slog.Error("Failed to create third LDAP client", slog.String("error", err.Error()))
 		return
@@ -114,7 +114,7 @@ func demonstrateStructuredLogging() {
 	configWithContext := config
 	configWithContext.Logger = customLogger
 
-	client4, err := ldap.New(configWithContext, "CN=admin,CN=Users,DC=example,DC=com", "password")
+	client4, err := ldap.New(&configWithContext, "CN=admin,CN=Users,DC=example,DC=com", "password")
 	if err != nil {
 		slog.Error("Failed to create contextual LDAP client", slog.String("error", err.Error()))
 		return
@@ -127,4 +127,8 @@ func demonstrateStructuredLogging() {
 	}
 
 	slog.Info("Structured logging examples completed")
+}
+
+func main() {
+	demonstrateStructuredLogging()
 }

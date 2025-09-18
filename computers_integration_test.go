@@ -8,6 +8,9 @@ import (
 )
 
 func TestFindComputerBySAMAccountNameIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 
@@ -59,6 +62,9 @@ func TestFindComputerBySAMAccountNameIntegration(t *testing.T) {
 }
 
 func TestFindComputersIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 
@@ -81,6 +87,9 @@ func TestFindComputersIntegration(t *testing.T) {
 }
 
 func TestComputerOperationsIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 

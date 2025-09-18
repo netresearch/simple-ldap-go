@@ -8,6 +8,9 @@ import (
 )
 
 func TestFindUserByMailIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 
@@ -59,6 +62,9 @@ func TestFindUserByMailIntegration(t *testing.T) {
 }
 
 func TestFindUsersIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 
@@ -81,6 +87,9 @@ func TestFindUsersIntegration(t *testing.T) {
 }
 
 func TestUserGroupMembershipIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 
@@ -105,6 +114,9 @@ func TestUserGroupMembershipIntegration(t *testing.T) {
 }
 
 func TestUserCRUDOperationsIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 

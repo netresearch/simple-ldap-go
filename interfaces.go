@@ -141,7 +141,7 @@ type DirectoryManager interface {
 	Close() error
 
 	// Statistics and monitoring
-	GetPoolStats() *PoolStats
+	GetPoolStats() PerformanceStats
 	GetCacheStats() CacheStats
 	GetPerformanceStats() PerformanceStats
 	ClearCache()
@@ -258,7 +258,7 @@ type ReadOnlyDirectory interface {
 	GetConnectionContext(ctx context.Context) (Connection, error)
 
 	// Statistics and monitoring (read-only)
-	GetPoolStats() *PoolStats
+	GetPoolStats() PerformanceStats
 	GetCacheStats() CacheStats
 	GetPerformanceStats() PerformanceStats
 }

@@ -15,7 +15,7 @@ func TestContextCancellation(t *testing.T) {
 
 	// Mock LDAP client structure
 	client := &LDAP{
-		config: Config{
+		config: &Config{
 			Server: "ldap://nonexistent:389",
 			BaseDN: "DC=test,DC=com",
 		},
@@ -61,7 +61,7 @@ func TestContextDeadlineExceeded(t *testing.T) {
 	time.Sleep(1 * time.Millisecond)
 
 	client := &LDAP{
-		config: Config{
+		config: &Config{
 			Server: "ldap://nonexistent:389",
 			BaseDN: "DC=test,DC=com",
 		},
@@ -81,7 +81,7 @@ func TestContextDeadlineExceeded(t *testing.T) {
 func TestBackwardCompatibility(t *testing.T) {
 	// Simple test to verify methods exist and delegate correctly
 	client := &LDAP{
-		config: Config{
+		config: &Config{
 			Server: "ldap://localhost:389",
 			BaseDN: "DC=test,DC=com",
 		},

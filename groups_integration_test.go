@@ -8,6 +8,9 @@ import (
 )
 
 func TestFindGroupByDNIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 
@@ -64,6 +67,9 @@ func TestFindGroupByDNIntegration(t *testing.T) {
 }
 
 func TestFindGroupsIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 
@@ -86,6 +92,9 @@ func TestFindGroupsIntegration(t *testing.T) {
 }
 
 func TestGroupSearchAndValidation(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 

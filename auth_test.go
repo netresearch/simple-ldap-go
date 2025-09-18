@@ -85,5 +85,5 @@ func getWorkingLdap() (*LDAP, error) {
 		IsActiveDirectory: true,
 	}
 
-	return New(config, readUser, readPassword)
+	return New(&config, readUser, readPassword)
 }

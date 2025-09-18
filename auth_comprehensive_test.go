@@ -10,6 +10,9 @@ import (
 )
 
 func TestCheckPasswordForSAMAccountName(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 
@@ -82,6 +85,9 @@ func TestCheckPasswordForSAMAccountName(t *testing.T) {
 }
 
 func TestCheckPasswordForDN(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 
@@ -194,6 +200,9 @@ func TestEncodePassword(t *testing.T) {
 }
 
 func TestChangePasswordForSAMAccountName(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 
@@ -204,7 +213,7 @@ func TestChangePasswordForSAMAccountName(t *testing.T) {
 	config.Server = "ldap://localhost:389" // Non-LDAPS server
 
 	// Create client with OpenLDAP config but AD flag - this tests the validation logic
-	client, err := New(config, tc.AdminUser, tc.AdminPass)
+	client, err := New(&config, tc.AdminUser, tc.AdminPass)
 	if err != nil {
 		t.Skip("Cannot create AD-mode client with OpenLDAP container")
 		return
@@ -230,7 +239,7 @@ func TestChangePasswordForSAMAccountName(t *testing.T) {
 
 		// This will fail due to either certificate issues or LDAP connection issues
 		// We're primarily testing the user lookup logic here
-		_, err := New(ldapsConfig, tc.AdminUser, tc.AdminPass)
+		_, err := New(&ldapsConfig, tc.AdminUser, tc.AdminPass)
 		if err != nil {
 			t.Skip("LDAPS not available for testing with OpenLDAP container")
 			return
@@ -239,6 +248,9 @@ func TestChangePasswordForSAMAccountName(t *testing.T) {
 }
 
 func TestAuthenticationFlow(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 
@@ -269,6 +281,9 @@ func TestAuthenticationFlow(t *testing.T) {
 }
 
 func TestAuthErrorConditions(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 
@@ -281,7 +296,7 @@ func TestAuthErrorConditions(t *testing.T) {
 			BaseDN: tc.BaseDN,
 		}
 
-		invalidClient, err := New(invalidConfig, tc.AdminUser, tc.AdminPass)
+		invalidClient, err := New(&invalidConfig, tc.AdminUser, tc.AdminPass)
 		assert.Error(t, err)
 		assert.Nil(t, invalidClient)
 	})
@@ -302,6 +317,9 @@ func TestErrActiveDirectoryMustBeLDAPS(t *testing.T) {
 
 // Integration test for authentication across different user types
 func TestAuthenticationIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 
@@ -342,6 +360,9 @@ func TestAuthenticationIntegration(t *testing.T) {
 
 // Benchmark authentication operations
 func BenchmarkCheckPasswordForSAMAccountName(b *testing.B) {
+	if testing.Short() {
+		b.Skip("Skipping integration benchmark in short mode")
+	}
 	tc := SetupTestContainer(&testing.T{})
 	defer tc.Close(&testing.T{})
 
@@ -358,6 +379,9 @@ func BenchmarkCheckPasswordForSAMAccountName(b *testing.B) {
 }
 
 func BenchmarkCheckPasswordForDN(b *testing.B) {
+	if testing.Short() {
+		b.Skip("Skipping integration benchmark in short mode")
+	}
 	tc := SetupTestContainer(&testing.T{})
 	defer tc.Close(&testing.T{})
 

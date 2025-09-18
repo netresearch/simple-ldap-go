@@ -5,7 +5,6 @@ import (
 	"net"
 	"regexp"
 	"strings"
-	"time"
 	"unicode"
 	"unicode/utf8"
 )
@@ -35,6 +34,27 @@ type ValidationConfig struct {
 	NormalizeInput          bool `json:"normalize_input"`
 }
 
+// ThreatContext contains information about potential security threats detected during validation
+type ThreatContext struct {
+	// Level of threat detected
+	ThreatLevel string `json:"threat_level"` // low, medium, high, critical
+
+	// List of specific threats detected
+	DetectedThreats []string `json:"detected_threats"`
+
+	// Source IP if available
+	SourceIP string `json:"source_ip,omitempty"`
+
+	// Confidence level in threat detection (0.0-1.0)
+	Confidence float64 `json:"confidence"`
+
+	// Recommended action
+	RecommendedAction string `json:"recommended_action"` // allow, warn, block, escalate
+
+	// Additional metadata about the threat
+	Metadata map[string]interface{} `json:"metadata,omitempty"`
+}
+
 // ValidationResult contains the result of input validation
 type ValidationResult struct {
 	Valid           bool                   `json:"valid"`
@@ -50,7 +70,23 @@ type Validator struct {
 	config *ValidationConfig
 }
 
-// NewValidator creates a new validator with the specified configuration
+// DefaultValidationConfig returns a ValidationConfig with sensible defaults
+func DefaultValidationConfig() *ValidationConfig {
+	return &ValidationConfig{
+		StrictMode:              false,
+		MaxDNLength:             1024,
+		MaxFilterLength:         4096,
+		MaxAttributeLength:      256,
+		MaxValueLength:          8192,
+		AllowedAttributes:       []string{}, // Empty means allow all
+		AllowedObjectClasses:    []string{}, // Empty means allow all
+		BlockSuspiciousPatterns: true,
+		ValidateUTF8:            true,
+		NormalizeInput:          true,
+	}
+}
+
+// NewValidator creates a new validator with the given configuration
 func NewValidator(config *ValidationConfig) *Validator {
 	if config == nil {
 		config = DefaultValidationConfig()
@@ -58,731 +94,401 @@ func NewValidator(config *ValidationConfig) *Validator {
 	return &Validator{config: config}
 }
 
-// DefaultValidationConfig returns a secure default validation configuration
-func DefaultValidationConfig() *ValidationConfig {
-	return &ValidationConfig{
-		StrictMode:              true,
-		MaxDNLength:             8192,
-		MaxFilterLength:         4096,
-		MaxAttributeLength:      1024,
-		MaxValueLength:          65536,
-		BlockSuspiciousPatterns: true,
-		ValidateUTF8:            true,
-		NormalizeInput:          true,
-		AllowedAttributes: []string{
-			// Common LDAP attributes
-			"cn", "sn", "givenName", "displayName", "description", "mail",
-			"telephoneNumber", "userPrincipalName", "sAMAccountName",
-			"objectClass", "objectCategory", "distinguishedName",
-			"memberOf", "member", "uniqueMember", "groupType",
-			// Active Directory attributes
-			"userAccountControl", "accountExpires", "lastLogon",
-			"pwdLastSet", "lockoutTime", "badPwdCount",
-			// Computer attributes
-			"dNSHostName", "operatingSystem", "operatingSystemVersion",
-			"servicePrincipalName", "msDS-SupportedEncryptionTypes",
-		},
-		AllowedObjectClasses: []string{
-			"user", "person", "inetOrgPerson", "organizationalPerson",
-			"group", "computer", "organizationalUnit", "domain",
-			"container", "builtinDomain", "configuration",
-		},
-	}
-}
-
-// ValidateDNSyntax performs comprehensive DN validation
-func (v *Validator) ValidateDNSyntax(dn string) *ValidationResult {
-	// Performance optimization: Pre-allocate slices with reasonable capacity
+// ValidateDN validates a distinguished name
+func (v *Validator) ValidateDN(dn string) *ValidationResult {
 	result := &ValidationResult{
 		Valid:    true,
-		Warnings: make([]string, 0, 2), // Most validations have 0-2 warnings
-		Errors:   make([]string, 0, 2), // Most validations have 0-2 errors
-		Metadata: make(map[string]interface{}, 4), // Typical metadata has 2-4 entries
+		Warnings: []string{},
+		Errors:   []string{},
+		Metadata: make(map[string]interface{}),
 	}
 
-	// Basic checks
-	if len(dn) == 0 {
-		result.Valid = false
-		result.Errors = append(result.Errors, "DN cannot be empty")
-		return result
-	}
-
-	// Length validation
+	// Check length
 	if len(dn) > v.config.MaxDNLength {
 		result.Valid = false
-		result.Errors = append(result.Errors, fmt.Sprintf("DN exceeds maximum length (%d > %d)", len(dn), v.config.MaxDNLength))
+		result.Errors = append(result.Errors, fmt.Sprintf("DN exceeds maximum length of %d characters", v.config.MaxDNLength))
+	}
+
+	// Check for empty DN
+	if strings.TrimSpace(dn) == "" {
+		result.Valid = false
+		result.Errors = append(result.Errors, "DN cannot be empty")
 		return result
 	}
 
 	// UTF-8 validation
 	if v.config.ValidateUTF8 && !utf8.ValidString(dn) {
 		result.Valid = false
-		result.Errors = append(result.Errors, "DN contains invalid UTF-8 sequences")
-		return result
+		result.Errors = append(result.Errors, "DN contains invalid UTF-8 characters")
 	}
 
 	// Normalize input
-	normalized := dn
+	normalizedDN := dn
 	if v.config.NormalizeInput {
-		normalized = v.normalizeDN(dn)
-		result.NormalizedInput = normalized
+		normalizedDN = strings.TrimSpace(dn)
+		// Additional normalization could be added here
 	}
+	result.NormalizedInput = normalizedDN
 
-	// Security checks
+	// Check for suspicious patterns
 	if v.config.BlockSuspiciousPatterns {
-		threat := DetectInjectionAttempt(normalized)
-		if threat != nil && threat.RiskScore > 0.5 {
-			result.Valid = false
-			result.ThreatContext = threat
-			result.Errors = append(result.Errors, fmt.Sprintf("Suspicious pattern detected: %s", threat.ThreatType))
-			return result
-		} else if threat != nil {
-			result.ThreatContext = threat
-			result.Warnings = append(result.Warnings, fmt.Sprintf("Low-risk pattern detected: %s", threat.ThreatType))
-		}
-	}
-
-	// Parse DN components
-	components, err := v.parseDNComponents(normalized)
-	if err != nil {
-		result.Valid = false
-		result.Errors = append(result.Errors, fmt.Sprintf("DN parsing failed: %v", err))
-		return result
-	}
-
-	result.Metadata["component_count"] = len(components)
-	result.Metadata["components"] = components
-
-	// Validate each component
-	for i, component := range components {
-		if err := v.validateDNComponent(component); err != nil {
-			if v.config.StrictMode {
+		threats := v.detectThreats(dn)
+		if len(threats.DetectedThreats) > 0 {
+			result.ThreatContext = threats
+			if threats.ThreatLevel == "high" || threats.ThreatLevel == "critical" {
 				result.Valid = false
-				result.Errors = append(result.Errors, fmt.Sprintf("Component %d invalid: %v", i, err))
+				result.Errors = append(result.Errors, "DN contains suspicious patterns")
 			} else {
-				result.Warnings = append(result.Warnings, fmt.Sprintf("Component %d warning: %v", i, err))
+				result.Warnings = append(result.Warnings, "DN contains potentially suspicious patterns")
 			}
 		}
+	}
+
+	// Basic DN format validation
+	if !v.isValidDNFormat(normalizedDN) {
+		result.Valid = false
+		result.Errors = append(result.Errors, "DN has invalid format")
 	}
 
 	return result
 }
 
-// ValidateFilter performs comprehensive LDAP filter validation
+// ValidateFilter validates an LDAP search filter
 func (v *Validator) ValidateFilter(filter string) *ValidationResult {
-	// Performance optimization: Pre-allocate slices with reasonable capacity
 	result := &ValidationResult{
 		Valid:    true,
-		Warnings: make([]string, 0, 2), // Most validations have 0-2 warnings
-		Errors:   make([]string, 0, 2), // Most validations have 0-2 errors
-		Metadata: make(map[string]interface{}, 4), // Typical metadata has 2-4 entries
+		Warnings: []string{},
+		Errors:   []string{},
+		Metadata: make(map[string]interface{}),
 	}
 
-	// Basic checks
-	if len(filter) == 0 {
-		result.Valid = false
-		result.Errors = append(result.Errors, "Filter cannot be empty")
-		return result
-	}
-
-	// Length validation
+	// Check length
 	if len(filter) > v.config.MaxFilterLength {
 		result.Valid = false
-		result.Errors = append(result.Errors, fmt.Sprintf("Filter exceeds maximum length (%d > %d)", len(filter), v.config.MaxFilterLength))
+		result.Errors = append(result.Errors, fmt.Sprintf("Filter exceeds maximum length of %d characters", v.config.MaxFilterLength))
+	}
+
+	// Check for empty filter
+	if strings.TrimSpace(filter) == "" {
+		result.Valid = false
+		result.Errors = append(result.Errors, "Filter cannot be empty")
 		return result
 	}
 
 	// UTF-8 validation
 	if v.config.ValidateUTF8 && !utf8.ValidString(filter) {
 		result.Valid = false
-		result.Errors = append(result.Errors, "Filter contains invalid UTF-8 sequences")
-		return result
+		result.Errors = append(result.Errors, "Filter contains invalid UTF-8 characters")
 	}
 
 	// Normalize input
-	normalized := filter
+	normalizedFilter := filter
 	if v.config.NormalizeInput {
-		normalized = v.normalizeFilter(filter)
-		result.NormalizedInput = normalized
+		normalizedFilter = strings.TrimSpace(filter)
 	}
+	result.NormalizedInput = normalizedFilter
 
-	// Security checks
+	// Check for suspicious patterns
 	if v.config.BlockSuspiciousPatterns {
-		threat := DetectInjectionAttempt(normalized)
-		if threat != nil && threat.RiskScore > 0.7 {
-			result.Valid = false
-			result.ThreatContext = threat
-			result.Errors = append(result.Errors, fmt.Sprintf("High-risk injection pattern detected: %s", threat.ThreatType))
-			return result
-		} else if threat != nil && threat.RiskScore > 0.3 {
-			result.ThreatContext = threat
-			result.Warnings = append(result.Warnings, fmt.Sprintf("Suspicious pattern detected: %s", threat.ThreatType))
-		}
-	}
-
-	// Structural validation
-	if err := v.validateFilterStructure(normalized); err != nil {
-		result.Valid = false
-		result.Errors = append(result.Errors, fmt.Sprintf("Filter structure invalid: %v", err))
-		return result
-	}
-
-	// Parse and validate filter components
-	complexity, attributes, err := v.analyzeFilter(normalized)
-	if err != nil {
-		result.Valid = false
-		result.Errors = append(result.Errors, fmt.Sprintf("Filter analysis failed: %v", err))
-		return result
-	}
-
-	result.Metadata["complexity"] = complexity
-	result.Metadata["attributes"] = attributes
-	result.Metadata["attribute_count"] = len(attributes)
-
-	// Complexity check
-	if complexity > 20 {
-		if v.config.StrictMode {
-			result.Valid = false
-			result.Errors = append(result.Errors, fmt.Sprintf("Filter too complex (complexity: %d)", complexity))
-		} else {
-			result.Warnings = append(result.Warnings, fmt.Sprintf("High complexity filter (complexity: %d)", complexity))
-		}
-	}
-
-	// Attribute validation
-	if len(v.config.AllowedAttributes) > 0 {
-		for _, attr := range attributes {
-			if !v.isAllowedAttribute(attr) {
-				if v.config.StrictMode {
-					result.Valid = false
-					result.Errors = append(result.Errors, fmt.Sprintf("Attribute not allowed: %s", attr))
-				} else {
-					result.Warnings = append(result.Warnings, fmt.Sprintf("Uncommon attribute used: %s", attr))
-				}
+		threats := v.detectThreats(filter)
+		if len(threats.DetectedThreats) > 0 {
+			result.ThreatContext = threats
+			if threats.ThreatLevel == "high" || threats.ThreatLevel == "critical" {
+				result.Valid = false
+				result.Errors = append(result.Errors, "Filter contains suspicious patterns")
+			} else {
+				result.Warnings = append(result.Warnings, "Filter contains potentially suspicious patterns")
 			}
 		}
 	}
 
-	return result
-}
-
-// ValidateAttribute performs comprehensive attribute validation
-func (v *Validator) ValidateAttribute(name, value string) *ValidationResult {
-	// Performance optimization: Pre-allocate slices with reasonable capacity
-	result := &ValidationResult{
-		Valid:    true,
-		Warnings: make([]string, 0, 2), // Most validations have 0-2 warnings
-		Errors:   make([]string, 0, 2), // Most validations have 0-2 errors
-		Metadata: make(map[string]interface{}, 4), // Typical metadata has 2-4 entries
-	}
-
-	// Validate attribute name
-	if err := v.validateAttributeName(name); err != nil {
+	// Basic filter format validation
+	if !v.isValidFilterFormat(normalizedFilter) {
 		result.Valid = false
-		result.Errors = append(result.Errors, fmt.Sprintf("Invalid attribute name: %v", err))
-		return result
+		result.Errors = append(result.Errors, "Filter has invalid format")
 	}
-
-	// Validate attribute value
-	if err := v.validateAttributeValue(name, value); err != nil {
-		if v.config.StrictMode {
-			result.Valid = false
-			result.Errors = append(result.Errors, fmt.Sprintf("Invalid attribute value: %v", err))
-		} else {
-			result.Warnings = append(result.Warnings, fmt.Sprintf("Attribute value warning: %v", err))
-		}
-	}
-
-	// Normalize value if requested
-	if v.config.NormalizeInput {
-		result.NormalizedInput = v.normalizeAttributeValue(name, value)
-	}
-
-	// Additional metadata
-	result.Metadata["attribute_name"] = name
-	result.Metadata["value_length"] = len(value)
-	result.Metadata["value_type"] = v.detectValueType(value)
 
 	return result
 }
 
-// ValidateCredentials performs credential validation with security checks
-func (v *Validator) ValidateCredentials(username, password string) *ValidationResult {
-	// Performance optimization: Pre-allocate slices with reasonable capacity
+// ValidateAttribute validates an LDAP attribute name
+func (v *Validator) ValidateAttribute(attribute string) *ValidationResult {
 	result := &ValidationResult{
 		Valid:    true,
-		Warnings: make([]string, 0, 2), // Most validations have 0-2 warnings
-		Errors:   make([]string, 0, 2), // Most validations have 0-2 errors
-		Metadata: make(map[string]interface{}, 4), // Typical metadata has 2-4 entries
+		Warnings: []string{},
+		Errors:   []string{},
+		Metadata: make(map[string]interface{}),
 	}
 
-	// Validate username
-	if len(username) == 0 {
+	// Check length
+	if len(attribute) > v.config.MaxAttributeLength {
 		result.Valid = false
-		result.Errors = append(result.Errors, "Username cannot be empty")
-		return result
+		result.Errors = append(result.Errors, fmt.Sprintf("Attribute name exceeds maximum length of %d characters", v.config.MaxAttributeLength))
 	}
 
-	// Username length check
-	if len(username) > 256 {
+	// Check for empty attribute
+	if strings.TrimSpace(attribute) == "" {
 		result.Valid = false
-		result.Errors = append(result.Errors, "Username too long (max 256 characters)")
-		return result
-	}
-
-	// Validate password
-	if len(password) == 0 {
-		result.Valid = false
-		result.Errors = append(result.Errors, "Password cannot be empty")
+		result.Errors = append(result.Errors, "Attribute name cannot be empty")
 		return result
 	}
 
 	// UTF-8 validation
-	if v.config.ValidateUTF8 {
-		if !utf8.ValidString(username) {
-			result.Valid = false
-			result.Errors = append(result.Errors, "Username contains invalid UTF-8 sequences")
+	if v.config.ValidateUTF8 && !utf8.ValidString(attribute) {
+		result.Valid = false
+		result.Errors = append(result.Errors, "Attribute name contains invalid UTF-8 characters")
+	}
+
+	// Normalize input
+	normalizedAttribute := attribute
+	if v.config.NormalizeInput {
+		normalizedAttribute = strings.TrimSpace(attribute)
+	}
+	result.NormalizedInput = normalizedAttribute
+
+	// Check allowed attributes list
+	if len(v.config.AllowedAttributes) > 0 {
+		allowed := false
+		for _, allowedAttr := range v.config.AllowedAttributes {
+			if strings.EqualFold(normalizedAttribute, allowedAttr) {
+				allowed = true
+				break
+			}
 		}
-		if !utf8.ValidString(password) {
+		if !allowed {
 			result.Valid = false
-			result.Errors = append(result.Errors, "Password contains invalid UTF-8 sequences")
+			result.Errors = append(result.Errors, "Attribute name is not in the allowed list")
 		}
 	}
 
-	// Security checks on username
-	if v.config.BlockSuspiciousPatterns {
-		threat := DetectInjectionAttempt(username)
-		if threat != nil && threat.RiskScore > 0.3 {
-			result.Valid = false
-			result.ThreatContext = threat
-			result.Errors = append(result.Errors, fmt.Sprintf("Suspicious username pattern: %s", threat.ThreatType))
-			return result
-		}
-	}
-
-	// Check for control characters
-	for _, r := range username {
-		if unicode.IsControl(r) && r != '\t' {
-			result.Valid = false
-			result.Errors = append(result.Errors, "Username contains control characters")
-			break
-		}
-	}
-
-	// Password security analysis (metadata only)
-	passwordAnalysis := v.analyzePassword(password)
-	result.Metadata["password_analysis"] = passwordAnalysis
-
-	if passwordAnalysis.Strength < 0.3 {
-		result.Warnings = append(result.Warnings, "Weak password detected")
+	// Basic attribute name validation
+	if !v.isValidAttributeName(normalizedAttribute) {
+		result.Valid = false
+		result.Errors = append(result.Errors, "Attribute name has invalid format")
 	}
 
 	return result
 }
 
-// Helper methods
-
-func (v *Validator) normalizeDN(dn string) string {
-	// Remove extra whitespace around commas
-	normalized := regexp.MustCompile(`\s*,\s*`).ReplaceAllString(dn, ",")
-	// Remove leading/trailing whitespace
-	normalized = strings.TrimSpace(normalized)
-	// Normalize case for attribute names (but not values)
-	return normalized
-}
-
-func (v *Validator) normalizeFilter(filter string) string {
-	// Remove unnecessary whitespace
-	normalized := strings.TrimSpace(filter)
-	// Additional normalization could be added here
-	return normalized
-}
-
-func (v *Validator) normalizeAttributeValue(name, value string) string {
-	switch strings.ToLower(name) {
-	case "mail", "email":
-		return strings.ToLower(strings.TrimSpace(value))
-	case "samaccountname", "uid":
-		return strings.ToLower(strings.TrimSpace(value))
-	case "cn", "displayname", "description":
-		return strings.TrimSpace(value)
-	default:
-		return strings.TrimSpace(value)
-	}
-}
-
-func (v *Validator) parseDNComponents(dn string) ([]map[string]string, error) {
-	// Performance optimization: Pre-allocate slice with typical DN component count
-	components := make([]map[string]string, 0, 5) // Most DNs have 3-5 components
-
-	parts := strings.Split(dn, ",")
-	for _, part := range parts {
-		part = strings.TrimSpace(part)
-		if len(part) == 0 {
-			continue
-		}
-
-		kvPair := strings.SplitN(part, "=", 2)
-		if len(kvPair) != 2 {
-			return nil, fmt.Errorf("invalid DN component format: %s", part)
-		}
-
-		attribute := strings.TrimSpace(kvPair[0])
-		value := strings.TrimSpace(kvPair[1])
-
-		component := map[string]string{
-			"attribute": attribute,
-			"value":     value,
-			"raw":       part,
-		}
-
-		components = append(components, component)
+// ValidateValue validates an LDAP attribute value
+func (v *Validator) ValidateValue(value string) *ValidationResult {
+	result := &ValidationResult{
+		Valid:    true,
+		Warnings: []string{},
+		Errors:   []string{},
+		Metadata: make(map[string]interface{}),
 	}
 
-	return components, nil
-}
-
-func (v *Validator) validateDNComponent(component map[string]string) error {
-	attribute := component["attribute"]
-	value := component["value"]
-
-	// Validate attribute name
-	if err := v.validateAttributeName(attribute); err != nil {
-		return fmt.Errorf("invalid attribute in DN component: %w", err)
+	// Check length
+	if len(value) > v.config.MaxValueLength {
+		result.Valid = false
+		result.Errors = append(result.Errors, fmt.Sprintf("Value exceeds maximum length of %d characters", v.config.MaxValueLength))
 	}
 
-	// Validate value
-	if len(value) == 0 {
-		return fmt.Errorf("empty value in DN component")
+	// UTF-8 validation
+	if v.config.ValidateUTF8 && !utf8.ValidString(value) {
+		result.Valid = false
+		result.Errors = append(result.Errors, "Value contains invalid UTF-8 characters")
 	}
 
-	// Check for dangerous characters in value
-	for _, r := range value {
-		if unicode.IsControl(r) && r != '\t' && r != '\r' && r != '\n' {
-			return fmt.Errorf("DN component value contains control characters")
-		}
+	// Normalize input
+	normalizedValue := value
+	if v.config.NormalizeInput {
+		normalizedValue = strings.TrimSpace(value)
 	}
+	result.NormalizedInput = normalizedValue
 
-	return nil
-}
-
-func (v *Validator) validateFilterStructure(filter string) error {
-	// Check basic structure
-	if !strings.HasPrefix(filter, "(") || !strings.HasSuffix(filter, ")") {
-		return fmt.Errorf("filter must be enclosed in parentheses")
-	}
-
-	// Check parentheses balance
-	openCount := 0
-	for _, r := range filter {
-		if r == '(' {
-			openCount++
-		} else if r == ')' {
-			openCount--
-			if openCount < 0 {
-				return fmt.Errorf("unbalanced parentheses in filter")
+	// Check for suspicious patterns
+	if v.config.BlockSuspiciousPatterns {
+		threats := v.detectThreats(value)
+		if len(threats.DetectedThreats) > 0 {
+			result.ThreatContext = threats
+			if threats.ThreatLevel == "high" || threats.ThreatLevel == "critical" {
+				result.Valid = false
+				result.Errors = append(result.Errors, "Value contains suspicious patterns")
+			} else {
+				result.Warnings = append(result.Warnings, "Value contains potentially suspicious patterns")
 			}
 		}
 	}
 
-	if openCount != 0 {
-		return fmt.Errorf("unbalanced parentheses in filter")
-	}
-
-	// Basic syntax validation
-	if strings.Contains(filter, "()") {
-		return fmt.Errorf("filter contains empty parentheses")
-	}
-
-	return nil
+	return result
 }
 
-func (v *Validator) analyzeFilter(filter string) (int, []string, error) {
-	complexity := 0
-	attributes := make(map[string]bool)
+// detectThreats analyzes input for potential security threats
+func (v *Validator) detectThreats(input string) *ThreatContext {
+	threats := &ThreatContext{
+		ThreatLevel:       "low",
+		DetectedThreats:   []string{},
+		Confidence:        0.0,
+		RecommendedAction: "allow",
+		Metadata:          make(map[string]interface{}),
+	}
 
-	// Count operators for complexity
-	complexity += strings.Count(filter, "&") * 2
-	complexity += strings.Count(filter, "|") * 2
-	complexity += strings.Count(filter, "!") * 3
-	complexity += strings.Count(filter, "*") * 1
-	complexity += strings.Count(filter, "=") * 1
-	complexity += strings.Count(filter, ">=") * 1
-	complexity += strings.Count(filter, "<=") * 1
-	complexity += strings.Count(filter, "~=") * 1
+	lowercaseInput := strings.ToLower(input)
 
-	// Extract attribute names (simple regex-based approach)
-	attrRegex := regexp.MustCompile(`\(([a-zA-Z][a-zA-Z0-9-]*)[=<>~]`)
-	matches := attrRegex.FindAllStringSubmatch(filter, -1)
+	// Check for injection patterns
+	injectionPatterns := []string{
+		"*)(cn=*",
+		"*)(objectclass=*",
+		")(&(objectclass=*",
+		"*)(|(cn=*",
+		"script:",
+		"javascript:",
+		"eval(",
+		"exec(",
+	}
 
-	for _, match := range matches {
-		if len(match) > 1 {
-			attributes[match[1]] = true
+	for _, pattern := range injectionPatterns {
+		if strings.Contains(lowercaseInput, pattern) {
+			threats.DetectedThreats = append(threats.DetectedThreats, "ldap_injection")
+			threats.ThreatLevel = "high"
+			threats.Confidence = 0.8
+			threats.RecommendedAction = "block"
+			break
 		}
 	}
 
-	// Convert map keys to slice
-	attrList := make([]string, 0, len(attributes))
-	for attr := range attributes {
-		attrList = append(attrList, attr)
-	}
-
-	return complexity, attrList, nil
-}
-
-func (v *Validator) validateAttributeName(name string) error {
-	if len(name) == 0 {
-		return fmt.Errorf("attribute name cannot be empty")
-	}
-
-	if len(name) > v.config.MaxAttributeLength {
-		return fmt.Errorf("attribute name too long (%d > %d)", len(name), v.config.MaxAttributeLength)
-	}
-
-	// Check for dangerous characters
-	for _, r := range name {
-		if unicode.IsControl(r) || unicode.IsSpace(r) {
-			return fmt.Errorf("attribute name contains invalid characters")
+	// Check for control characters
+	for _, r := range input {
+		if unicode.IsControl(r) && r != '\t' && r != '\n' && r != '\r' {
+			threats.DetectedThreats = append(threats.DetectedThreats, "control_characters")
+			if threats.ThreatLevel == "low" {
+				threats.ThreatLevel = "medium"
+				threats.Confidence = 0.5
+				threats.RecommendedAction = "warn"
+			}
+			break
 		}
 	}
 
-	// Validate format
-	if !attributeNameRegex.MatchString(name) {
-		return fmt.Errorf("invalid attribute name format")
+	// Check for excessive length (potential DoS)
+	if len(input) > 10000 {
+		threats.DetectedThreats = append(threats.DetectedThreats, "excessive_length")
+		threats.ThreatLevel = "medium"
+		threats.Confidence = 0.6
+		threats.RecommendedAction = "warn"
 	}
 
-	return nil
+	return threats
 }
 
-func (v *Validator) validateAttributeValue(name, value string) error {
-	if len(value) > v.config.MaxValueLength {
-		return fmt.Errorf("attribute value too long (%d > %d)", len(value), v.config.MaxValueLength)
+// isValidDNFormat checks if the DN has a valid format
+func (v *Validator) isValidDNFormat(dn string) bool {
+	// Basic DN format check - should contain at least one "=" and proper structure
+	if !strings.Contains(dn, "=") {
+		return false
 	}
 
-	// Specific validation based on attribute type
-	switch strings.ToLower(name) {
-	case "mail", "email":
-		return ValidateEmail(value)
-	case "samaccountname":
-		return ValidateSAMAccountName(value)
-	case "telephonenumber":
-		return v.validatePhoneNumber(value)
-	case "postalcode":
-		return v.validatePostalCode(value)
-	case "useraccountcontrol":
-		return v.validateUserAccountControl(value)
+	// Check for balanced quotes
+	quoteCount := strings.Count(dn, "\"")
+	if quoteCount%2 != 0 {
+		return false
 	}
 
-	return nil
+	// Additional custom pattern validation
+	if v.config.CustomDNPattern != nil {
+		return v.config.CustomDNPattern.MatchString(dn)
+	}
+
+	return true
 }
 
-func (v *Validator) validatePhoneNumber(phone string) error {
-	// Basic phone number validation
-	phoneRegex := regexp.MustCompile(`^[+]?[0-9\s\-\(\)\.]{7,20}$`)
-	if !phoneRegex.MatchString(phone) {
-		return fmt.Errorf("invalid phone number format")
+// isValidFilterFormat checks if the filter has a valid format
+func (v *Validator) isValidFilterFormat(filter string) bool {
+	// Basic filter format check - should be enclosed in parentheses
+	filter = strings.TrimSpace(filter)
+	if !strings.HasPrefix(filter, "(") || !strings.HasSuffix(filter, ")") {
+		return false
 	}
-	return nil
+
+	// Check for balanced parentheses
+	openCount := strings.Count(filter, "(")
+	closeCount := strings.Count(filter, ")")
+	if openCount != closeCount {
+		return false
+	}
+
+	return true
 }
 
-func (v *Validator) validatePostalCode(code string) error {
-	// Basic postal code validation (very permissive)
-	codeRegex := regexp.MustCompile(`^[A-Za-z0-9\s\-]{3,10}$`)
-	if !codeRegex.MatchString(code) {
-		return fmt.Errorf("invalid postal code format")
-	}
-	return nil
-}
-
-func (v *Validator) validateUserAccountControl(value string) error {
-	// Validate that it's a valid integer
-	_, err := fmt.Sscanf(value, "%d")
-	if err != nil {
-		return fmt.Errorf("userAccountControl must be a valid integer")
-	}
-	return nil
-}
-
-func (v *Validator) isAllowedAttribute(attr string) bool {
-	if len(v.config.AllowedAttributes) == 0 {
-		return true // No restriction
+// isValidAttributeName checks if the attribute name has a valid format
+func (v *Validator) isValidAttributeName(attribute string) bool {
+	// Basic attribute name validation - should start with letter, contain only letters, digits, hyphens
+	if len(attribute) == 0 {
+		return false
 	}
 
-	for _, allowed := range v.config.AllowedAttributes {
-		if strings.EqualFold(attr, allowed) {
-			return true
+	// First character should be a letter
+	if !unicode.IsLetter(rune(attribute[0])) {
+		return false
+	}
+
+	// Rest can be letters, digits, or hyphens
+	for _, r := range attribute[1:] {
+		if !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '-' {
+			return false
 		}
 	}
 
-	return false
+	// Additional custom pattern validation
+	if v.config.CustomAttributePattern != nil {
+		return v.config.CustomAttributePattern.MatchString(attribute)
+	}
+
+	return true
 }
 
-func (v *Validator) detectValueType(value string) string {
-	// Simple type detection
-	if net.ParseIP(value) != nil {
-		return "ip_address"
-	}
-
-	if emailValidationRegex.MatchString(value) {
-		return "email"
-	}
-
-	if _, err := time.Parse("2006-01-02", value); err == nil {
-		return "date"
-	}
-
-	if _, err := time.Parse("2006-01-02T15:04:05Z", value); err == nil {
-		return "datetime"
-	}
-
-	if strings.HasPrefix(value, "CN=") {
-		return "dn"
-	}
-
-	if matched, _ := regexp.MatchString(`^[0-9]+$`, value); matched {
-		return "integer"
-	}
-
-	if matched, _ := regexp.MatchString(`^[0-9]+\.[0-9]+$`, value); matched {
-		return "float"
-	}
-
-	return "string"
+// ValidateIPAddress validates an IP address
+func ValidateIPAddress(ip string) bool {
+	return net.ParseIP(ip) != nil
 }
 
-// PasswordAnalysis contains the results of password analysis
-type PasswordAnalysis struct {
-	Length     int     `json:"length"`
-	Strength   float64 `json:"strength"` // 0.0 to 1.0
-	HasUpper   bool    `json:"has_upper"`
-	HasLower   bool    `json:"has_lower"`
-	HasDigit   bool    `json:"has_digit"`
-	HasSpecial bool    `json:"has_special"`
-	Entropy    float64 `json:"entropy"`
+// ValidateEmailFormat validates an email address format
+func ValidateEmailFormat(email string) bool {
+	emailRegex := regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
+	return emailRegex.MatchString(email)
 }
 
-func (v *Validator) analyzePassword(password string) PasswordAnalysis {
-	analysis := PasswordAnalysis{
-		Length: len(password),
-	}
+// SanitizeDN sanitizes a DN by removing or escaping dangerous characters
+func SanitizeDN(dn string) string {
+	// Basic sanitization - can be extended based on requirements
+	sanitized := strings.TrimSpace(dn)
 
-	charTypes := 0
+	// Remove null bytes
+	sanitized = strings.ReplaceAll(sanitized, "\x00", "")
 
-	for _, r := range password {
-		if unicode.IsUpper(r) && !analysis.HasUpper {
-			analysis.HasUpper = true
-			charTypes++
-		}
-		if unicode.IsLower(r) && !analysis.HasLower {
-			analysis.HasLower = true
-			charTypes++
-		}
-		if unicode.IsDigit(r) && !analysis.HasDigit {
-			analysis.HasDigit = true
-			charTypes++
-		}
-		if (unicode.IsPunct(r) || unicode.IsSymbol(r)) && !analysis.HasSpecial {
-			analysis.HasSpecial = true
-			charTypes++
+	// Remove other control characters except tab, newline, carriage return
+	var result strings.Builder
+	for _, r := range sanitized {
+		if !unicode.IsControl(r) || r == '\t' || r == '\n' || r == '\r' {
+			result.WriteRune(r)
 		}
 	}
 
-	// Simple strength calculation based on length and character variety
-	lengthScore := float64(analysis.Length) / 20.0 // Max 20 chars for full score
-	if lengthScore > 1.0 {
-		lengthScore = 1.0
-	}
-
-	varietyScore := float64(charTypes) / 4.0 // Max 4 types for full score
-
-	// Combined score
-	analysis.Strength = (lengthScore * 0.6) + (varietyScore * 0.4)
-	if analysis.Strength > 1.0 {
-		analysis.Strength = 1.0
-	}
-
-	// Simple entropy calculation (not cryptographically accurate but indicative)
-	charsetSize := 0
-	if analysis.HasLower {
-		charsetSize += 26
-	}
-	if analysis.HasUpper {
-		charsetSize += 26
-	}
-	if analysis.HasDigit {
-		charsetSize += 10
-	}
-	if analysis.HasSpecial {
-		charsetSize += 32 // Approximate
-	}
-
-	if charsetSize > 0 && analysis.Length > 0 {
-		// Entropy = length * log2(charset_size)
-		analysis.Entropy = float64(analysis.Length) * (3.32 * float64(charsetSize)) / 100.0 // Simplified
-	}
-
-	return analysis
+	return result.String()
 }
 
-// ValidationSummary provides a summary of all validation results
-type ValidationSummary struct {
-	TotalChecks     int                 `json:"total_checks"`
-	PassedChecks    int                 `json:"passed_checks"`
-	FailedChecks    int                 `json:"failed_checks"`
-	WarningCount    int                 `json:"warning_count"`
-	ErrorCount      int                 `json:"error_count"`
-	OverallValid    bool                `json:"overall_valid"`
-	SecurityScore   float64             `json:"security_score"`
-	Recommendations []string            `json:"recommendations"`
-	Results         []*ValidationResult `json:"results"`
-}
+// SanitizeFilter sanitizes an LDAP filter by removing or escaping dangerous characters
+func SanitizeFilter(filter string) string {
+	// Basic sanitization for LDAP filters
+	sanitized := strings.TrimSpace(filter)
 
-// CreateValidationSummary creates a summary from multiple validation results
-func CreateValidationSummary(results []*ValidationResult) *ValidationSummary {
-	summary := &ValidationSummary{
-		TotalChecks:     len(results),
-		PassedChecks:    0,
-		FailedChecks:    0,
-		WarningCount:    0,
-		ErrorCount:      0,
-		OverallValid:    true,
-		SecurityScore:   1.0,
-		Recommendations: make([]string, 0),
-		Results:         results,
+	// Remove null bytes
+	sanitized = strings.ReplaceAll(sanitized, "\x00", "")
+
+	// Escape special LDAP characters
+	replacements := map[string]string{
+		"\\": "\\5c",
+		"*":  "\\2a",
+		"(":  "\\28",
+		")":  "\\29",
+		"\x00": "\\00",
 	}
 
-	for _, result := range results {
-		if result.Valid {
-			summary.PassedChecks++
-		} else {
-			summary.FailedChecks++
-			summary.OverallValid = false
-		}
-
-		summary.WarningCount += len(result.Warnings)
-		summary.ErrorCount += len(result.Errors)
-
-		// Adjust security score based on threats
-		if result.ThreatContext != nil {
-			threatImpact := result.ThreatContext.RiskScore * 0.5
-			summary.SecurityScore -= threatImpact
-		}
+	for old, new := range replacements {
+		sanitized = strings.ReplaceAll(sanitized, old, new)
 	}
 
-	if summary.SecurityScore < 0 {
-		summary.SecurityScore = 0
-	}
-
-	// Generate recommendations
-	if summary.ErrorCount > 0 {
-		summary.Recommendations = append(summary.Recommendations, "Address validation errors before proceeding")
-	}
-	if summary.WarningCount > 0 {
-		summary.Recommendations = append(summary.Recommendations, "Review validation warnings for potential issues")
-	}
-	if summary.SecurityScore < 0.7 {
-		summary.Recommendations = append(summary.Recommendations, "Consider enhancing input security measures")
-	}
-
-	return summary
+	return sanitized
 }

@@ -73,7 +73,7 @@ func NewWithOptions(config Config, username, password string, opts ...Option) (*
 
 	// Create initial LDAP client
 	l := &LDAP{
-		config:   config,
+		config:   &config,
 		logger:   logger,
 		user:     username,
 		password: password,
@@ -101,7 +101,7 @@ func NewWithOptions(config Config, username, password string, opts ...Option) (*
 
 	// Initialize connection pool if configured
 	if l.config.Pool != nil {
-		pool, err := NewConnectionPool(l.config.Pool, l.config, username, password, l.logger)
+		pool, err := NewConnectionPool(l.config.Pool, *l.config, username, password, l.logger)
 		if err != nil {
 			l.logger.Error("connection_pool_initialization_failed",
 				slog.String("server", l.config.Server),
@@ -109,7 +109,7 @@ func NewWithOptions(config Config, username, password string, opts ...Option) (*
 				slog.Duration("duration", time.Since(start)))
 			return nil, fmt.Errorf("failed to initialize connection pool: %w", WrapLDAPError("NewConnectionPool", l.config.Server, err))
 		}
-		l.pool = pool
+		l.connPool = pool
 
 		l.logger.Info("ldap_modern_client_initialized_with_pool",
 			slog.String("server", l.config.Server),
@@ -168,8 +168,8 @@ func NewWithOptions(config Config, username, password string, opts ...Option) (*
 		if l.cache != nil {
 			perfMonitor.SetCache(l.cache)
 		}
-		if l.pool != nil {
-			perfMonitor.SetConnectionPool(l.pool)
+		if l.connPool != nil {
+			perfMonitor.SetConnectionPool(l.connPool)
 		}
 
 		l.logger.Info("ldap_modern_client_performance_monitor_initialized",
@@ -317,7 +317,7 @@ func NewPooledClient(config Config, username, password string, maxConnections in
 		WithPerformanceMonitoring(&PerformanceConfig{
 			Enabled:                true,
 			SlowQueryThreshold:     500 * time.Millisecond,
-			MetricsRetentionPeriod: 1 * time.Minute,
+			MetricsRetention: 1 * time.Minute,
 		}),
 	)
 }
@@ -337,7 +337,7 @@ func NewCachedClient(config Config, username, password string, cacheSize int, ca
 		WithPerformanceMonitoring(&PerformanceConfig{
 			Enabled:                true,
 			SlowQueryThreshold:     200 * time.Millisecond,
-			MetricsRetentionPeriod: 30 * time.Second,
+			MetricsRetention: 30 * time.Second,
 		}),
 	)
 }
@@ -362,7 +362,7 @@ func NewHighPerformanceClient(config Config, username, password string) (*LDAP, 
 	perfConfig := &PerformanceConfig{
 		Enabled:                true,
 		SlowQueryThreshold:     300 * time.Millisecond,
-		MetricsRetentionPeriod: 30 * time.Minute,
+		MetricsRetention: 30 * time.Minute,
 		SampleRate:             1.0,
 	}
 
@@ -390,7 +390,7 @@ func NewSecureClient(config Config, username, password string) (*LDAP, error) {
 		WithPerformanceMonitoring(&PerformanceConfig{
 			Enabled:                true,
 			SlowQueryThreshold:     1 * time.Second,
-			MetricsRetentionPeriod: 1 * time.Minute,
+			MetricsRetention: 1 * time.Minute,
 		}),
 	)
 }
@@ -420,7 +420,7 @@ func NewReadOnlyClient(config Config, username, password string) (*LDAP, error) 
 		WithPerformanceMonitoring(&PerformanceConfig{
 			Enabled:                true,
 			SlowQueryThreshold:     200 * time.Millisecond,
-			MetricsRetentionPeriod: 30 * time.Second,
+			MetricsRetention: 30 * time.Second,
 		}),
 	)
 }

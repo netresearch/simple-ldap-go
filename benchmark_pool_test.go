@@ -55,7 +55,7 @@ func BenchmarkConnectionPoolPerformance(b *testing.B) {
 			config := baseConfig
 			config.Pool = poolConfig
 
-			client, err := New(config, bindDN, bindPassword)
+			client, err := New(&config, bindDN, bindPassword)
 			require.NoError(b, err)
 			defer func() { _ = client.Close() }()
 
@@ -75,12 +75,10 @@ func BenchmarkConnectionPoolPerformance(b *testing.B) {
 
 			if !b.Failed() {
 				stats := client.GetPoolStats()
-				if stats != nil {
-					hitRatio := float64(stats.PoolHits) / float64(stats.PoolHits+stats.PoolMisses) * 100
-					b.ReportMetric(hitRatio, "hit_ratio_%")
-					b.ReportMetric(float64(stats.TotalConnections), "total_connections")
-					b.ReportMetric(float64(stats.ConnectionsCreated), "connections_created")
-				}
+				hitRatio := float64(stats.PoolHits) / float64(stats.PoolHits+stats.PoolMisses) * 100
+				b.ReportMetric(hitRatio, "hit_ratio_%")
+				b.ReportMetric(float64(stats.TotalConnections), "total_connections")
+				b.ReportMetric(float64(stats.ConnectionsCreated), "connections_created")
 			}
 		})
 	}
@@ -90,7 +88,7 @@ func BenchmarkConnectionPoolPerformance(b *testing.B) {
 		config := baseConfig
 		// Pool is nil for direct connections
 
-		client, err := New(config, bindDN, bindPassword)
+		client, err := New(&config, bindDN, bindPassword)
 		require.NoError(b, err)
 		defer func() { _ = client.Close() }()
 
@@ -149,7 +147,7 @@ func BenchmarkLDAPOperationsPooled(b *testing.B) {
 				},
 			}
 
-			client, err := New(config, bindDN, bindPassword)
+			client, err := New(&config, bindDN, bindPassword)
 			require.NoError(b, err)
 			defer func() { _ = client.Close() }()
 
@@ -167,10 +165,8 @@ func BenchmarkLDAPOperationsPooled(b *testing.B) {
 
 			if !b.Failed() {
 				stats := client.GetPoolStats()
-				if stats != nil {
-					hitRatio := float64(stats.PoolHits) / float64(stats.PoolHits+stats.PoolMisses) * 100
-					b.ReportMetric(hitRatio, "hit_ratio_%")
-				}
+				hitRatio := float64(stats.PoolHits) / float64(stats.PoolHits+stats.PoolMisses) * 100
+				b.ReportMetric(hitRatio, "hit_ratio_%")
 			}
 		})
 
@@ -182,7 +178,7 @@ func BenchmarkLDAPOperationsPooled(b *testing.B) {
 				// Pool: nil - direct connections
 			}
 
-			client, err := New(config, bindDN, bindPassword)
+			client, err := New(&config, bindDN, bindPassword)
 			require.NoError(b, err)
 			defer func() { _ = client.Close() }()
 
@@ -226,7 +222,7 @@ func BenchmarkConcurrentLoad(b *testing.B) {
 				},
 			}
 
-			client, err := New(config, bindDN, bindPassword)
+			client, err := New(&config, bindDN, bindPassword)
 			require.NoError(b, err)
 			defer func() { _ = client.Close() }()
 
@@ -258,11 +254,10 @@ func BenchmarkConcurrentLoad(b *testing.B) {
 
 			b.ReportMetric(opsPerSecond, "ops/sec")
 
-			if stats := client.GetPoolStats(); stats != nil {
-				hitRatio := float64(stats.PoolHits) / float64(stats.PoolHits+stats.PoolMisses) * 100
-				b.ReportMetric(hitRatio, "hit_ratio_%")
-				b.ReportMetric(float64(stats.TotalConnections), "peak_connections")
-			}
+			stats := client.GetPoolStats()
+			hitRatio := float64(stats.PoolHits) / float64(stats.PoolHits+stats.PoolMisses) * 100
+			b.ReportMetric(hitRatio, "hit_ratio_%")
+			b.ReportMetric(float64(stats.TotalConnections), "peak_connections")
 		})
 
 		if concurrency <= 20 { // Only test direct for lower concurrency to avoid overwhelming server
@@ -274,7 +269,7 @@ func BenchmarkConcurrentLoad(b *testing.B) {
 					// Pool: nil - direct connections
 				}
 
-				client, err := New(config, bindDN, bindPassword)
+				client, err := New(&config, bindDN, bindPassword)
 				require.NoError(b, err)
 				defer func() { _ = client.Close() }()
 
@@ -364,7 +359,7 @@ func BenchmarkPoolEfficiency(b *testing.B) {
 				Pool:   scenario.poolConfig,
 			}
 
-			client, err := New(config, bindDN, bindPassword)
+			client, err := New(&config, bindDN, bindPassword)
 			require.NoError(b, err)
 			defer func() { _ = client.Close() }()
 
@@ -396,20 +391,18 @@ func BenchmarkPoolEfficiency(b *testing.B) {
 			duration := time.Since(startTime)
 
 			stats := client.GetPoolStats()
-			if stats != nil {
-				hitRatio := float64(stats.PoolHits) / float64(stats.PoolHits+stats.PoolMisses) * 100
-				efficiency := float64(stats.PoolHits) / float64(totalOperations) * 100
-				connectionsPerOp := float64(stats.ConnectionsCreated) / float64(totalOperations)
+			hitRatio := float64(stats.PoolHits) / float64(stats.PoolHits+stats.PoolMisses) * 100
+			efficiency := float64(stats.PoolHits) / float64(totalOperations) * 100
+			connectionsPerOp := float64(stats.ConnectionsCreated) / float64(totalOperations)
 
-				b.ReportMetric(hitRatio, "hit_ratio_%")
-				b.ReportMetric(efficiency, "efficiency_%")
-				b.ReportMetric(connectionsPerOp, "conn_per_op")
-				b.ReportMetric(float64(stats.TotalConnections), "peak_connections")
-				b.ReportMetric(duration.Seconds(), "duration_sec")
+			b.ReportMetric(hitRatio, "hit_ratio_%")
+			b.ReportMetric(efficiency, "efficiency_%")
+			b.ReportMetric(connectionsPerOp, "conn_per_op")
+			b.ReportMetric(float64(stats.TotalConnections), "peak_connections")
+			b.ReportMetric(duration.Seconds(), "duration_sec")
 
-				b.Logf("Scenario %s: %.1f%% hit ratio, %.1f%% efficiency, %.3f conn/op, peak=%d conn",
-					name, hitRatio, efficiency, connectionsPerOp, stats.TotalConnections)
-			}
+			b.Logf("Scenario %s: %.1f%% hit ratio, %.1f%% efficiency, %.3f conn/op, peak=%d conn",
+				name, hitRatio, efficiency, connectionsPerOp, stats.TotalConnections)
 		})
 	}
 }

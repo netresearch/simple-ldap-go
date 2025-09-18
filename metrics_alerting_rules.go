@@ -14,7 +14,7 @@ func (am *AlertManager) addDefaultPerformanceRules() {
 	}
 
 	// High error rate rule
-	am.AddRule(AlertRule{
+	if err := am.AddRule(AlertRule{
 		ID:          "performance_high_error_rate",
 		Name:        "High Error Rate",
 		Description: "LDAP operations experiencing high error rate",
@@ -42,10 +42,15 @@ func (am *AlertManager) addDefaultPerformanceRules() {
 			"component": "performance",
 			"metric":    "error_rate",
 		},
-	})
+	}); err != nil {
+		// Log error but continue with other rules
+		am.logger.Error("failed_to_add_performance_rule",
+			"rule_id", "performance_high_error_rate",
+			"error", err.Error())
+	}
 
 	// High timeout rate rule
-	am.AddRule(AlertRule{
+	if err := am.AddRule(AlertRule{
 		ID:          "performance_high_timeout_rate",
 		Name:        "High Timeout Rate",
 		Description: "LDAP operations experiencing high timeout rate",
@@ -73,10 +78,15 @@ func (am *AlertManager) addDefaultPerformanceRules() {
 			"component": "performance",
 			"metric":    "timeout_rate",
 		},
-	})
+	}); err != nil {
+		// Log error but continue with other rules
+		am.logger.Error("failed_to_add_performance_rule",
+			"rule_id", "performance_high_timeout_rate",
+			"error", err.Error())
+	}
 
 	// Slow response time rule
-	am.AddRule(AlertRule{
+	if err := am.AddRule(AlertRule{
 		ID:          "performance_slow_response_time",
 		Name:        "Slow Response Times",
 		Description: "LDAP operations experiencing slow response times",
@@ -100,10 +110,15 @@ func (am *AlertManager) addDefaultPerformanceRules() {
 			"component": "performance",
 			"metric":    "response_time",
 		},
-	})
+	}); err != nil {
+		// Log error but continue with other rules
+		am.logger.Error("failed_to_add_performance_rule",
+			"rule_id", "performance_slow_response_time",
+			"error", err.Error())
+	}
 
 	// High memory usage rule
-	am.AddRule(AlertRule{
+	if err := am.AddRule(AlertRule{
 		ID:          "performance_high_memory_usage",
 		Name:        "High Memory Usage",
 		Description: "LDAP client using excessive memory",
@@ -124,10 +139,15 @@ func (am *AlertManager) addDefaultPerformanceRules() {
 			"component": "performance",
 			"metric":    "memory_usage",
 		},
-	})
+	}); err != nil {
+		// Log error but continue with other rules
+		am.logger.Error("failed_to_add_performance_rule",
+			"rule_id", "performance_high_memory_usage",
+			"error", err.Error())
+	}
 
 	// High goroutine count rule
-	am.AddRule(AlertRule{
+	if err := am.AddRule(AlertRule{
 		ID:          "performance_high_goroutine_count",
 		Name:        "High Goroutine Count",
 		Description: "Excessive number of goroutines detected",
@@ -148,10 +168,15 @@ func (am *AlertManager) addDefaultPerformanceRules() {
 			"component": "performance",
 			"metric":    "goroutines",
 		},
-	})
+	}); err != nil {
+		// Log error but continue with other rules
+		am.logger.Error("failed_to_add_performance_rule",
+			"rule_id", "performance_high_goroutine_count",
+			"error", err.Error())
+	}
 
 	// Many slow queries rule
-	am.AddRule(AlertRule{
+	if err := am.AddRule(AlertRule{
 		ID:          "performance_many_slow_queries",
 		Name:        "Many Slow Queries",
 		Description: "High number of slow LDAP queries detected",
@@ -177,7 +202,12 @@ func (am *AlertManager) addDefaultPerformanceRules() {
 			"component": "performance",
 			"metric":    "slow_queries",
 		},
-	})
+	}); err != nil {
+		// Log error but continue with other rules
+		am.logger.Error("failed_to_add_performance_rule",
+			"rule_id", "performance_many_slow_queries",
+			"error", err.Error())
+	}
 }
 
 // addDefaultSecurityRules adds default security (rate limiter) alert rules
@@ -187,7 +217,7 @@ func (am *AlertManager) addDefaultSecurityRules() {
 	}
 
 	// High rate limit violations rule
-	am.AddRule(AlertRule{
+	if err := am.AddRule(AlertRule{
 		ID:          "security_high_rate_violations",
 		Name:        "High Rate Limit Violations",
 		Description: "Excessive rate limit violations detected",
@@ -210,10 +240,14 @@ func (am *AlertManager) addDefaultSecurityRules() {
 			"component": "security",
 			"metric":    "rate_violations",
 		},
-	})
+	}); err != nil {
+		am.logger.Error("failed_to_add_security_rule",
+			"rule_id", "security_high_rate_violations",
+			"error", err.Error())
+	}
 
 	// Suspicious patterns detected rule
-	am.AddRule(AlertRule{
+	if err := am.AddRule(AlertRule{
 		ID:          "security_suspicious_patterns",
 		Name:        "Suspicious Patterns Detected",
 		Description: "Suspicious authentication patterns detected",
@@ -235,10 +269,14 @@ func (am *AlertManager) addDefaultSecurityRules() {
 			"component": "security",
 			"metric":    "suspicious_patterns",
 		},
-	})
+	}); err != nil {
+		am.logger.Error("failed_to_add_security_rule",
+			"rule_id", "security_suspicious_patterns",
+			"error", err.Error())
+	}
 
 	// Burst attacks detected rule
-	am.AddRule(AlertRule{
+	if err := am.AddRule(AlertRule{
 		ID:          "security_burst_attacks",
 		Name:        "Burst Attacks Detected",
 		Description: "Burst attack patterns detected",
@@ -260,10 +298,14 @@ func (am *AlertManager) addDefaultSecurityRules() {
 			"component": "security",
 			"metric":    "burst_attacks",
 		},
-	})
+	}); err != nil {
+		am.logger.Error("failed_to_add_security_rule",
+			"rule_id", "security_burst_attacks",
+			"error", err.Error())
+	}
 
 	// Many repeated violators rule
-	am.AddRule(AlertRule{
+	if err := am.AddRule(AlertRule{
 		ID:          "security_repeated_violators",
 		Name:        "Repeated Violators",
 		Description: "Many identifiers with repeated violations",
@@ -285,10 +327,14 @@ func (am *AlertManager) addDefaultSecurityRules() {
 			"component": "security",
 			"metric":    "repeated_violators",
 		},
-	})
+	}); err != nil {
+		am.logger.Error("failed_to_add_security_rule",
+			"rule_id", "security_repeated_violators",
+			"error", err.Error())
+	}
 
 	// High memory usage by rate limiter rule
-	am.AddRule(AlertRule{
+	if err := am.AddRule(AlertRule{
 		ID:          "security_high_memory_usage",
 		Name:        "Rate Limiter High Memory Usage",
 		Description: "Rate limiter using excessive memory",
@@ -311,10 +357,14 @@ func (am *AlertManager) addDefaultSecurityRules() {
 			"component": "security",
 			"metric":    "memory_usage",
 		},
-	})
+	}); err != nil {
+		am.logger.Error("failed_to_add_security_rule",
+			"rule_id", "security_high_memory_usage",
+			"error", err.Error())
+	}
 
 	// Slow rate limit checks rule
-	am.AddRule(AlertRule{
+	if err := am.AddRule(AlertRule{
 		ID:          "security_slow_checks",
 		Name:        "Slow Rate Limit Checks",
 		Description: "Rate limit checks taking too long",
@@ -336,7 +386,11 @@ func (am *AlertManager) addDefaultSecurityRules() {
 			"component": "security",
 			"metric":    "check_performance",
 		},
-	})
+	}); err != nil {
+		am.logger.Error("failed_to_add_security_rule",
+			"rule_id", "security_slow_checks",
+			"error", err.Error())
+	}
 }
 
 // addDefaultHealthRules adds default health monitoring alert rules
@@ -346,7 +400,7 @@ func (am *AlertManager) addDefaultHealthRules() {
 	}
 
 	// Overall health degraded rule
-	am.AddRule(AlertRule{
+	if err := am.AddRule(AlertRule{
 		ID:          "health_overall_degraded",
 		Name:        "Overall Health Degraded",
 		Description: "Overall system health has degraded",
@@ -374,10 +428,14 @@ func (am *AlertManager) addDefaultHealthRules() {
 			"component": "health",
 			"metric":    "overall_score",
 		},
-	})
+	}); err != nil {
+		am.logger.Error("failed_to_add_health_rule",
+			"rule_id", "health_overall_degraded",
+			"error", err.Error())
+	}
 
 	// Critical health failure rule
-	am.AddRule(AlertRule{
+	if err := am.AddRule(AlertRule{
 		ID:          "health_critical_failure",
 		Name:        "Critical Health Failure",
 		Description: "Critical system health failure detected",
@@ -407,10 +465,14 @@ func (am *AlertManager) addDefaultHealthRules() {
 			"component": "health",
 			"metric":    "critical_failure",
 		},
-	})
+	}); err != nil {
+		am.logger.Error("failed_to_add_health_rule",
+			"rule_id", "health_critical_failure",
+			"error", err.Error())
+	}
 
 	// Component degraded rule
-	am.AddRule(AlertRule{
+	if err := am.AddRule(AlertRule{
 		ID:          "health_component_degraded",
 		Name:        "Component Health Degraded",
 		Description: "Individual component health has degraded",
@@ -439,10 +501,14 @@ func (am *AlertManager) addDefaultHealthRules() {
 			"component": "health",
 			"metric":    "component_degraded",
 		},
-	})
+	}); err != nil {
+		am.logger.Error("failed_to_add_health_rule",
+			"rule_id", "health_component_degraded",
+			"error", err.Error())
+	}
 
 	// Health check slow rule
-	am.AddRule(AlertRule{
+	if err := am.AddRule(AlertRule{
 		ID:          "health_checks_slow",
 		Name:        "Health Checks Slow",
 		Description: "Health checks taking too long to complete",
@@ -471,7 +537,11 @@ func (am *AlertManager) addDefaultHealthRules() {
 			"component": "health",
 			"metric":    "check_duration",
 		},
-	})
+	}); err != nil {
+		am.logger.Error("failed_to_add_health_rule",
+			"rule_id", "health_checks_slow",
+			"error", err.Error())
+	}
 }
 
 // addDefaultSecurityAnalysisRules adds default security analysis alert rules
@@ -481,7 +551,7 @@ func (am *AlertManager) addDefaultSecurityAnalysisRules() {
 	}
 
 	// High risk user detected rule
-	am.AddRule(AlertRule{
+	if err := am.AddRule(AlertRule{
 		ID:          "security_high_risk_user",
 		Name:        "High Risk User Detected",
 		Description: "User with high risk score detected",
@@ -509,10 +579,14 @@ func (am *AlertManager) addDefaultSecurityAnalysisRules() {
 			"component": "security_analysis",
 			"metric":    "user_risk",
 		},
-	})
+	}); err != nil {
+		am.logger.Error("failed_to_add_security_analysis_rule",
+			"rule_id", "security_high_risk_user",
+			"error", err.Error())
+	}
 
 	// Suspicious IP activity rule
-	am.AddRule(AlertRule{
+	if err := am.AddRule(AlertRule{
 		ID:          "security_suspicious_ip",
 		Name:        "Suspicious IP Activity",
 		Description: "IP address showing suspicious patterns",
@@ -540,10 +614,14 @@ func (am *AlertManager) addDefaultSecurityAnalysisRules() {
 			"component": "security_analysis",
 			"metric":    "ip_risk",
 		},
-	})
+	}); err != nil {
+		am.logger.Error("failed_to_add_security_analysis_rule",
+			"rule_id", "security_suspicious_ip",
+			"error", err.Error())
+	}
 
 	// Many security alerts rule
-	am.AddRule(AlertRule{
+	if err := am.AddRule(AlertRule{
 		ID:          "security_many_alerts",
 		Name:        "Many Security Alerts",
 		Description: "High number of security alerts in short period",
@@ -571,10 +649,14 @@ func (am *AlertManager) addDefaultSecurityAnalysisRules() {
 			"component": "security_analysis",
 			"metric":    "threat_count",
 		},
-	})
+	}); err != nil {
+		am.logger.Error("failed_to_add_security_analysis_rule",
+			"rule_id", "security_many_alerts",
+			"error", err.Error())
+	}
 
 	// Failed authentication spike rule
-	am.AddRule(AlertRule{
+	if err := am.AddRule(AlertRule{
 		ID:          "security_auth_spike",
 		Name:        "Authentication Failure Spike",
 		Description: "Sudden spike in authentication failures",
@@ -603,10 +685,14 @@ func (am *AlertManager) addDefaultSecurityAnalysisRules() {
 			"component": "security_analysis",
 			"metric":    "auth_failures",
 		},
-	})
+	}); err != nil {
+		am.logger.Error("failed_to_add_security_analysis_rule",
+			"rule_id", "security_auth_spike",
+			"error", err.Error())
+	}
 
 	// Anomalous behavior patterns rule
-	am.AddRule(AlertRule{
+	if err := am.AddRule(AlertRule{
 		ID:          "security_anomalous_behavior",
 		Name:        "Anomalous Behavior Patterns",
 		Description: "Unusual behavior patterns detected",
@@ -634,13 +720,17 @@ func (am *AlertManager) addDefaultSecurityAnalysisRules() {
 			"component": "security_analysis",
 			"metric":    "behavior_anomaly",
 		},
-	})
+	}); err != nil {
+		am.logger.Error("failed_to_add_security_analysis_rule",
+			"rule_id", "security_anomalous_behavior",
+			"error", err.Error())
+	}
 }
 
 // addDefaultSystemRules adds default system-level alert rules
 func (am *AlertManager) addDefaultSystemRules() {
 	// Alert manager itself health rule
-	am.AddRule(AlertRule{
+	if err := am.AddRule(AlertRule{
 		ID:          "system_alerting_health",
 		Name:        "Alerting System Health",
 		Description: "Alert manager system health check",
@@ -665,10 +755,14 @@ func (am *AlertManager) addDefaultSystemRules() {
 			"component": "system",
 			"metric":    "alerting_health",
 		},
-	})
+	}); err != nil {
+		am.logger.Error("failed_to_add_system_rule",
+			"rule_id", "system_alerting_health",
+			"error", err.Error())
+	}
 
 	// Too many active alerts rule
-	am.AddRule(AlertRule{
+	if err := am.AddRule(AlertRule{
 		ID:          "system_too_many_alerts",
 		Name:        "Too Many Active Alerts",
 		Description: "System generating excessive number of alerts",
@@ -690,5 +784,9 @@ func (am *AlertManager) addDefaultSystemRules() {
 			"component": "system",
 			"metric":    "alert_volume",
 		},
-	})
+	}); err != nil {
+		am.logger.Error("failed_to_add_system_rule",
+			"rule_id", "system_too_many_alerts",
+			"error", err.Error())
+	}
 }
