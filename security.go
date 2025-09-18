@@ -8,10 +8,10 @@ import (
 	"net"
 	"net/url"
 	"regexp"
+	"runtime"
 	"strings"
 	"time"
 	"unicode"
-	"unsafe"
 
 	"github.com/go-ldap/ldap/v3"
 )
@@ -690,13 +690,8 @@ func SecureZeroMemory(data []byte) {
 	}
 
 	// Force memory barrier to prevent compiler optimizations
-	runtime_memhash_noescape(unsafe.Pointer(&data[0]), 0, uintptr(len(data)))
+	runtime.KeepAlive(data)
 }
-
-// Placeholder for runtime memory hash function to prevent optimization
-//
-//go:linkname runtime_memhash_noescape runtime.memhash_noescape
-func runtime_memhash_noescape(unsafe.Pointer, uintptr, uintptr) uintptr
 
 // DefaultSecurityConfig returns a secure default configuration
 func DefaultSecurityConfig() *SecurityConfig {
