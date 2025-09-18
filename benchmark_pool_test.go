@@ -57,7 +57,7 @@ func BenchmarkConnectionPoolPerformance(b *testing.B) {
 
 			client, err := New(config, bindDN, bindPassword)
 			require.NoError(b, err)
-			defer client.Close()
+			defer func() { _ = client.Close() }()
 
 			ctx := context.Background()
 
@@ -69,7 +69,7 @@ func BenchmarkConnectionPoolPerformance(b *testing.B) {
 						b.Error(err)
 						continue
 					}
-					conn.Close()
+					_ = conn.Close()
 				}
 			})
 
@@ -92,7 +92,7 @@ func BenchmarkConnectionPoolPerformance(b *testing.B) {
 
 		client, err := New(config, bindDN, bindPassword)
 		require.NoError(b, err)
-		defer client.Close()
+		defer func() { _ = client.Close() }()
 
 		ctx := context.Background()
 
@@ -104,7 +104,7 @@ func BenchmarkConnectionPoolPerformance(b *testing.B) {
 					b.Error(err)
 					continue
 				}
-				conn.Close()
+				_ = conn.Close()
 			}
 		})
 	})
@@ -151,7 +151,7 @@ func BenchmarkLDAPOperationsPooled(b *testing.B) {
 
 			client, err := New(config, bindDN, bindPassword)
 			require.NoError(b, err)
-			defer client.Close()
+			defer func() { _ = client.Close() }()
 
 			ctx := context.Background()
 
@@ -184,7 +184,7 @@ func BenchmarkLDAPOperationsPooled(b *testing.B) {
 
 			client, err := New(config, bindDN, bindPassword)
 			require.NoError(b, err)
-			defer client.Close()
+			defer func() { _ = client.Close() }()
 
 			ctx := context.Background()
 
@@ -228,7 +228,7 @@ func BenchmarkConcurrentLoad(b *testing.B) {
 
 			client, err := New(config, bindDN, bindPassword)
 			require.NoError(b, err)
-			defer client.Close()
+			defer func() { _ = client.Close() }()
 
 			b.ResetTimer()
 
@@ -276,7 +276,7 @@ func BenchmarkConcurrentLoad(b *testing.B) {
 
 				client, err := New(config, bindDN, bindPassword)
 				require.NoError(b, err)
-				defer client.Close()
+				defer func() { _ = client.Close() }()
 
 				b.ResetTimer()
 
@@ -366,7 +366,7 @@ func BenchmarkPoolEfficiency(b *testing.B) {
 
 			client, err := New(config, bindDN, bindPassword)
 			require.NoError(b, err)
-			defer client.Close()
+			defer func() { _ = client.Close() }()
 
 			b.ResetTimer()
 
@@ -386,7 +386,7 @@ func BenchmarkPoolEfficiency(b *testing.B) {
 							atomic.AddInt64(&totalOperations, 1)
 							// Simulate some work
 							time.Sleep(1 * time.Millisecond)
-							conn.Close()
+							_ = conn.Close()
 						}
 					}
 				}()

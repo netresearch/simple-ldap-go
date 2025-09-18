@@ -84,7 +84,7 @@ func (l *LDAP) CheckPasswordForSAMAccountNameContext(ctx context.Context, sAMAcc
 	if err != nil {
 		return nil, connectionError("SAM account", "authentication", err)
 	}
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 
 	// Check for context cancellation before user lookup
 	select {
@@ -235,7 +235,7 @@ func (l *LDAP) CheckPasswordForDNContext(ctx context.Context, dn, password strin
 	if err != nil {
 		return nil, connectionError("DN", "authentication", err)
 	}
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 
 	// Check for context cancellation before user lookup
 	select {
@@ -385,7 +385,7 @@ func (l *LDAP) ChangePasswordForSAMAccountNameContext(ctx context.Context, sAMAc
 	if err != nil {
 		return connectionError("password", "change", err)
 	}
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 
 	// Check for context cancellation before user lookup
 	if err := l.checkContextCancellation(ctx, "password_change", sAMAccountName, "before_user_lookup"); err != nil {

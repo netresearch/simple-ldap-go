@@ -515,7 +515,7 @@ func (c *LRUCache) GetWithRefresh(key string, refreshFunc func() (interface{}, e
 		// Entry is stale, refresh in background and return current value
 		go func() {
 			if newValue, err := refreshFunc(); err == nil {
-				c.Set(key, newValue, c.config.TTL)
+				_ = c.Set(key, newValue, c.config.TTL)
 				atomic.AddInt64(&c.stats.RefreshOps, 1)
 			}
 		}()
@@ -527,11 +527,11 @@ func (c *LRUCache) GetWithRefresh(key string, refreshFunc func() (interface{}, e
 	value, err := refreshFunc()
 	if err != nil {
 		// Cache negative result
-		c.SetNegative(key, c.config.NegativeCacheTTL)
+		_ = c.SetNegative(key, c.config.NegativeCacheTTL)
 		return nil, err
 	}
 
-	c.Set(key, value, c.config.TTL)
+	_ = c.Set(key, value, c.config.TTL)
 	return value, nil
 }
 

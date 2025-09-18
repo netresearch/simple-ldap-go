@@ -106,7 +106,7 @@ func (l *LDAP) FindGroupByDNOptimized(ctx context.Context, dn string, options *S
 		// Cache negative result
 		negativeTTL := l.config.Cache.NegativeCacheTTL
 		if negativeTTL > 0 {
-			l.cache.SetNegative(cacheKey, negativeTTL)
+			_ = l.cache.SetNegative(cacheKey, negativeTTL)
 			l.logger.Debug("group_negative_cached",
 				slog.String("operation", "FindGroupByDN"),
 				slog.String("dn", dn),
@@ -752,7 +752,7 @@ func (l *LDAP) cacheIndividualGroups(groups []Group, cacheTTL time.Duration) {
 	for _, group := range groups {
 		// Cache by DN
 		dnCacheKey := GenerateCacheKey("group:dn", group.DN())
-		l.cache.Set(dnCacheKey, &group, cacheTTL)
+		_ = l.cache.Set(dnCacheKey, &group, cacheTTL)
 
 		// Cache group membership information
 	}
@@ -771,7 +771,7 @@ func (l *LDAP) cacheGroupMembers(group *Group, cacheTTL time.Duration) {
 	// Cache reverse lookup: for each member, cache that they belong to this group
 	for _, memberDN := range group.Members {
 		membershipKey := GenerateCacheKey("membership", memberDN, group.DN())
-		l.cache.Set(membershipKey, true, cacheTTL)
+		_ = l.cache.Set(membershipKey, true, cacheTTL)
 	}
 
 	l.logger.Debug("group_membership_cached",
