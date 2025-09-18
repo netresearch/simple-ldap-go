@@ -44,6 +44,15 @@
 - [Security Best Practices](SECURITY.md)
 - [Modernization Plan](MODERNIZATION_PLAN.md)
 
+### [📘 Implementation Guides](#guides)
+- [Authentication Workflows](docs/AUTHENTICATION_GUIDE.md) - MFA, session management, security patterns
+- [Connection Pooling](docs/CONNECTION_POOLING.md) - Pool configuration, monitoring, optimization
+- [Caching Strategies](docs/CACHING_GUIDE.md) - LRU implementation, TTL management, performance
+- [Error Handling Patterns](docs/ERROR_HANDLING.md) - Error types, recovery patterns, best practices
+- [Performance Tuning](docs/PERFORMANCE_TUNING.md) - Benchmarking, profiling, optimization techniques
+- [Security Implementation](docs/SECURITY_GUIDE.md) - Authentication, authorization, compliance
+- [Troubleshooting Guide](docs/TROUBLESHOOTING.md) - Common issues, diagnostics, debugging
+
 ---
 
 ## 🎯 API Reference
