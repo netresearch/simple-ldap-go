@@ -92,11 +92,12 @@ func DefaultValidationConfig() *ValidationConfig {
 
 // ValidateDNSyntax performs comprehensive DN validation
 func (v *Validator) ValidateDNSyntax(dn string) *ValidationResult {
+	// Performance optimization: Pre-allocate slices with reasonable capacity
 	result := &ValidationResult{
 		Valid:    true,
-		Warnings: make([]string, 0),
-		Errors:   make([]string, 0),
-		Metadata: make(map[string]interface{}),
+		Warnings: make([]string, 0, 2), // Most validations have 0-2 warnings
+		Errors:   make([]string, 0, 2), // Most validations have 0-2 errors
+		Metadata: make(map[string]interface{}, 4), // Typical metadata has 2-4 entries
 	}
 
 	// Basic checks
@@ -169,11 +170,12 @@ func (v *Validator) ValidateDNSyntax(dn string) *ValidationResult {
 
 // ValidateFilter performs comprehensive LDAP filter validation
 func (v *Validator) ValidateFilter(filter string) *ValidationResult {
+	// Performance optimization: Pre-allocate slices with reasonable capacity
 	result := &ValidationResult{
 		Valid:    true,
-		Warnings: make([]string, 0),
-		Errors:   make([]string, 0),
-		Metadata: make(map[string]interface{}),
+		Warnings: make([]string, 0, 2), // Most validations have 0-2 warnings
+		Errors:   make([]string, 0, 2), // Most validations have 0-2 errors
+		Metadata: make(map[string]interface{}, 4), // Typical metadata has 2-4 entries
 	}
 
 	// Basic checks
@@ -266,11 +268,12 @@ func (v *Validator) ValidateFilter(filter string) *ValidationResult {
 
 // ValidateAttribute performs comprehensive attribute validation
 func (v *Validator) ValidateAttribute(name, value string) *ValidationResult {
+	// Performance optimization: Pre-allocate slices with reasonable capacity
 	result := &ValidationResult{
 		Valid:    true,
-		Warnings: make([]string, 0),
-		Errors:   make([]string, 0),
-		Metadata: make(map[string]interface{}),
+		Warnings: make([]string, 0, 2), // Most validations have 0-2 warnings
+		Errors:   make([]string, 0, 2), // Most validations have 0-2 errors
+		Metadata: make(map[string]interface{}, 4), // Typical metadata has 2-4 entries
 	}
 
 	// Validate attribute name
@@ -305,11 +308,12 @@ func (v *Validator) ValidateAttribute(name, value string) *ValidationResult {
 
 // ValidateCredentials performs credential validation with security checks
 func (v *Validator) ValidateCredentials(username, password string) *ValidationResult {
+	// Performance optimization: Pre-allocate slices with reasonable capacity
 	result := &ValidationResult{
 		Valid:    true,
-		Warnings: make([]string, 0),
-		Errors:   make([]string, 0),
-		Metadata: make(map[string]interface{}),
+		Warnings: make([]string, 0, 2), // Most validations have 0-2 warnings
+		Errors:   make([]string, 0, 2), // Most validations have 0-2 errors
+		Metadata: make(map[string]interface{}, 4), // Typical metadata has 2-4 entries
 	}
 
 	// Validate username
@@ -408,7 +412,8 @@ func (v *Validator) normalizeAttributeValue(name, value string) string {
 }
 
 func (v *Validator) parseDNComponents(dn string) ([]map[string]string, error) {
-	components := make([]map[string]string, 0)
+	// Performance optimization: Pre-allocate slice with typical DN component count
+	components := make([]map[string]string, 0, 5) // Most DNs have 3-5 components
 
 	parts := strings.Split(dn, ",")
 	for _, part := range parts {

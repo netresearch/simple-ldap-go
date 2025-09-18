@@ -268,13 +268,22 @@ func (c *LRUCache) GetContext(ctx context.Context, key string) (interface{}, boo
 		return nil, false
 	}
 
-	// Update access information
-	c.mu.Lock()
-	entry.LastAccess = time.Now()
+	// Performance optimization: Reduce lock contention by batching LRU updates
+	// Only update LastAccess and LRU position if entry is getting stale
 	atomic.AddInt64(&entry.AccessCount, 1)
-	// Move to front of LRU list
-	c.lruList.MoveToFront(entry.element)
-	c.mu.Unlock()
+	now := time.Now()
+
+	// Only take exclusive lock if LastAccess is stale (>1 second old) to reduce contention
+	if now.Sub(entry.LastAccess) > time.Second {
+		c.mu.Lock()
+		// Double-check after acquiring lock to avoid race conditions
+		if now.Sub(entry.LastAccess) > time.Second {
+			entry.LastAccess = now
+			// Move to front of LRU list
+			c.lruList.MoveToFront(entry.element)
+		}
+		c.mu.Unlock()
+	}
 
 	// Check if entry is negative
 	if entry.IsNegative {
