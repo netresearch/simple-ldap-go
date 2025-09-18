@@ -3,7 +3,6 @@ package ldap
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"time"
 
@@ -65,54 +64,19 @@ func (l *LDAP) FindGroupByDN(dn string) (group *Group, err error) {
 //     context cancellation error, or any LDAP operation error
 func (l *LDAP) FindGroupByDNContext(ctx context.Context, dn string) (group *Group, err error) {
 	start := time.Now()
-	l.logger.Debug("group_search_by_dn_started",
-		slog.String("operation", "FindGroupByDN"),
-		slog.String("dn", dn))
 
-	c, err := l.GetConnectionContext(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get connection for group DN search: %w", err)
-	}
-	defer c.Close()
-
-	// Check for context cancellation before search
-	select {
-	case <-ctx.Done():
-		l.logger.Debug("group_search_cancelled",
-			slog.String("operation", "FindGroupByDN"),
-			slog.String("dn", dn),
-			slog.String("error", ctx.Err().Error()))
-		return nil, fmt.Errorf("group search cancelled for DN %s: %w", dn, WrapLDAPError("FindGroupByDN", l.config.Server, ctx.Err()))
-	default:
+	// Use generic DN search function to eliminate code duplication
+	params := dnSearchParams{
+		operation:   "FindGroupByDN",
+		filter:      "(|(objectClass=group)(objectClass=groupOfNames))",
+		attributes:  []string{"cn", "member"},
+		notFoundErr: ErrGroupNotFound,
+		logPrefix:   "group_",
 	}
 
-	filter := "(|(objectClass=group)(objectClass=groupOfNames))"
-	l.logger.Debug("group_search_executing",
-		slog.String("filter", filter),
-		slog.String("dn", dn))
-
-	r, err := c.Search(&ldap.SearchRequest{
-		BaseDN:       dn,
-		Scope:        ldap.ScopeBaseObject,
-		DerefAliases: ldap.NeverDerefAliases,
-		Filter:       filter,
-		Attributes:   []string{"cn", "member"},
-	})
+	r, err := l.findByDNContext(ctx, dn, params)
 	if err != nil {
-		// If LDAP error indicates object not found, return ErrGroupNotFound
-		if ldapErr, ok := err.(*ldap.Error); ok && ldapErr.ResultCode == ldap.LDAPResultNoSuchObject {
-			l.logger.Debug("group_not_found_by_dn",
-				slog.String("operation", "FindGroupByDN"),
-				slog.String("dn", dn),
-				slog.Duration("duration", time.Since(start)))
-			return nil, fmt.Errorf("group not found by DN %s: %w", dn, ErrGroupNotFound)
-		}
-		l.logger.Error("group_search_by_dn_failed",
-			slog.String("operation", "FindGroupByDN"),
-			slog.String("dn", dn),
-			slog.String("error", err.Error()),
-			slog.Duration("duration", time.Since(start)))
-		return nil, fmt.Errorf("group search failed for DN %s: %w", dn, WrapLDAPError("FindGroupByDN", l.config.Server, err))
+		return nil, err
 	}
 
 	if len(r.Entries) == 0 {
