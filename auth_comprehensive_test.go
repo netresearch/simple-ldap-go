@@ -264,7 +264,7 @@ func TestAuthenticationFlow(t *testing.T) {
 		// Step 4: Verify the user client can perform operations
 		conn, err := userClient.GetConnection()
 		require.NoError(t, err)
-		conn.Close()
+		_ = conn.Close()
 	})
 }
 

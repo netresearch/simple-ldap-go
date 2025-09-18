@@ -360,13 +360,13 @@ func TestLDAP_PoolWithCredentials(t *testing.T) {
 
 	client1, err := New(config, bindDN, bindPassword)
 	require.NoError(t, err)
-	defer client1.Close()
+	defer func() { _ = client1.Close() }()
 
 	t.Run("WithCredentialsCreatesSeparatePool", func(t *testing.T) {
 		// Create client with different credentials (should have separate pool)
 		client2, err := client1.WithCredentials(bindDN, bindPassword)
 		require.NoError(t, err)
-		defer client2.Close()
+		defer func() { _ = client2.Close() }()
 
 		// Both clients should have pools
 		stats1 := client1.GetPoolStats()

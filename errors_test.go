@@ -14,7 +14,7 @@ func TestLDAPError(t *testing.T) {
 	// Test basic error creation
 	baseErr := errors.New("connection refused")
 	ldapErr := NewLDAPError("TestOperation", "ldaps://test.com", baseErr)
-	ldapErr.WithDN("CN=test,DC=example,DC=com").
+	_ = ldapErr.WithDN("CN=test,DC=example,DC=com").
 		WithCode(int(ldap.LDAPResultServerDown)).
 		WithContext("username", "testuser").
 		WithContext("filter", "(objectClass=user)")
