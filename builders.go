@@ -158,6 +158,8 @@ func (b *UserBuilder) Build() (*FullUser, error) {
 }
 
 // MustBuild creates the FullUser object and panics if validation fails.
+// This follows Go's convention for Must* functions which panic on error.
+// Use Build() if you want to handle errors gracefully.
 // This method should only be used when you're certain the configuration is valid.
 func (b *UserBuilder) MustBuild() *FullUser {
 	user, err := b.Build()
@@ -260,6 +262,8 @@ func (b *GroupBuilder) Build() (*FullGroup, error) {
 }
 
 // MustBuild creates the FullGroup object and panics if validation fails.
+// This follows Go's convention for Must* functions which panic on error.
+// Use Build() if you want to handle errors gracefully.
 func (b *GroupBuilder) MustBuild() *FullGroup {
 	group, err := b.Build()
 	if err != nil {
@@ -379,6 +383,8 @@ func (b *ComputerBuilder) Build() (*FullComputer, error) {
 }
 
 // MustBuild creates the FullComputer object and panics if validation fails.
+// This follows Go's convention for Must* functions which panic on error.
+// Use Build() if you want to handle errors gracefully.
 func (b *ComputerBuilder) MustBuild() *FullComputer {
 	computer, err := b.Build()
 	if err != nil {
@@ -479,6 +485,8 @@ func (b *ConfigBuilder) Build() (*Config, error) {
 }
 
 // MustBuild creates the Config object and panics if validation fails.
+// This follows Go's convention for Must* functions which panic on error.
+// Use Build() if you want to handle errors gracefully.
 func (b *ConfigBuilder) MustBuild() *Config {
 	config, err := b.Build()
 	if err != nil {
