@@ -47,13 +47,13 @@ type WorkResult[T any] struct {
 // WorkerPoolConfig configures a worker pool.
 type WorkerPoolConfig struct {
 	// WorkerCount is the number of concurrent workers
-	WorkerCount int
+	WorkerCount int `json:"worker_count"`
 	// BufferSize is the size of the work item buffer
-	BufferSize int
+	BufferSize int `json:"buffer_size"`
 	// Timeout is the maximum time to wait for operations
-	Timeout time.Duration
+	Timeout time.Duration `json:"timeout"`
 	// FailFast determines if the pool should stop on first error
-	FailFast bool
+	FailFast bool `json:"fail_fast"`
 }
 
 // DefaultWorkerPoolConfig returns sensible defaults for a worker pool.
