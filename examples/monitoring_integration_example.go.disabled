@@ -111,14 +111,12 @@ func (ms *MonitoringSystem) createAlertingConfig() *ldap.AlertingConfig {
 			ID:      "log",
 			Name:    "Log Notifications",
 			Type:    "log",
-			Enabled: true,
 			Config:  map[string]interface{}{},
 		},
 		{
 			ID:   "webhook",
 			Name: "Slack Webhook",
 			Type: "webhook",
-			Enabled: false, // Enable when you have a webhook URL
 			Config: map[string]interface{}{
 				"url": "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK",
 				"headers": map[string]string{
@@ -130,7 +128,6 @@ func (ms *MonitoringSystem) createAlertingConfig() *ldap.AlertingConfig {
 			ID:   "email",
 			Name: "Email Notifications",
 			Type: "email",
-			Enabled: false, // Enable when you configure SMTP
 			Config: map[string]interface{}{
 				"smtp_host": "smtp.gmail.com",
 				"smtp_port": 587,
