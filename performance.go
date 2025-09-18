@@ -22,6 +22,13 @@ type PerformanceConfig struct {
 	PrometheusNamespace  string        `json:"prometheus_namespace"`  // Namespace for Prometheus metrics
 	MemoryStatsInterval  time.Duration `json:"memory_stats_interval"` // How often to collect memory stats
 	HistogramBuckets     []float64     `json:"histogram_buckets"`     // Custom histogram buckets for response times
+
+	// Additional fields for compatibility with examples
+	MetricsRetentionPeriod time.Duration `json:"metrics_retention_period"` // Alias for MetricsRetention
+	MaxSearchResults       int           `json:"max_search_results"`        // Maximum number of search results
+	SearchTimeout          time.Duration `json:"search_timeout"`            // Timeout for search operations
+	EnablePrefetch         bool          `json:"enable_prefetch"`           // Enable prefetching optimizations
+	EnableBulkOperations   bool          `json:"enable_bulk_operations"`    // Enable bulk operation optimizations
 }
 
 // DefaultPerformanceConfig returns a PerformanceConfig with sensible defaults
@@ -38,6 +45,13 @@ func DefaultPerformanceConfig() *PerformanceConfig {
 		PrometheusNamespace:  "ldap",
 		MemoryStatsInterval:  30 * time.Second,
 		HistogramBuckets:     []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10},
+
+		// Default values for additional fields
+		MetricsRetentionPeriod: 24 * time.Hour,
+		MaxSearchResults:       0, // 0 means no limit
+		SearchTimeout:          30 * time.Second,
+		EnablePrefetch:         false,
+		EnableBulkOperations:   true,
 	}
 }
 
