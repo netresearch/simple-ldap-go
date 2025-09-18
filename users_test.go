@@ -9,6 +9,9 @@ import (
 )
 
 func TestFindUserByDN(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 
@@ -75,6 +78,9 @@ func TestFindUserByDN(t *testing.T) {
 }
 
 func TestFindUserBySAMAccountName(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 
@@ -147,6 +153,9 @@ func TestFindUserBySAMAccountName(t *testing.T) {
 }
 
 func TestFindUserByMail(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 
@@ -213,6 +222,9 @@ func TestFindUserByMail(t *testing.T) {
 }
 
 func TestFindUsers(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 
@@ -252,6 +264,9 @@ func TestFindUsers(t *testing.T) {
 }
 
 func TestAddUserToGroup(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 
@@ -285,6 +300,9 @@ func TestAddUserToGroup(t *testing.T) {
 }
 
 func TestRemoveUserFromGroup(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 
@@ -306,6 +324,9 @@ func TestRemoveUserFromGroup(t *testing.T) {
 }
 
 func TestCreateUser(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 
@@ -371,6 +392,9 @@ func TestCreateUser(t *testing.T) {
 }
 
 func TestDeleteUser(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 
@@ -390,6 +414,9 @@ func TestDeleteUser(t *testing.T) {
 }
 
 func TestUserFromEntry(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	// This is testing the internal userFromEntry function indirectly
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
@@ -413,6 +440,9 @@ func TestUserFromEntry(t *testing.T) {
 }
 
 func TestUserStructValidation(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 
@@ -454,6 +484,9 @@ func TestUserStructValidation(t *testing.T) {
 
 // Test error conditions and edge cases
 func TestUserErrorConditions(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 
@@ -474,6 +507,9 @@ func TestUserErrorConditions(t *testing.T) {
 
 // Benchmark tests
 func BenchmarkFindUserBySAMAccountName(b *testing.B) {
+	if testing.Short() {
+		b.Skip("Skipping integration benchmark in short mode")
+	}
 	tc := SetupTestContainer(&testing.T{})
 	defer tc.Close(&testing.T{})
 
@@ -490,6 +526,9 @@ func BenchmarkFindUserBySAMAccountName(b *testing.B) {
 }
 
 func BenchmarkFindUsers(b *testing.B) {
+	if testing.Short() {
+		b.Skip("Skipping integration benchmark in short mode")
+	}
 	tc := SetupTestContainer(&testing.T{})
 	defer tc.Close(&testing.T{})
 

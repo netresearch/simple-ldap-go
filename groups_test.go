@@ -10,6 +10,9 @@ import (
 )
 
 func TestFindGroupByDN(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 
@@ -76,6 +79,9 @@ func TestFindGroupByDN(t *testing.T) {
 }
 
 func TestFindGroups(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 
@@ -108,6 +114,9 @@ func TestFindGroups(t *testing.T) {
 }
 
 func TestGroupStructValidation(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 
@@ -145,6 +154,9 @@ func TestGroupStructValidation(t *testing.T) {
 }
 
 func TestGroupMembership(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 
@@ -186,6 +198,9 @@ func TestGroupMembership(t *testing.T) {
 }
 
 func TestGroupSearchByAttribute(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 
@@ -221,6 +236,9 @@ func TestGroupSearchByAttribute(t *testing.T) {
 }
 
 func TestGroupErrorConditions(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 
@@ -249,6 +267,9 @@ func TestGroupErrorConditions(t *testing.T) {
 }
 
 func TestGroupObjectAttributes(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 
@@ -268,6 +289,9 @@ func TestGroupObjectAttributes(t *testing.T) {
 }
 
 func TestGroupSearchScopes(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 
@@ -305,6 +329,9 @@ func TestErrGroupNotFound(t *testing.T) {
 }
 
 func TestGroupIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 
@@ -339,6 +366,9 @@ func TestGroupIntegration(t *testing.T) {
 }
 
 func TestGroupCaseSensitivity(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 
@@ -368,6 +398,9 @@ func TestGroupCaseSensitivity(t *testing.T) {
 
 // Benchmark tests
 func BenchmarkFindGroupByDN(b *testing.B) {
+	if testing.Short() {
+		b.Skip("Skipping integration benchmark in short mode")
+	}
 	tc := SetupTestContainer(&testing.T{})
 	defer tc.Close(&testing.T{})
 
@@ -384,6 +417,9 @@ func BenchmarkFindGroupByDN(b *testing.B) {
 }
 
 func BenchmarkFindGroups(b *testing.B) {
+	if testing.Short() {
+		b.Skip("Skipping integration benchmark in short mode")
+	}
 	tc := SetupTestContainer(&testing.T{})
 	defer tc.Close(&testing.T{})
 

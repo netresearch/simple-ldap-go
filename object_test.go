@@ -336,6 +336,9 @@ func TestObjectEdgeCases(t *testing.T) {
 }
 
 func TestObjectIntegrationWithLDAP(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 
