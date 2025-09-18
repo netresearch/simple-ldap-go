@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-ldap/ldap/v3"
@@ -110,49 +112,19 @@ func (l *LDAP) FindUserByDN(dn string) (user *User, err error) {
 //     context cancellation error, or any LDAP operation error
 func (l *LDAP) FindUserByDNContext(ctx context.Context, dn string) (user *User, err error) {
 	start := time.Now()
-	l.logger.Debug("user_search_by_dn_started",
-		slog.String("operation", "FindUserByDN"),
-		slog.String("dn", dn))
 
-	c, err := l.GetConnectionContext(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get connection for user DN search: %w", err)
-	}
-	defer c.Close()
-
-	// Check for context cancellation before search
-	select {
-	case <-ctx.Done():
-		l.logger.Debug("user_search_cancelled",
-			slog.String("operation", "FindUserByDN"),
-			slog.String("dn", dn),
-			slog.String("error", ctx.Err().Error()))
-		return nil, fmt.Errorf("user search cancelled for DN %s: %w", dn, WrapLDAPError("FindUserByDN", l.config.Server, ctx.Err()))
-	default:
+	// Use generic DN search function to eliminate code duplication
+	params := dnSearchParams{
+		operation:   "FindUserByDN",
+		filter:      "(|(objectClass=user)(objectClass=inetOrgPerson)(objectClass=person))",
+		attributes:  []string{"memberOf", "cn", "sAMAccountName", "uid", "userAccountControl", "description", "mail"},
+		notFoundErr: ErrUserNotFound,
+		logPrefix:   "user_",
 	}
 
-	r, err := c.Search(&ldap.SearchRequest{
-		BaseDN:       dn,
-		Scope:        ldap.ScopeBaseObject,
-		DerefAliases: ldap.NeverDerefAliases,
-		Filter:       "(|(objectClass=user)(objectClass=inetOrgPerson)(objectClass=person))",
-		Attributes:   []string{"memberOf", "cn", "sAMAccountName", "uid", "userAccountControl", "description", "mail"},
-	})
+	r, err := l.findByDNContext(ctx, dn, params)
 	if err != nil {
-		// If LDAP error indicates object not found, return ErrUserNotFound
-		if ldapErr, ok := err.(*ldap.Error); ok && ldapErr.ResultCode == ldap.LDAPResultNoSuchObject {
-			l.logger.Debug("user_not_found_by_dn",
-				slog.String("operation", "FindUserByDN"),
-				slog.String("dn", dn),
-				slog.Duration("duration", time.Since(start)))
-			return nil, fmt.Errorf("user not found by DN %s: %w", dn, ErrUserNotFound)
-		}
-		l.logger.Error("user_search_by_dn_failed",
-			slog.String("operation", "FindUserByDN"),
-			slog.String("dn", dn),
-			slog.String("error", err.Error()),
-			slog.Duration("duration", time.Since(start)))
-		return nil, fmt.Errorf("user search failed for DN %s: %w", dn, WrapLDAPError("FindUserByDN", l.config.Server, err))
+		return nil, err
 	}
 
 	if len(r.Entries) == 0 {
@@ -222,29 +194,27 @@ func (l *LDAP) FindUserBySAMAccountName(sAMAccountName string) (user *User, err 
 // For OpenLDAP compatibility, it also searches for uid attribute when sAMAccountName is not found.
 func (l *LDAP) FindUserBySAMAccountNameContext(ctx context.Context, sAMAccountName string) (user *User, err error) {
 	start := time.Now()
+	// Mask sensitive data for logging
+	maskedUsername := maskSensitiveData(sAMAccountName)
 	l.logger.Debug("user_search_by_sam_account_started",
 		slog.String("operation", "FindUserBySAMAccountName"),
-		slog.String("username", sAMAccountName))
+		slog.String("username_masked", maskedUsername))
 
 	c, err := l.GetConnectionContext(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get connection for SAM account search: %w", err)
+		return nil, connectionError("SAM account", "search", err)
 	}
 	defer c.Close()
 
 	// Check for context cancellation before first search
-	select {
-	case <-ctx.Done():
-		l.logger.Debug("user_search_cancelled",
-			slog.String("operation", "FindUserBySAMAccountName"),
-			slog.String("username", sAMAccountName),
-			slog.String("error", ctx.Err().Error()))
-		return nil, fmt.Errorf("user search cancelled for SAM account %s: %w", sAMAccountName, WrapLDAPError("FindUserBySAMAccountName", l.config.Server, ctx.Err()))
-	default:
+	if err := l.checkContextCancellation(ctx, "user_search", sAMAccountName, "before_first_search"); err != nil {
+		return nil, err
 	}
 
 	// Try Active Directory search first
-	filter := fmt.Sprintf("(&(objectClass=user)(sAMAccountName=%s))", ldap.EscapeFilter(sAMAccountName))
+	// Performance optimization: Use direct string concatenation instead of fmt.Sprintf
+	escapedSAM := ldap.EscapeFilter(sAMAccountName)
+	filter := "(&(objectClass=user)(sAMAccountName=" + escapedSAM + "))"
 	l.logger.Debug("user_search_executing",
 		slog.String("filter", filter),
 		slog.String("base_dn", l.config.BaseDN))
@@ -259,8 +229,8 @@ func (l *LDAP) FindUserBySAMAccountNameContext(ctx context.Context, sAMAccountNa
 	if err != nil {
 		l.logger.Error("user_search_by_sam_account_failed",
 			slog.String("operation", "FindUserBySAMAccountName"),
-			slog.String("username", sAMAccountName),
-			slog.String("filter", filter),
+			slog.String("username_masked", maskedUsername),
+			slog.String("filter_masked", maskSensitiveData(filter)),
 			slog.String("error", err.Error()),
 			slog.Duration("duration", time.Since(start)))
 		return nil, fmt.Errorf("user search failed for SAM account %s (filter: %s): %w", sAMAccountName, filter, WrapLDAPError("FindUserBySAMAccountName", l.config.Server, err))
@@ -269,19 +239,16 @@ func (l *LDAP) FindUserBySAMAccountNameContext(ctx context.Context, sAMAccountNa
 	// If no results with Active Directory filter, try OpenLDAP compatibility
 	if len(r.Entries) == 0 && !l.config.IsActiveDirectory {
 		l.logger.Debug("user_search_trying_openldap_compatibility",
-			slog.String("username", sAMAccountName))
+			slog.String("username_masked", maskedUsername))
 
 		// Check for context cancellation before second search
-		select {
-		case <-ctx.Done():
-			l.logger.Debug("user_search_cancelled_openldap",
-				slog.String("username", sAMAccountName),
-				slog.String("error", ctx.Err().Error()))
-			return nil, ctx.Err()
-		default:
+		if err := l.checkContextCancellation(ctx, "user_search", sAMAccountName, "before_openldap_search"); err != nil {
+			return nil, err
 		}
 
-		filter = fmt.Sprintf("(&(|(objectClass=inetOrgPerson)(objectClass=person))(uid=%s))", ldap.EscapeFilter(sAMAccountName))
+		// Performance optimization: Use direct string concatenation instead of fmt.Sprintf
+		escapedUID := ldap.EscapeFilter(sAMAccountName)
+		filter = "(&(|(objectClass=inetOrgPerson)(objectClass=person))(uid=" + escapedUID + "))"
 		r, err = c.Search(&ldap.SearchRequest{
 			BaseDN:       l.config.BaseDN,
 			Scope:        ldap.ScopeWholeSubtree,
@@ -291,8 +258,8 @@ func (l *LDAP) FindUserBySAMAccountNameContext(ctx context.Context, sAMAccountNa
 		})
 		if err != nil {
 			l.logger.Error("user_search_openldap_failed",
-				slog.String("username", sAMAccountName),
-				slog.String("filter", filter),
+				slog.String("username_masked", maskedUsername),
+				slog.String("filter_masked", maskSensitiveData(filter)),
 				slog.String("error", err.Error()))
 			return nil, err
 		}
@@ -301,14 +268,14 @@ func (l *LDAP) FindUserBySAMAccountNameContext(ctx context.Context, sAMAccountNa
 	if len(r.Entries) == 0 {
 		l.logger.Debug("user_not_found_by_sam_account",
 			slog.String("operation", "FindUserBySAMAccountName"),
-			slog.String("username", sAMAccountName),
+			slog.String("username_masked", maskedUsername),
 			slog.Duration("duration", time.Since(start)))
 		return nil, ErrUserNotFound
 	}
 	if len(r.Entries) > 1 {
 		l.logger.Error("user_sam_account_duplicated",
 			slog.String("operation", "FindUserBySAMAccountName"),
-			slog.String("username", sAMAccountName),
+			slog.String("username_masked", maskedUsername),
 			slog.Int("count", len(r.Entries)),
 			slog.Duration("duration", time.Since(start)))
 		return nil, ErrSAMAccountNameDuplicated
@@ -317,15 +284,15 @@ func (l *LDAP) FindUserBySAMAccountNameContext(ctx context.Context, sAMAccountNa
 	if user, err = userFromEntry(r.Entries[0]); err != nil {
 		l.logger.Error("user_parsing_failed",
 			slog.String("operation", "FindUserBySAMAccountName"),
-			slog.String("username", sAMAccountName),
+			slog.String("username_masked", maskedUsername),
 			slog.String("error", err.Error()))
 		return nil, err
 	}
 
 	l.logger.Debug("user_found_by_sam_account",
 		slog.String("operation", "FindUserBySAMAccountName"),
-		slog.String("username", sAMAccountName),
-		slog.String("dn", user.DN()),
+		slog.String("username_masked", maskedUsername),
+		slog.String("dn_masked", maskSensitiveData(user.DN())),
 		slog.Duration("duration", time.Since(start)))
 
 	return
@@ -383,7 +350,9 @@ func (l *LDAP) FindUserByMailContext(ctx context.Context, mail string) (user *Us
 	default:
 	}
 
-	filter := fmt.Sprintf("(&(|(objectClass=user)(objectClass=inetOrgPerson)(objectClass=person))(mail=%s))", ldap.EscapeFilter(mail))
+	// Performance optimization: Use direct string concatenation instead of fmt.Sprintf
+	escapedMail := ldap.EscapeFilter(mail)
+	filter := "(&(|(objectClass=user)(objectClass=inetOrgPerson)(objectClass=person))(mail=" + escapedMail + "))"
 	l.logger.Debug("user_search_executing",
 		slog.String("filter", filter),
 		slog.String("base_dn", l.config.BaseDN))
@@ -799,7 +768,9 @@ func (l *LDAP) CreateUserContext(ctx context.Context, user FullUser, password st
 	}
 	baseDN += l.config.BaseDN
 
-	dn := fmt.Sprintf("CN=%s,%s", ldap.EscapeDN(user.CN), baseDN)
+	// Performance optimization: Use direct string concatenation instead of fmt.Sprintf
+	escapedCN := ldap.EscapeDN(user.CN)
+	dn := "CN=" + escapedCN + "," + baseDN
 	l.logger.Debug("user_create_constructing_request",
 		slog.String("target_dn", dn),
 		slog.Any("object_classes", user.ObjectClasses))
@@ -807,12 +778,19 @@ func (l *LDAP) CreateUserContext(ctx context.Context, user FullUser, password st
 	req := ldap.NewAddRequest(dn, nil)
 	req.Attribute("objectClass", user.ObjectClasses)
 	req.Attribute("cn", []string{user.CN})
-	req.Attribute("name", []string{user.FirstName + " " + user.LastName})
+	// Performance optimization: Use strings.Builder for name concatenation
+	var nameBuilder strings.Builder
+	nameBuilder.Grow(len(user.FirstName) + len(user.LastName) + 1)
+	nameBuilder.WriteString(user.FirstName)
+	nameBuilder.WriteString(" ")
+	nameBuilder.WriteString(user.LastName)
+	req.Attribute("name", []string{nameBuilder.String()})
 	req.Attribute("givenName", []string{user.FirstName})
 	req.Attribute("sn", []string{user.LastName})
 	req.Attribute("displayName", []string{*user.DisplayName})
 	req.Attribute("accountExpires", []string{convertAccountExpires(user.AccountExpires)})
-	req.Attribute("userAccountControl", []string{fmt.Sprintf("%d", user.UserAccountControl.Uint32())})
+	// Performance optimization: Use strconv.FormatUint instead of fmt.Sprintf
+	req.Attribute("userAccountControl", []string{strconv.FormatUint(uint64(user.UserAccountControl.Uint32()), 10)})
 
 	if user.SAMAccountName != nil {
 		req.Attribute("sAMAccountName", []string{*user.SAMAccountName})
