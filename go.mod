@@ -4,7 +4,7 @@ go 1.23.0
 
 require (
 	github.com/go-ldap/ldap/v3 v3.4.11
-	golang.org/x/text v0.29.0
+	golang.org/x/text v0.28.0
 )
 
 require (
