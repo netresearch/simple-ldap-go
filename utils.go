@@ -1,7 +1,9 @@
 package ldap
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"time"
 )
@@ -62,4 +64,100 @@ func convertAccountExpires(target *time.Time) string {
 	ns := remaining.Nanoseconds() / 100
 
 	return fmt.Sprintf("%d", ns)
+}
+
+// checkContextCancellation checks if the context is cancelled and returns an appropriate error.
+// This reduces repetitive context cancellation checking patterns across the codebase.
+func (l *LDAP) checkContextCancellation(ctx context.Context, operation, identifier, stage string) error {
+	select {
+	case <-ctx.Done():
+		maskedIdentifier := maskSensitiveData(identifier)
+		l.logger.Debug(fmt.Sprintf("%s_cancelled_%s", operation, stage),
+			slog.String("identifier_masked", maskedIdentifier),
+			slog.String("error", ctx.Err().Error()))
+		return fmt.Errorf("%s cancelled %s for identifier %s: %w", operation, stage, identifier,
+			WrapLDAPError(operation, l.config.Server, ctx.Err()))
+	default:
+		return nil
+	}
+}
+
+// encodePasswordPair encodes both old and new passwords for Active Directory operations.
+// Returns the encoded passwords or an error if encoding fails.
+func (l *LDAP) encodePasswordPair(oldCreds, newCreds *SecureCredential, username string) (oldEncoded, newEncoded string, err error) {
+	maskedUsername := maskSensitiveData(username)
+
+	_, oldPassword := oldCreds.GetCredentials()
+	oldEncoded, err = encodePassword(oldPassword)
+	if err != nil {
+		l.logger.Error("password_change_old_password_encoding_failed",
+			slog.String("username_masked", maskedUsername),
+			slog.String("error", err.Error()))
+		return "", "", fmt.Errorf("failed to encode old password for user %s: %w", username, err)
+	}
+
+	_, newPassword := newCreds.GetCredentials()
+	newEncoded, err = encodePassword(newPassword)
+	if err != nil {
+		l.logger.Error("password_change_new_password_encoding_failed",
+			slog.String("username_masked", maskedUsername),
+			slog.String("error", err.Error()))
+		return "", "", fmt.Errorf("failed to encode new password for user %s: %w", username, err)
+	}
+
+	return oldEncoded, newEncoded, nil
+}
+
+// maskSensitiveData masks sensitive information for logging while preserving
+// some identifying information for debugging purposes
+func maskSensitiveData(data string) string {
+	if data == "" {
+		return ""
+	}
+
+	// For usernames, DNs, servers, show first and last character with asterisks in between
+	if len(data) <= 2 {
+		return "**"
+	}
+
+	// Keep first and last character, mask the middle
+	masked := string(data[0])
+	for i := 1; i < len(data)-1; i++ {
+		masked += "*"
+	}
+	masked += string(data[len(data)-1])
+
+	return masked
+}
+
+// extractClientIP attempts to extract the client IP address from the context.
+// This is used for security monitoring and rate limiting based on IP patterns.
+// Returns an empty string if no IP information is available in the context.
+func extractClientIP(ctx context.Context) string {
+	// Try to get IP from common context keys used by web frameworks
+	if ip := getStringFromContext(ctx, "client_ip"); ip != "" {
+		return ip
+	}
+	if ip := getStringFromContext(ctx, "remote_addr"); ip != "" {
+		return ip
+	}
+	if ip := getStringFromContext(ctx, "x-forwarded-for"); ip != "" {
+		return ip
+	}
+	if ip := getStringFromContext(ctx, "x-real-ip"); ip != "" {
+		return ip
+	}
+
+	// Return empty string if no IP found - rate limiter will handle this gracefully
+	return ""
+}
+
+// getStringFromContext safely extracts a string value from context
+func getStringFromContext(ctx context.Context, key string) string {
+	if value := ctx.Value(key); value != nil {
+		if str, ok := value.(string); ok {
+			return str
+		}
+	}
+	return ""
 }

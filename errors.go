@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-ldap/ldap/v3"
@@ -24,16 +25,21 @@ type LDAPError struct {
 	Err error
 	// Context contains additional context information for debugging
 	Context map[string]interface{}
+	// mu protects the Context map for thread-safe operations
+	mu sync.RWMutex
 	// Timestamp indicates when the error occurred
 	Timestamp time.Time
 }
 
 // Error implements the error interface, providing a formatted error message.
+// Sensitive information is masked to prevent data leakage in logs.
 func (e *LDAPError) Error() string {
+	maskedServer := maskSensitiveData(e.Server)
 	if e.DN != "" {
-		return fmt.Sprintf("ldap %s failed for DN %q on server %q: %v", e.Op, e.DN, e.Server, e.Err)
+		maskedDN := maskSensitiveData(e.DN)
+		return fmt.Sprintf("ldap %s failed for DN %q on server %q: %v", e.Op, maskedDN, maskedServer, e.Err)
 	}
-	return fmt.Sprintf("ldap %s failed on server %q: %v", e.Op, e.Server, e.Err)
+	return fmt.Sprintf("ldap %s failed on server %q: %v", e.Op, maskedServer, e.Err)
 }
 
 // Unwrap implements the Go 1.13+ error unwrapping interface.
@@ -112,7 +118,10 @@ func (e *LDAPError) WithCode(code int) *LDAPError {
 }
 
 // WithContext adds additional context information to the error.
+// This method is thread-safe.
 func (e *LDAPError) WithContext(key string, value interface{}) *LDAPError {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	e.Context[key] = value
 	return e
 }
@@ -307,15 +316,24 @@ func ExtractOperation(err error) string {
 
 // GetErrorContext extracts the context information from an enhanced error.
 // Returns nil if the error is not an enhanced LDAP error.
+// This method is thread-safe.
 func GetErrorContext(err error) map[string]interface{} {
 	var enhancedErr *LDAPError
 	if errors.As(err, &enhancedErr) {
-		return enhancedErr.Context
+		enhancedErr.mu.RLock()
+		defer enhancedErr.mu.RUnlock()
+		// Return a copy to prevent external mutation
+		contextCopy := make(map[string]interface{})
+		for k, v := range enhancedErr.Context {
+			contextCopy[k] = v
+		}
+		return contextCopy
 	}
 	return nil
 }
 
 // FormatErrorWithContext returns a detailed error description including context information.
+// Sensitive information is masked to prevent data leakage.
 func FormatErrorWithContext(err error) string {
 	var enhancedErr *LDAPError
 	if !errors.As(err, &enhancedErr) {
@@ -328,12 +346,18 @@ func FormatErrorWithContext(err error) string {
 		msg += fmt.Sprintf(" (LDAP code: %d)", enhancedErr.Code)
 	}
 
-	if len(enhancedErr.Context) > 0 {
+	// Thread-safe access to context
+	enhancedErr.mu.RLock()
+	contextLen := len(enhancedErr.Context)
+	if contextLen > 0 {
 		msg += " - Context:"
 		for key, value := range enhancedErr.Context {
-			msg += fmt.Sprintf(" %s=%v", key, value)
+			// Mask sensitive context values
+			maskedValue := maskContextValue(key, value)
+			msg += fmt.Sprintf(" %s=%v", key, maskedValue)
 		}
 	}
+	enhancedErr.mu.RUnlock()
 
 	if !enhancedErr.Timestamp.IsZero() {
 		msg += fmt.Sprintf(" (occurred at: %s)", enhancedErr.Timestamp.Format(time.RFC3339))
@@ -504,8 +528,15 @@ type ValidationError struct {
 }
 
 // Error implements the error interface.
+// Sensitive field values are masked to prevent data leakage.
 func (v *ValidationError) Error() string {
 	if v.Field != "" {
+		// Mask potentially sensitive field values
+		maskedValue := maskContextValue(v.Field, v.Value)
+		if maskedValue != v.Value {
+			// Field was considered sensitive, include masked value in message
+			return fmt.Sprintf("validation failed for field %q (value: %v): %s", v.Field, maskedValue, v.Message)
+		}
 		return fmt.Sprintf("validation failed for field %q: %s", v.Field, v.Message)
 	}
 	return fmt.Sprintf("validation failed: %s", v.Message)
@@ -658,11 +689,14 @@ type OperationError struct {
 }
 
 // Error implements the error interface.
+// Sensitive information is masked to prevent data leakage.
 func (o *OperationError) Error() string {
+	maskedServer := maskSensitiveData(o.Server)
 	if o.DN != "" {
-		return fmt.Sprintf("operation %s failed for DN %q on server %q: %v", o.Operation, o.DN, o.Server, o.Err)
+		maskedDN := maskSensitiveData(o.DN)
+		return fmt.Sprintf("operation %s failed for DN %q on server %q: %v", o.Operation, maskedDN, maskedServer, o.Err)
 	}
-	return fmt.Sprintf("operation %s failed on server %q: %v", o.Operation, o.Server, o.Err)
+	return fmt.Sprintf("operation %s failed on server %q: %v", o.Operation, maskedServer, o.Err)
 }
 
 // Unwrap implements error unwrapping.
@@ -688,4 +722,334 @@ func NewOperationError(operation, dn, server string, err error) *OperationError 
 		Retryable: retryable,
 		Code:      code,
 	}
+}
+
+// Security utility functions for masking sensitive data in error messages
+// Note: maskSensitiveData function is defined in utils.go
+
+// maskContextValue masks sensitive context values based on the key name
+func maskContextValue(key string, value interface{}) interface{} {
+	// List of context keys that contain sensitive information
+	sensitiveKeys := map[string]bool{
+		"samAccountName": true,
+		"username":       true,
+		"dn":             true,
+		"distinguishedName": true,
+		"server":         true,
+		"password":       true,
+		"credential":     true,
+		"token":          true,
+		"secret":         true,
+	}
+
+	// Check if this key contains sensitive information
+	if sensitiveKeys[strings.ToLower(key)] {
+		if str, ok := value.(string); ok {
+			return maskSensitiveData(str)
+		}
+	}
+
+	return value
+}
+
+// Error Recovery and Graceful Degradation Mechanisms
+
+// RecoveryStrategy represents different error recovery approaches
+type RecoveryStrategy int
+
+const (
+	RecoveryRetry RecoveryStrategy = iota
+	RecoveryFallback
+	RecoveryDegrade
+	RecoveryFail
+)
+
+// String returns the string representation of the recovery strategy
+func (r RecoveryStrategy) String() string {
+	switch r {
+	case RecoveryRetry:
+		return "RETRY"
+	case RecoveryFallback:
+		return "FALLBACK"
+	case RecoveryDegrade:
+		return "DEGRADE"
+	case RecoveryFail:
+		return "FAIL"
+	default:
+		return "UNKNOWN"
+	}
+}
+
+// RecoveryAction represents an action that can be taken to recover from an error
+type RecoveryAction struct {
+	Strategy    RecoveryStrategy
+	MaxAttempts int
+	Backoff     time.Duration
+	Description string
+	Handler     func() error
+}
+
+// RecoverableError extends the error interface with recovery capabilities
+type RecoverableError interface {
+	error
+	GetRecoveryActions() []RecoveryAction
+	GetSeverity() ErrorSeverity
+	CanRecover() bool
+}
+
+// enhancedRecoverableError implements RecoverableError
+type enhancedRecoverableError struct {
+	err             error
+	recoveryActions []RecoveryAction
+	severity        ErrorSeverity
+}
+
+func (e *enhancedRecoverableError) Error() string {
+	return e.err.Error()
+}
+
+func (e *enhancedRecoverableError) Unwrap() error {
+	return e.err
+}
+
+func (e *enhancedRecoverableError) GetRecoveryActions() []RecoveryAction {
+	return e.recoveryActions
+}
+
+func (e *enhancedRecoverableError) GetSeverity() ErrorSeverity {
+	return e.severity
+}
+
+func (e *enhancedRecoverableError) CanRecover() bool {
+	return len(e.recoveryActions) > 0
+}
+
+// WithRecovery wraps an error with recovery capabilities
+func WithRecovery(err error, actions ...RecoveryAction) RecoverableError {
+	return &enhancedRecoverableError{
+		err:             err,
+		recoveryActions: actions,
+		severity:        GetErrorSeverity(err),
+	}
+}
+
+// GetRecoveryStrategy determines the best recovery strategy for an error
+func GetRecoveryStrategy(err error) RecoveryStrategy {
+	if IsConnectionError(err) {
+		// Connection errors can often be retried
+		return RecoveryRetry
+	}
+
+	if IsAuthenticationError(err) {
+		// Authentication errors usually require different credentials
+		return RecoveryFail
+	}
+
+	if IsNotFoundError(err) {
+		// Not found errors might benefit from fallback searches
+		return RecoveryFallback
+	}
+
+	if IsValidationError(err) {
+		// Validation errors need input correction
+		return RecoveryFail
+	}
+
+	if IsContextError(err) {
+		// Context errors should not be retried
+		return RecoveryFail
+	}
+
+	// Check LDAP result codes for more specific strategies
+	code := GetLDAPResultCode(err)
+	switch code {
+	case int(ldap.LDAPResultBusy), int(ldap.LDAPResultUnavailable):
+		return RecoveryRetry
+	case int(ldap.LDAPResultTimeLimitExceeded):
+		return RecoveryDegrade // Maybe with simplified search
+	case int(ldap.LDAPResultSizeLimitExceeded):
+		return RecoveryDegrade // Reduce scope or pagination
+	case int(ldap.LDAPResultInvalidCredentials):
+		return RecoveryFail
+	default:
+		return RecoveryRetry
+	}
+}
+
+// CircuitBreakerError represents errors related to circuit breaker functionality
+type CircuitBreakerError struct {
+	State       string
+	Failures    int
+	LastFailure time.Time
+	NextRetry   time.Time
+}
+
+func (c *CircuitBreakerError) Error() string {
+	return fmt.Sprintf("circuit breaker %s: %d failures, next retry at %s",
+		c.State, c.Failures, c.NextRetry.Format(time.RFC3339))
+}
+
+// TimeoutError represents timeout-related errors with context
+type TimeoutError struct {
+	Operation string
+	Timeout   time.Duration
+	Elapsed   time.Duration
+	Err       error
+}
+
+func (t *TimeoutError) Error() string {
+	return fmt.Sprintf("operation %s timed out after %v (elapsed: %v): %v",
+		t.Operation, t.Timeout, t.Elapsed, t.Err)
+}
+
+func (t *TimeoutError) Unwrap() error {
+	return t.Err
+}
+
+// NewTimeoutError creates a new timeout error
+func NewTimeoutError(operation string, timeout, elapsed time.Duration, err error) *TimeoutError {
+	return &TimeoutError{
+		Operation: operation,
+		Timeout:   timeout,
+		Elapsed:   elapsed,
+		Err:       err,
+	}
+}
+
+// ResourceExhaustionError represents resource exhaustion scenarios
+type ResourceExhaustionError struct {
+	Resource    string
+	Current     int64
+	Limit       int64
+	Suggestion  string
+	Recoverable bool
+}
+
+func (r *ResourceExhaustionError) Error() string {
+	return fmt.Sprintf("resource %s exhausted: %d/%d - %s",
+		r.Resource, r.Current, r.Limit, r.Suggestion)
+}
+
+func (r *ResourceExhaustionError) IsRetryable() bool {
+	return r.Recoverable
+}
+
+// NewResourceExhaustionError creates a new resource exhaustion error
+func NewResourceExhaustionError(resource string, current, limit int64, suggestion string, recoverable bool) *ResourceExhaustionError {
+	return &ResourceExhaustionError{
+		Resource:    resource,
+		Current:     current,
+		Limit:       limit,
+		Suggestion:  suggestion,
+		Recoverable: recoverable,
+	}
+}
+
+// HealthCheckError represents health check failures with recovery suggestions
+type HealthCheckError struct {
+	Component   string
+	CheckType   string
+	Expected    interface{}
+	Actual      interface{}
+	Suggestion  string
+	Recoverable bool
+}
+
+func (h *HealthCheckError) Error() string {
+	return fmt.Sprintf("health check failed for %s (%s): expected %v, got %v - %s",
+		h.Component, h.CheckType, h.Expected, h.Actual, h.Suggestion)
+}
+
+func (h *HealthCheckError) IsRetryable() bool {
+	return h.Recoverable
+}
+
+// NewHealthCheckError creates a new health check error
+func NewHealthCheckError(component, checkType string, expected, actual interface{}, suggestion string, recoverable bool) *HealthCheckError {
+	return &HealthCheckError{
+		Component:   component,
+		CheckType:   checkType,
+		Expected:    expected,
+		Actual:      actual,
+		Suggestion:  suggestion,
+		Recoverable: recoverable,
+	}
+}
+
+// GracefulDegradationError represents situations where functionality is reduced but operation continues
+type GracefulDegradationError struct {
+	OriginalOperation string
+	DegradedOperation string
+	Reason           string
+	Impact           string
+	Duration         time.Duration
+}
+
+func (g *GracefulDegradationError) Error() string {
+	return fmt.Sprintf("graceful degradation: %s -> %s (%s) - impact: %s",
+		g.OriginalOperation, g.DegradedOperation, g.Reason, g.Impact)
+}
+
+// NewGracefulDegradationError creates a new graceful degradation error
+func NewGracefulDegradationError(original, degraded, reason, impact string, duration time.Duration) *GracefulDegradationError {
+	return &GracefulDegradationError{
+		OriginalOperation: original,
+		DegradedOperation: degraded,
+		Reason:           reason,
+		Impact:           impact,
+		Duration:         duration,
+	}
+}
+
+// Error Recovery Helper Functions
+
+// ExecuteWithGracefulDegradation attempts an operation and falls back to degraded mode on failure
+func ExecuteWithGracefulDegradation(primary func() error, fallback func() error, degradationInfo string) error {
+	err := primary()
+	if err == nil {
+		return nil
+	}
+
+	// Check if graceful degradation is appropriate
+	if !IsRetryable(err) && !IsConnectionError(err) {
+		return err
+	}
+
+	fallbackErr := fallback()
+	if fallbackErr == nil {
+		return NewGracefulDegradationError("primary_operation", "fallback_operation", err.Error(), degradationInfo, 0)
+	}
+
+	// Both primary and fallback failed
+	return fmt.Errorf("operation failed and fallback also failed: primary=%w, fallback=%v", err, fallbackErr)
+}
+
+// RecoverFromError attempts to recover from an error using available strategies
+func RecoverFromError(err error, maxAttempts int) error {
+	if err == nil {
+		return nil
+	}
+
+	// Check if this is a recoverable error
+	if recoverable, ok := err.(RecoverableError); ok && recoverable.CanRecover() {
+		actions := recoverable.GetRecoveryActions()
+
+		for _, action := range actions {
+			for attempt := 0; attempt < action.MaxAttempts && attempt < maxAttempts; attempt++ {
+				if action.Handler != nil {
+					if recoveryErr := action.Handler(); recoveryErr == nil {
+						return nil // Recovery successful
+					}
+				}
+
+				// Wait before next attempt if specified
+				if action.Backoff > 0 && attempt < action.MaxAttempts-1 {
+					time.Sleep(action.Backoff)
+				}
+			}
+		}
+	}
+
+	// No recovery possible or all recovery attempts failed
+	return err
 }
