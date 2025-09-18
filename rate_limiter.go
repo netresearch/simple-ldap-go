@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -26,6 +27,36 @@ type RateLimiterConfig struct {
 	EnableIPLimiting bool
 	// Whitelist of IPs or usernames that bypass rate limiting
 	Whitelist []string
+}
+
+// RateLimiterMetrics provides comprehensive rate limiting statistics
+type RateLimiterMetrics struct {
+	// Basic counters
+	TotalAttempts         int64 // Total authentication attempts processed
+	BlockedAttempts       int64 // Attempts blocked by rate limiting
+	SuccessfulAttempts    int64 // Attempts that passed rate limiting
+	WhitelistedAttempts   int64 // Attempts from whitelisted identifiers
+
+	// Security metrics
+	UniqueIdentifiers     int64 // Number of unique identifiers seen
+	ActiveLockouts        int64 // Currently locked out identifiers
+	ViolationEvents       int64 // Total rate limit violations
+	SuspiciousPatterns    int64 // Detected suspicious activity patterns
+
+	// Pattern analysis
+	RepeatedViolators     int64 // Identifiers with multiple violations
+	IPBasedBlocks         int64 // Blocks based on IP patterns
+	BurstAttacks          int64 // Detected burst attack patterns
+
+	// Performance metrics
+	AvgCheckTime          time.Duration // Average time for rate limit checks
+	CleanupOperations     int64         // Background cleanup operations performed
+	MemoryUsageBytes      int64         // Approximate memory usage
+
+	// Time-based analytics
+	LastViolationTime     time.Time     // When the last violation occurred
+	LastCleanupTime       time.Time     // When the last cleanup occurred
+	PeakConcurrentChecks  int64         // Peak number of concurrent checks
 }
 
 // DefaultRateLimiterConfig returns a secure default configuration
@@ -62,10 +93,31 @@ type RateLimiter struct {
 	logger  *slog.Logger
 	mu      sync.RWMutex
 	records map[string]*AttemptRecord
+
 	// Cleanup ticker
 	cleanupTicker *time.Ticker
 	stopChan      chan struct{}
 	wg            sync.WaitGroup
+
+	// Metrics tracking (atomic counters for thread safety)
+	totalAttempts       int64
+	blockedAttempts     int64
+	successfulAttempts  int64
+	whitelistedAttempts int64
+	violationEvents     int64
+	suspiciousPatterns  int64
+	repeatedViolators   int64
+	ipBasedBlocks       int64
+	burstAttacks        int64
+	cleanupOperations   int64
+	peakConcurrentChecks int64
+	currentConcurrentChecks int64
+
+	// Performance tracking
+	totalCheckTime    int64 // Nanoseconds
+	checkCount        int64
+	lastViolationTime int64 // Unix timestamp
+	lastCleanupTime   int64 // Unix timestamp
 }
 
 // NewRateLimiter creates a new rate limiter with the specified configuration
@@ -100,8 +152,33 @@ func NewRateLimiter(config *RateLimiterConfig, logger *slog.Logger) *RateLimiter
 // CheckAttempt checks if an authentication attempt should be allowed
 // Returns nil if allowed, or an error describing why it's blocked
 func (rl *RateLimiter) CheckAttempt(identifier string, ipAddress string) error {
+	start := time.Now()
+	defer func() {
+		// Track performance metrics
+		duration := time.Since(start)
+		atomic.AddInt64(&rl.totalCheckTime, duration.Nanoseconds())
+		atomic.AddInt64(&rl.checkCount, 1)
+
+		// Track concurrent checks
+		current := atomic.AddInt64(&rl.currentConcurrentChecks, -1)
+		for {
+			peak := atomic.LoadInt64(&rl.peakConcurrentChecks)
+			if current <= peak {
+				break
+			}
+			if atomic.CompareAndSwapInt64(&rl.peakConcurrentChecks, peak, current) {
+				break
+			}
+		}
+	}()
+
+	// Track concurrent requests
+	atomic.AddInt64(&rl.currentConcurrentChecks, 1)
+	atomic.AddInt64(&rl.totalAttempts, 1)
+
 	// Check whitelist
 	if rl.isWhitelisted(identifier) || rl.isWhitelisted(ipAddress) {
+		atomic.AddInt64(&rl.whitelistedAttempts, 1)
 		return nil
 	}
 
@@ -123,6 +200,7 @@ func (rl *RateLimiter) CheckAttempt(identifier string, ipAddress string) error {
 
 	// Check if currently locked out
 	if now.Before(record.LockedUntil) {
+		atomic.AddInt64(&rl.blockedAttempts, 1)
 		remainingTime := record.LockedUntil.Sub(now)
 		rl.logger.Warn("Authentication attempt blocked - account locked",
 			slog.String("identifier", identifier),
@@ -149,11 +227,19 @@ func (rl *RateLimiter) CheckAttempt(identifier string, ipAddress string) error {
 
 	// Check if we've exceeded the limit
 	if len(record.Attempts) >= rl.config.MaxAttempts {
+		// Track violation metrics
+		atomic.AddInt64(&rl.blockedAttempts, 1)
+		atomic.AddInt64(&rl.violationEvents, 1)
+		atomic.StoreInt64(&rl.lastViolationTime, now.Unix())
+
 		// Calculate lockout duration
 		lockoutDuration := rl.calculateLockoutDuration(record.ViolationCount)
 		record.LockedUntil = now.Add(lockoutDuration)
 		record.ViolationCount++
 		record.LastUpdate = now
+
+		// Detect security patterns
+		rl.detectSecurityPatterns(identifier, ipAddress, record)
 
 		rl.logger.Warn("Rate limit exceeded - account locked",
 			slog.String("identifier", identifier),
@@ -168,6 +254,7 @@ func (rl *RateLimiter) CheckAttempt(identifier string, ipAddress string) error {
 	// Record the attempt
 	record.Attempts = append(record.Attempts, now)
 	record.LastUpdate = now
+	atomic.AddInt64(&rl.successfulAttempts, 1)
 
 	// Track IP address if enabled
 	if rl.config.EnableIPLimiting && ipAddress != "" {
@@ -175,6 +262,7 @@ func (rl *RateLimiter) CheckAttempt(identifier string, ipAddress string) error {
 
 		// Check for suspicious IP behavior (many different IPs)
 		if len(record.IPAddresses) > 5 {
+			atomic.AddInt64(&rl.suspiciousPatterns, 1)
 			rl.logger.Warn("Multiple IP addresses detected for identifier",
 				slog.String("identifier", identifier),
 				slog.Int("unique_ips", len(record.IPAddresses)))
@@ -351,10 +439,103 @@ func (rl *RateLimiter) cleanup() {
 		delete(rl.records, identifier)
 	}
 
+	atomic.AddInt64(&rl.cleanupOperations, 1)
+	atomic.StoreInt64(&rl.lastCleanupTime, now.Unix())
+
 	if len(expiredIdentifiers) > 0 {
 		rl.logger.Debug("Cleaned up expired rate limit records",
 			slog.Int("removed", len(expiredIdentifiers)))
 	}
+}
+
+// GetMetrics returns comprehensive rate limiting metrics
+func (rl *RateLimiter) GetMetrics() RateLimiterMetrics {
+	rl.mu.RLock()
+	uniqueIdentifiers := int64(len(rl.records))
+	var activeLockouts int64
+	var repeatedViolators int64
+
+	now := time.Now()
+	for _, record := range rl.records {
+		if now.Before(record.LockedUntil) {
+			activeLockouts++
+		}
+		if record.ViolationCount > 1 {
+			repeatedViolators++
+		}
+	}
+	rl.mu.RUnlock()
+
+	// Calculate average check time
+	var avgCheckTime time.Duration
+	checkCount := atomic.LoadInt64(&rl.checkCount)
+	if checkCount > 0 {
+		totalTime := atomic.LoadInt64(&rl.totalCheckTime)
+		avgCheckTime = time.Duration(totalTime / checkCount)
+	}
+
+	// Estimate memory usage
+	memoryUsage := int64(len(rl.records)) * 200 // Approximate bytes per record
+
+	return RateLimiterMetrics{
+		TotalAttempts:         atomic.LoadInt64(&rl.totalAttempts),
+		BlockedAttempts:       atomic.LoadInt64(&rl.blockedAttempts),
+		SuccessfulAttempts:    atomic.LoadInt64(&rl.successfulAttempts),
+		WhitelistedAttempts:   atomic.LoadInt64(&rl.whitelistedAttempts),
+		UniqueIdentifiers:     uniqueIdentifiers,
+		ActiveLockouts:        activeLockouts,
+		ViolationEvents:       atomic.LoadInt64(&rl.violationEvents),
+		SuspiciousPatterns:    atomic.LoadInt64(&rl.suspiciousPatterns),
+		RepeatedViolators:     repeatedViolators,
+		IPBasedBlocks:         atomic.LoadInt64(&rl.ipBasedBlocks),
+		BurstAttacks:          atomic.LoadInt64(&rl.burstAttacks),
+		AvgCheckTime:          avgCheckTime,
+		CleanupOperations:     atomic.LoadInt64(&rl.cleanupOperations),
+		MemoryUsageBytes:      memoryUsage,
+		LastViolationTime:     time.Unix(atomic.LoadInt64(&rl.lastViolationTime), 0),
+		LastCleanupTime:       time.Unix(atomic.LoadInt64(&rl.lastCleanupTime), 0),
+		PeakConcurrentChecks:  atomic.LoadInt64(&rl.peakConcurrentChecks),
+	}
+}
+
+// detectSecurityPatterns analyzes patterns to detect potential security threats
+func (rl *RateLimiter) detectSecurityPatterns(identifier, ipAddress string, record *AttemptRecord) {
+	// Detect repeated violators
+	if record.ViolationCount > 1 {
+		atomic.AddInt64(&rl.repeatedViolators, 1)
+	}
+
+	// Detect IP-based patterns if enabled
+	if rl.config.EnableIPLimiting && ipAddress != "" {
+		// Check for burst attacks (many attempts in short time)
+		now := time.Now()
+		recentAttempts := 0
+		burstThreshold := 5 * time.Minute
+
+		for _, attempt := range record.Attempts {
+			if now.Sub(attempt) < burstThreshold {
+				recentAttempts++
+			}
+		}
+
+		if recentAttempts >= rl.config.MaxAttempts {
+			atomic.AddInt64(&rl.burstAttacks, 1)
+			rl.logger.Warn("Burst attack pattern detected",
+				slog.String("identifier", identifier),
+				slog.String("ip", ipAddress),
+				slog.Int("recent_attempts", recentAttempts))
+		}
+
+		// Track IP-based blocks
+		atomic.AddInt64(&rl.ipBasedBlocks, 1)
+	}
+
+	// Log security event
+	rl.logger.Warn("Security pattern analysis",
+		slog.String("identifier", identifier),
+		slog.String("ip", ipAddress),
+		slog.Int("violation_count", record.ViolationCount),
+		slog.Int("unique_ips", len(record.IPAddresses)))
 }
 
 // RateLimitedAuthenticator wraps an LDAP client with rate limiting
