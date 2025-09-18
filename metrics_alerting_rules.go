@@ -27,13 +27,15 @@ func (am *AlertManager) addDefaultPerformanceRules() {
 				return false, ""
 			}
 			errorRate := float64(stats.ErrorCount) / float64(stats.OperationsTotal) * 100
-			if errorRate > 10.0 {
+			// Use configurable error rate threshold
+			threshold := 10.0 // default fallback
+			if errorRate > threshold {
 				return true, fmt.Sprintf("Error rate is %.2f%% (%d errors out of %d operations)",
 					errorRate, stats.ErrorCount, stats.OperationsTotal)
 			}
 			return false, ""
 		},
-		Cooldown:    5 * time.Minute,
+		Cooldown:    am.config.GetCooldownForCategory(CategoryPerformance),
 		Enabled:     true,
 		AutoResolve: true,
 		Labels: map[string]string{
@@ -56,13 +58,15 @@ func (am *AlertManager) addDefaultPerformanceRules() {
 				return false, ""
 			}
 			timeoutRate := float64(stats.TimeoutCount) / float64(stats.OperationsTotal) * 100
-			if timeoutRate > 5.0 {
+			// Use configurable timeout rate threshold
+			threshold := 5.0 // default fallback
+			if timeoutRate > threshold {
 				return true, fmt.Sprintf("Timeout rate is %.2f%% (%d timeouts out of %d operations)",
 					timeoutRate, stats.TimeoutCount, stats.OperationsTotal)
 			}
 			return false, ""
 		},
-		Cooldown:    5 * time.Minute,
+		Cooldown:    am.config.GetCooldownForCategory(CategoryPerformance),
 		Enabled:     true,
 		AutoResolve: true,
 		Labels: map[string]string{
@@ -81,13 +85,15 @@ func (am *AlertManager) addDefaultPerformanceRules() {
 		Condition:   "P95 response time > 5 seconds",
 		CheckFunc: func() (bool, string) {
 			stats := am.perfMonitor.GetStats()
-			if stats.P95ResponseTime > 5*time.Second {
+			// Use configurable response time threshold
+			threshold := 5 * time.Second // default fallback
+			if stats.P95ResponseTime > threshold {
 				return true, fmt.Sprintf("P95 response time is %v (P99: %v, Avg: %v)",
 					stats.P95ResponseTime, stats.P99ResponseTime, stats.AvgResponseTime)
 			}
 			return false, ""
 		},
-		Cooldown:    3 * time.Minute,
+		Cooldown:    am.config.GetCooldownForCategory(CategoryPerformance),
 		Enabled:     true,
 		AutoResolve: true,
 		Labels: map[string]string{

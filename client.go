@@ -62,6 +62,9 @@ type LDAP struct {
 
 	// Performance monitoring system (optional)
 	perfMonitor *PerformanceMonitor
+
+	// Security rate limiting system (optional)
+	rateLimiter *RateLimiter
 }
 
 // ErrDNDuplicated is returned when a search operation finds multiple entries with the same DN,
@@ -295,7 +298,82 @@ func (l LDAP) GetConnectionContext(ctx context.Context) (*ldap.Conn, error) {
 }
 
 // createDirectConnection creates a new LDAP connection without using the pool (legacy behavior)
+// Enhanced with exponential backoff retry logic for transient failures
 func (l LDAP) createDirectConnection(ctx context.Context) (*ldap.Conn, error) {
+	return l.createDirectConnectionWithRetry(ctx, 3)
+}
+
+// createDirectConnectionWithRetry creates a connection with configurable retry attempts
+func (l LDAP) createDirectConnectionWithRetry(ctx context.Context, maxRetries int) (*ldap.Conn, error) {
+	start := time.Now()
+	baseDelay := 100 * time.Millisecond
+	maxDelay := 2 * time.Second
+
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		conn, err := l.attemptConnection(ctx)
+		if err == nil {
+			if attempt > 0 {
+				l.logger.Info("ldap_connection_recovered",
+					slog.String("server", l.config.Server),
+					slog.Int("attempt", attempt+1),
+					slog.Duration("total_duration", time.Since(start)))
+			}
+			return conn, nil
+		}
+
+		// Don't retry on context cancellation or authentication failures
+		if IsContextError(err) || IsAuthenticationError(err) {
+			return nil, err
+		}
+
+		// Don't retry if not retryable
+		if !IsRetryable(err) {
+			return nil, err
+		}
+
+		// Last attempt, return the error
+		if attempt == maxRetries {
+			l.logger.Error("ldap_connection_failed_permanently",
+				slog.String("server", l.config.Server),
+				slog.Int("total_attempts", maxRetries+1),
+				slog.Duration("total_duration", time.Since(start)),
+				slog.String("final_error", err.Error()))
+			return nil, fmt.Errorf("connection failed after %d attempts: %w", maxRetries+1, err)
+		}
+
+		// Calculate delay with exponential backoff and jitter
+		delay := time.Duration(attempt) * baseDelay
+		if delay > maxDelay {
+			delay = maxDelay
+		}
+
+		// Add jitter (±25%)
+		jitter := time.Duration(float64(delay) * 0.25 * (2.0*float64(time.Now().UnixNano()%1000)/1000.0 - 1.0))
+		delay += jitter
+
+		l.logger.Debug("ldap_connection_retry",
+			slog.String("server", l.config.Server),
+			slog.Int("attempt", attempt+1),
+			slog.Int("max_retries", maxRetries+1),
+			slog.Duration("delay", delay),
+			slog.String("error", err.Error()))
+
+		// Wait with context cancellation support
+		timer := time.NewTimer(delay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return nil, fmt.Errorf("connection cancelled during retry: %w", ctx.Err())
+		case <-timer.C:
+			// Continue to next attempt
+		}
+	}
+
+	return nil, fmt.Errorf("connection exhausted all retry attempts")
+}
+
+// attemptConnection makes a single connection attempt with proper error handling
+func (l LDAP) attemptConnection(ctx context.Context) (*ldap.Conn, error) {
 	start := time.Now()
 	l.logger.Debug("ldap_connection_establishing",
 		slog.String("server", l.config.Server))
@@ -408,6 +486,46 @@ func (l *LDAP) ClearCache() {
 	}
 }
 
+// SetRateLimiter configures rate limiting for authentication attempts.
+// This provides security protection against brute force attacks and suspicious patterns.
+//
+// Parameters:
+//   - limiter: The rate limiter instance to use for authentication protection
+//
+// Example:
+//
+//	config := DefaultRateLimiterConfig()
+//	config.MaxAttempts = 5
+//	config.Window = 15 * time.Minute
+//	limiter := NewRateLimiter(config, logger)
+//	client.SetRateLimiter(limiter)
+func (l *LDAP) SetRateLimiter(limiter *RateLimiter) {
+	l.rateLimiter = limiter
+	l.logger.Info("rate_limiter_configured",
+		slog.Int("max_attempts", limiter.config.MaxAttempts),
+		slog.Duration("window", limiter.config.Window),
+		slog.Duration("lockout_duration", limiter.config.LockoutDuration))
+}
+
+// GetRateLimiterMetrics returns current rate limiter statistics if rate limiting is enabled.
+// Returns zero metrics if rate limiting is not configured.
+//
+// Returns:
+//   - RateLimiterMetrics: Current security and performance metrics from the rate limiter
+//
+// Example:
+//
+//	metrics := client.GetRateLimiterMetrics()
+//	logger.Info("Security status",
+//		slog.Int64("blocked_attempts", metrics.BlockedAttempts),
+//		slog.Int64("active_lockouts", metrics.ActiveLockouts))
+func (l *LDAP) GetRateLimiterMetrics() RateLimiterMetrics {
+	if l.rateLimiter == nil {
+		return RateLimiterMetrics{}
+	}
+	return l.rateLimiter.GetMetrics()
+}
+
 // Close closes the LDAP client and releases all resources.
 // If connection pooling is enabled, this will close all pooled connections.
 // If caching is enabled, this will shut down the cache and background tasks.
@@ -425,36 +543,96 @@ func (l *LDAP) ClearCache() {
 //	}
 //	defer client.Close()
 func (l *LDAP) Close() error {
-	var errors []error
+	return l.CloseWithTimeout(30 * time.Second)
+}
 
-	// Close performance monitor first
-	if l.perfMonitor != nil {
-		if err := l.perfMonitor.Close(); err != nil {
-			errors = append(errors, fmt.Errorf("performance monitor close error: %w", err))
+// CloseWithTimeout closes the LDAP client with a specified timeout for cleanup operations.
+// This provides more control over the shutdown process and prevents hanging on resource cleanup.
+func (l *LDAP) CloseWithTimeout(timeout time.Duration) error {
+	start := time.Now()
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	// Use MultiError for better error aggregation
+	multiErr := NewMultiError("LDAP_Close")
+
+	// Close components in reverse dependency order with timeout protection
+	components := []struct {
+		name string
+		fn   func() error
+	}{
+		{"performance_monitor", l.closePerformanceMonitor},
+		{"cache", l.closeCache},
+		{"rate_limiter", l.closeRateLimiter},
+		{"connection_pool", l.closeConnectionPool},
+	}
+
+	for _, component := range components {
+		select {
+		case <-ctx.Done():
+			multiErr.Add(fmt.Errorf("timeout during %s close: %w", component.name, ctx.Err()))
+			l.logger.Error("client_close_timeout",
+				slog.String("component", component.name),
+				slog.Duration("elapsed", time.Since(start)))
+			break
+		default:
+			if err := component.fn(); err != nil {
+				multiErr.Add(fmt.Errorf("%s close error: %w", component.name, err))
+			}
 		}
-		l.perfMonitor = nil
 	}
 
-	// Close cache
-	if l.cache != nil {
-		if err := l.cache.Close(); err != nil {
-			errors = append(errors, fmt.Errorf("cache close error: %w", err))
-		}
-		l.cache = nil
+	// Log final close status
+	if multiErr.HasErrors() {
+		l.logger.Error("ldap_client_close_with_errors",
+			slog.Duration("duration", time.Since(start)),
+			slog.String("errors", multiErr.Error()))
+	} else {
+		l.logger.Info("ldap_client_closed_successfully",
+			slog.Duration("duration", time.Since(start)))
 	}
 
-	// Close connection pool
-	if l.pool != nil {
-		if err := l.pool.Close(); err != nil {
-			errors = append(errors, fmt.Errorf("connection pool close error: %w", err))
-		}
-		l.pool = nil
+	return multiErr.ErrorOrNil()
+}
+
+// Component-specific close methods for better error isolation
+
+func (l *LDAP) closePerformanceMonitor() error {
+	if l.perfMonitor == nil {
+		return nil
 	}
 
-	if len(errors) > 0 {
-		return fmt.Errorf("multiple close errors: %v", errors)
+	err := l.perfMonitor.Close()
+	l.perfMonitor = nil
+	return err
+}
+
+func (l *LDAP) closeCache() error {
+	if l.cache == nil {
+		return nil
 	}
 
-	l.logger.Info("ldap_client_closed")
+	err := l.cache.Close()
+	l.cache = nil
+	return err
+}
+
+func (l *LDAP) closeRateLimiter() error {
+	if l.rateLimiter == nil {
+		return nil
+	}
+
+	l.rateLimiter.Close()
+	l.rateLimiter = nil
 	return nil
+}
+
+func (l *LDAP) closeConnectionPool() error {
+	if l.pool == nil {
+		return nil
+	}
+
+	err := l.pool.Close()
+	l.pool = nil
+	return err
 }

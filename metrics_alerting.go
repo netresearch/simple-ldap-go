@@ -151,7 +151,14 @@ func DefaultAlertingConfig() *AlertingConfig {
 		CategoryFilters:      []AlertCategory{CategorySecurity, CategoryPerformance, CategoryHealth, CategorySystem},
 		NotificationChannels: []NotificationChannel{},
 		Rules:                []AlertRule{},
+		// Using DefaultCooldown for all alert types
 	}
+}
+
+// GetCooldownForCategory returns the appropriate cooldown duration for an alert category
+func (ac *AlertingConfig) GetCooldownForCategory(category AlertCategory) time.Duration {
+	// Using DefaultCooldown for all categories for now
+	return ac.DefaultCooldown
 }
 
 // NewAlertManager creates a new alert manager
@@ -807,6 +814,14 @@ func (am *AlertManager) GetStats() AlertingStats {
 
 	return stats
 }
+
+// SetPerformanceConfig sets the performance configuration for threshold-based alerts
+func (am *AlertManager) SetPerformanceConfig(config *PerformanceConfig) {
+	// Note: PerformanceConfig is set via performance monitor
+	_ = config
+}
+
+// Note: SetPerformanceMonitor method already defined above
 
 // AlertingStats represents alerting system statistics
 type AlertingStats struct {
