@@ -769,11 +769,13 @@ func (s *Semaphore) Acquire(ctx context.Context) error {
 }
 
 // Release releases a semaphore permit.
-func (s *Semaphore) Release() {
+// It returns an error if Release is called without a corresponding Acquire.
+func (s *Semaphore) Release() error {
 	select {
 	case <-s.ch:
+		return nil
 	default:
-		panic("semaphore: release without acquire")
+		return fmt.Errorf("semaphore: release without acquire")
 	}
 }
 
@@ -782,7 +784,14 @@ func (s *Semaphore) WithSemaphore(ctx context.Context, fn func() error) error {
 	if err := s.Acquire(ctx); err != nil {
 		return err
 	}
-	defer s.Release()
+	defer func() {
+		// Log release error but don't override function error
+		if err := s.Release(); err != nil {
+			// This should never happen in normal operation
+			// Log it for debugging purposes
+			slog.Error("semaphore release failed", slog.String("error", err.Error()))
+		}
+	}()
 
 	return fn()
 }
