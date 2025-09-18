@@ -722,7 +722,7 @@ func (l *LDAP) getGroupMembersDirect(ctx context.Context, groupDN string, option
 
 		// If not in cache, fetch from LDAP
 		if user == nil {
-			fetchedUser, err := l.findUserByDNDirect(ctx, memberDN, options)
+			fetchedUser, err := l.FindUserByDNContext(ctx, memberDN)
 			if err != nil {
 				if err == ErrUserNotFound {
 					l.logger.Debug("group_member_not_found",

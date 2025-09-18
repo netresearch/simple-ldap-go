@@ -20,7 +20,7 @@ type Option func(*LDAP)
 // Example:
 //
 //	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-//	client, err := New(config, username, password, WithLogger(logger))
+//	client, err := New(&config, username, password, WithLogger(logger))
 func WithLogger(logger *slog.Logger) Option {
 	return func(l *LDAP) {
 		if logger != nil {
@@ -39,7 +39,7 @@ func WithLogger(logger *slog.Logger) Option {
 //	    InsecureSkipVerify: false,
 //	    ServerName: "ldap.example.com",
 //	}
-//	client, err := New(config, username, password, WithTLS(tlsConfig))
+//	client, err := New(&config, username, password, WithTLS(tlsConfig))
 func WithTLS(tlsConfig *tls.Config) Option {
 	return func(l *LDAP) {
 		// Add TLS configuration to dial options
@@ -60,7 +60,7 @@ func WithTLS(tlsConfig *tls.Config) Option {
 //	    MaxIdleTime: 10 * time.Minute,
 //	    HealthCheckInterval: 1 * time.Minute,
 //	}
-//	client, err := New(config, username, password, WithConnectionPool(poolConfig))
+//	client, err := New(&config, username, password, WithConnectionPool(poolConfig))
 func WithConnectionPool(poolConfig *PoolConfig) Option {
 	return func(l *LDAP) {
 		if poolConfig != nil {
@@ -80,7 +80,7 @@ func WithConnectionPool(poolConfig *PoolConfig) Option {
 //	    MaxSize: 1000,
 //	    MaxMemoryMB: 100,
 //	}
-//	client, err := New(config, username, password, WithCache(cacheConfig))
+//	client, err := New(&config, username, password, WithCache(cacheConfig))
 func WithCache(cacheConfig *CacheConfig) Option {
 	return func(l *LDAP) {
 		if cacheConfig != nil {
@@ -100,7 +100,7 @@ func WithCache(cacheConfig *CacheConfig) Option {
 //	    MaxRetries: 3,
 //	    RetryDelay: 1 * time.Second,
 //	}
-//	client, err := New(config, username, password, WithConnectionOptions(connConfig))
+//	client, err := New(&config, username, password, WithConnectionOptions(connConfig))
 func WithConnectionOptions(connOptions *ConnectionOptions) Option {
 	return func(l *LDAP) {
 		if connOptions != nil {
@@ -125,7 +125,7 @@ func WithConnectionOptions(connOptions *ConnectionOptions) Option {
 //	    SlowQueryThreshold: 500 * time.Millisecond,
 //	    MetricsInterval: 1 * time.Minute,
 //	}
-//	client, err := New(config, username, password, WithPerformanceMonitoring(perfConfig))
+//	client, err := New(&config, username, password, WithPerformanceMonitoring(perfConfig))
 func WithPerformanceMonitoring(perfConfig *PerformanceConfig) Option {
 	return func(l *LDAP) {
 		if perfConfig != nil {
@@ -142,7 +142,7 @@ func WithPerformanceMonitoring(perfConfig *PerformanceConfig) Option {
 //	dialOpts := []ldap.DialOpt{
 //	    ldap.DialWithDialer(&net.Dialer{Timeout: 10 * time.Second}),
 //	}
-//	client, err := New(config, username, password, WithDialOptions(dialOpts...))
+//	client, err := New(&config, username, password, WithDialOptions(dialOpts...))
 func WithDialOptions(dialOpts ...ldap.DialOpt) Option {
 	return func(l *LDAP) {
 		if len(dialOpts) > 0 {
@@ -156,7 +156,7 @@ func WithDialOptions(dialOpts ...ldap.DialOpt) Option {
 //
 // Example:
 //
-//	client, err := New(config, username, password,
+//	client, err := New(&config, username, password,
 //	    WithTimeout(30*time.Second, 60*time.Second))
 func WithTimeout(connectionTimeout, operationTimeout time.Duration) Option {
 	return func(l *LDAP) {

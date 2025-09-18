@@ -19,7 +19,7 @@
 //		IsActiveDirectory: true,
 //	}
 //
-//	client, err := ldap.New(config, "cn=admin,dc=example,dc=com", "password")
+//	client, err := ldap.New(&config, "cn=admin,dc=example,dc=com", "password")
 //	if err != nil {
 //		log.Fatal(err)
 //	}

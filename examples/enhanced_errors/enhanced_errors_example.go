@@ -37,7 +37,7 @@ func demonstrateEnhancedErrorHandling() {
 
 	// This example shows error handling without a real LDAP server
 	// In practice, you'd use actual LDAP credentials
-	client, err := ldap.New(config, "CN=admin,CN=Users,DC=example,DC=com", "password")
+	client, err := ldap.New(&config, "CN=admin,CN=Users,DC=example,DC=com", "password")
 	if err != nil {
 		demonstrateErrorAnalysis("LDAP Client Creation", err)
 		return
@@ -114,7 +114,7 @@ func demonstrateConnectionErrors(client *ldap.LDAP) {
 	}
 
 	fmt.Println("\nTesting connection to invalid server:")
-	invalidClient, err := ldap.New(invalidConfig, "user", "password")
+	invalidClient, err := ldap.New(&invalidConfig, "user", "password")
 	if err != nil {
 		demonstrateErrorAnalysis("Connection", err)
 		handleConnectionError(err)

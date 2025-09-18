@@ -42,7 +42,7 @@ func TestLDAP_WithConnectionPool(t *testing.T) {
 		},
 	}
 
-	client, err := New(config, bindDN, bindPassword)
+	client, err := New(&config, bindDN, bindPassword)
 	require.NoError(t, err)
 	defer client.Close()
 
@@ -50,7 +50,7 @@ func TestLDAP_WithConnectionPool(t *testing.T) {
 	stats := client.GetPoolStats()
 	require.NotNil(t, stats)
 	assert.GreaterOrEqual(t, stats.TotalConnections, int32(3))
-	t.Logf("Initial pool stats: %+v", *stats)
+	t.Logf("Initial pool stats: %+v", stats)
 
 	t.Run("BasicOperations", func(t *testing.T) {
 		ctx := context.Background()
@@ -114,7 +114,7 @@ func TestLDAP_WithConnectionPool(t *testing.T) {
 		finalStats := client.GetPoolStats()
 		require.NotNil(t, finalStats)
 		assert.Greater(t, finalStats.PoolHits, int64(0))
-		t.Logf("Final pool stats: %+v", *finalStats)
+		t.Logf("Final pool stats: %+v", finalStats)
 
 		// Pool hits should be much higher than misses for efficient pooling
 		if finalStats.PoolHits > 0 && finalStats.PoolMisses > 0 {
@@ -170,7 +170,7 @@ func TestLDAP_WithoutConnectionPool(t *testing.T) {
 		// Pool: nil - no pooling
 	}
 
-	client, err := New(config, bindDN, bindPassword)
+	client, err := New(&config, bindDN, bindPassword)
 	require.NoError(t, err)
 	defer client.Close()
 
@@ -212,7 +212,7 @@ func TestLDAP_PooledConnectionInterface(t *testing.T) {
 		},
 	}
 
-	client, err := New(config, bindDN, bindPassword)
+	client, err := New(&config, bindDN, bindPassword)
 	require.NoError(t, err)
 	defer client.Close()
 
@@ -283,7 +283,7 @@ func BenchmarkLDAP_PooledVsNonPooled(b *testing.B) {
 			},
 		}
 
-		client, err := New(config, bindDN, bindPassword)
+		client, err := New(&config, bindDN, bindPassword)
 		require.NoError(b, err)
 		defer client.Close()
 
@@ -302,11 +302,9 @@ func BenchmarkLDAP_PooledVsNonPooled(b *testing.B) {
 		// Log final stats
 		if !b.Failed() {
 			stats := client.GetPoolStats()
-			if stats != nil {
-				b.Logf("Pool stats: hits=%d, misses=%d, hit_ratio=%.2f%%",
-					stats.PoolHits, stats.PoolMisses,
-					float64(stats.PoolHits)/float64(stats.PoolHits+stats.PoolMisses)*100)
-			}
+			b.Logf("Pool stats: hits=%d, misses=%d, hit_ratio=%.2f%%",
+				stats.PoolHits, stats.PoolMisses,
+				float64(stats.PoolHits)/float64(stats.PoolHits+stats.PoolMisses)*100)
 		}
 	})
 
@@ -317,7 +315,7 @@ func BenchmarkLDAP_PooledVsNonPooled(b *testing.B) {
 			// Pool: nil - no pooling
 		}
 
-		client, err := New(config, bindDN, bindPassword)
+		client, err := New(&config, bindDN, bindPassword)
 		require.NoError(b, err)
 		defer client.Close()
 
@@ -358,7 +356,7 @@ func TestLDAP_PoolWithCredentials(t *testing.T) {
 		},
 	}
 
-	client1, err := New(config, bindDN, bindPassword)
+	client1, err := New(&config, bindDN, bindPassword)
 	require.NoError(t, err)
 	defer func() { _ = client1.Close() }()
 

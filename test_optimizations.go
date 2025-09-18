@@ -304,7 +304,7 @@ func (stc *SharedTestContainer) createTestComputers(t *testing.T, conn *ldap.Con
 
 // GetLDAPClient returns a configured LDAP client for testing
 func (stc *SharedTestContainer) GetLDAPClient(t *testing.T) *LDAP {
-	client, err := New(stc.config, stc.adminUser, stc.adminPass)
+	client, err := New(&stc.config, stc.adminUser, stc.adminPass)
 	require.NoError(t, err)
 	return client
 }
@@ -400,7 +400,7 @@ func NewFastTestClient() *LDAP {
 
 	// Create client without actual connection for unit tests
 	client := &LDAP{
-		config:   config,
+		config:   &config,
 		user:     "cn=admin,dc=test,dc=com",
 		password: "testpass",
 		logger:   config.Logger,

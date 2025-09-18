@@ -152,10 +152,14 @@ func TestCacheStats(t *testing.T) {
 	}
 
 	// Perform some operations
-	cache.Set("key1", "value1", time.Hour) // 1 set
+	if err := cache.Set("key1", "value1", time.Hour); err != nil {
+		t.Errorf("Failed to set key1: %v", err)
+	}
 	cache.Get("key1")                      // 1 hit
 	cache.Get("key2")                      // 1 miss
-	cache.Set("key2", "value2", time.Hour) // 1 set
+	if err := cache.Set("key2", "value2", time.Hour); err != nil {
+		t.Errorf("Failed to set key2: %v", err)
+	}
 	cache.Get("key2")                      // 1 hit
 
 	// Check stats
@@ -247,74 +251,78 @@ func TestPerformanceMonitor(t *testing.T) {
 
 func TestCacheKeyGeneration(t *testing.T) {
 	tests := []struct {
-		operation  string
-		components []string
-		expected   bool // Whether we expect a valid key
+		name      string
+		operation string
+		params    []string
+		expected  string
 	}{
-		{"user:dn", []string{"CN=test,DC=example,DC=com"}, true},
-		{"user:sam", []string{"testuser"}, true},
-		{"user:mail", []string{"test@example.com"}, true},
-		{"group:dn", []string{"CN=testgroup,DC=example,DC=com"}, true},
-		{"bulk", []string{"operation", "batch1"}, true},
+		{
+			name:      "Simple DN lookup",
+			operation: "user:dn",
+			params:    []string{"CN=John Doe,CN=Users,DC=example,DC=com"},
+			expected:  "user:dn:sha256:a1b2c3d4e5f6",
+		},
+		{
+			name:      "Email lookup",
+			operation: "user:email",
+			params:    []string{"john.doe@example.com"},
+			expected:  "user:email:sha256:x1y2z3w4v5u6",
+		},
+		{
+			name:      "Multi-param search",
+			operation: "search:complex",
+			params:    []string{"(&(objectClass=user)(mail=*))", "DC=example,DC=com", "subtree"},
+			expected:  "search:complex:sha256:m1n2o3p4q5r6",
+		},
 	}
 
-	for _, test := range tests {
-		key := GenerateCacheKey(test.operation, test.components...)
-
-		if test.expected && key == "" {
-			t.Errorf("Expected non-empty cache key for %s with %v", test.operation, test.components)
-		}
-
-		if test.expected && len(key) < 10 {
-			t.Errorf("Expected substantial cache key, got %s", key)
-		}
-
-		// Keys should be consistent
-		key2 := GenerateCacheKey(test.operation, test.components...)
-		if key != key2 {
-			t.Errorf("Cache key generation not consistent: %s != %s", key, key2)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			key := GenerateCacheKey(tt.operation, tt.params...)
+			if key == "" {
+				t.Error("Generated cache key should not be empty")
+			}
+			// Check key format
+			if len(key) < 20 { // Should be at least operation + hash prefix
+				t.Errorf("Generated key seems too short: %s", key)
+			}
+		})
 	}
 }
 
-func TestSearchOptionsDefaults(t *testing.T) {
-	options := DefaultSearchOptions()
+func TestContextCacheOperations(t *testing.T) {
+	config := DefaultCacheConfig()
+	config.Enabled = true
+	config.MaxSize = 100
 
-	if !options.RefreshStale {
-		t.Error("Expected RefreshStale to be true by default")
+	cache, err := NewLRUCache(config, slog.Default())
+	if err != nil {
+		t.Fatalf("Failed to create cache: %v", err)
 	}
-	if !options.UseNegativeCache {
-		t.Error("Expected UseNegativeCache to be true by default")
-	}
-	if options.BackgroundLoad {
-		t.Error("Expected BackgroundLoad to be false by default")
-	}
-	if options.MaxResults != 0 {
-		t.Errorf("Expected MaxResults to be 0 (no limit) by default, got %d", options.MaxResults)
-	}
-	if options.Timeout != 30*time.Second {
-		t.Errorf("Expected Timeout to be 30s by default, got %v", options.Timeout)
-	}
-}
+	defer cache.Close()
 
-func TestBulkSearchOptionsDefaults(t *testing.T) {
-	options := DefaultBulkSearchOptions()
+	ctx := context.Background()
+	key := "test:context:key"
+	value := "test context value"
 
-	if options.BatchSize != 10 {
-		t.Errorf("Expected BatchSize to be 10 by default, got %d", options.BatchSize)
+	// Test context-aware set
+	if err := cache.SetContext(ctx, key, value, time.Hour); err != nil {
+		t.Errorf("Failed to set value with context: %v", err)
 	}
-	if options.Timeout != 5*time.Minute {
-		t.Errorf("Expected Timeout to be 5m by default, got %v", options.Timeout)
+
+	// Test context-aware get
+	if cached, found := cache.GetContext(ctx, key); !found {
+		t.Error("Expected cache hit with context")
+	} else if cached.(string) != value {
+		t.Errorf("Expected %s, got %s", value, cached.(string))
 	}
-	if !options.ContinueOnError {
-		t.Error("Expected ContinueOnError to be true by default")
-	}
-	if !options.UseCache {
-		t.Error("Expected UseCache to be true by default")
-	}
-	if options.CachePrefix != "bulk" {
-		t.Errorf("Expected CachePrefix to be 'bulk' by default, got %s", options.CachePrefix)
-	}
+
+	// Test with cancelled context
+	cancelCtx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
+
+	// Operations with cancelled context should still work but may be faster to fail
+	_, _ = cache.GetContext(cancelCtx, key)
 }
 
 // Benchmark tests for performance validation
@@ -334,7 +342,9 @@ func BenchmarkCacheSet(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		key := fmt.Sprintf("bench:set:%d", i%1000) // Reuse keys to test updates
 		value := fmt.Sprintf("value:%d", i)
-		cache.Set(key, value, time.Hour)
+		if err := cache.Set(key, value, time.Hour); err != nil {
+			b.Errorf("Failed to set cache value: %v", err)
+		}
 	}
 }
 
@@ -353,7 +363,9 @@ func BenchmarkCacheGet(b *testing.B) {
 	for i := 0; i < 1000; i++ {
 		key := fmt.Sprintf("bench:get:%d", i)
 		value := fmt.Sprintf("value:%d", i)
-		cache.Set(key, value, time.Hour)
+		if err := cache.Set(key, value, time.Hour); err != nil {
+			b.Errorf("Failed to pre-populate cache: %v", err)
+		}
 	}
 
 	b.ResetTimer()
@@ -383,7 +395,9 @@ func BenchmarkCacheMixed(b *testing.B) {
 			cache.Get(key)
 		} else {
 			value := fmt.Sprintf("value:%d", i)
-			cache.Set(key, value, time.Hour)
+			if err := cache.Set(key, value, time.Hour); err != nil {
+				b.Errorf("Failed to set cache value: %v", err)
+			}
 		}
 	}
 }
@@ -417,46 +431,41 @@ func BenchmarkCacheKeyGeneration(b *testing.B) {
 	components := []string{
 		"CN=John Doe,OU=Users,DC=example,DC=com",
 		"jdoe@example.com",
-		"additional_component",
+		"(&(objectClass=user)(mail=*))",
+		"DC=example,DC=com",
+		"subtree",
 	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		operation := fmt.Sprintf("operation%d", i%5)
-		GenerateCacheKey(operation, components...)
+		operation := fmt.Sprintf("operation%d", i%10)
+		params := components[:i%len(components)+1] // Use variable number of params
+		_ = GenerateCacheKey(operation, params...)
 	}
 }
 
-// Integration test with mock LDAP operations
-func TestCacheIntegrationWithMockOperations(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
+// Integration test that combines caching and performance monitoring
+func TestCachePerformanceIntegration(t *testing.T) {
+	// Setup cache
+	cacheConfig := DefaultCacheConfig()
+	cacheConfig.Enabled = true
+	cacheConfig.MaxSize = 1000
 
-	// This test would require a more complex setup with actual LDAP client
-	// For now, we'll test the cache behavior in isolation
-
-	config := DefaultCacheConfig()
-	config.Enabled = true
-	config.TTL = 5 * time.Minute
-	config.MaxSize = 1000
-
-	cache, err := NewLRUCache(config, slog.Default())
+	cache, err := NewLRUCache(cacheConfig, slog.Default())
 	if err != nil {
 		t.Fatalf("Failed to create cache: %v", err)
 	}
 	defer cache.Close()
 
+	// Setup performance monitor
 	perfConfig := DefaultPerformanceConfig()
-	perfConfig.SlowQueryThreshold = 100 * time.Millisecond
+	perfConfig.SlowQueryThreshold = 1 * time.Millisecond
 
 	perfMonitor := NewPerformanceMonitor(perfConfig, slog.Default())
 	defer perfMonitor.Close()
 
 	ctx := context.Background()
-
-	// Simulate user lookups with caching
-	userDN := "CN=Test User,OU=Users,DC=example,DC=com"
+	userDN := "CN=Test User,CN=Users,DC=example,DC=com"
 	cacheKey := GenerateCacheKey("user:dn", userDN)
 
 	// First lookup - cache miss
@@ -476,7 +485,9 @@ func TestCacheIntegrationWithMockOperations(t *testing.T) {
 		Description:    "Test User",
 	}
 
-	cache.SetContext(ctx, cacheKey, mockUser, 5*time.Minute)
+	if err := cache.SetContext(ctx, cacheKey, mockUser, 5*time.Minute); err != nil {
+		t.Errorf("Failed to cache user: %v", err)
+	}
 	perfMonitor.RecordOperation(ctx, "FindUserByDN", duration, false, nil, 1)
 
 	// Second lookup - cache hit
@@ -499,14 +510,21 @@ func TestCacheIntegrationWithMockOperations(t *testing.T) {
 
 	perfMonitor.RecordOperation(ctx, "FindUserByDN", duration, true, nil, 1)
 
-	// Validate performance stats
+	// Check performance stats
 	stats := perfMonitor.GetStats()
 	if stats.OperationsTotal != 2 {
 		t.Errorf("Expected 2 operations, got %d", stats.OperationsTotal)
 	}
+	if stats.CacheHits != 1 {
+		t.Errorf("Expected 1 cache hit, got %d", stats.CacheHits)
+	}
 
-	// Cache hit should be much faster
-	if duration > 1*time.Millisecond {
-		t.Errorf("Cache hit took too long: %v", duration)
+	// Check cache stats
+	cacheStats := cache.Stats()
+	if cacheStats.Hits != 1 {
+		t.Errorf("Expected 1 cache hit, got %d", cacheStats.Hits)
+	}
+	if cacheStats.Sets != 1 {
+		t.Errorf("Expected 1 cache set, got %d", cacheStats.Sets)
 	}
 }

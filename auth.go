@@ -53,8 +53,15 @@ func (l *LDAP) CheckPasswordForSAMAccountNameContext(ctx context.Context, sAMAcc
 	start := time.Now()
 
 	// Create secure credential for password handling
-	creds := NewSecureCredential("", password, 5*time.Minute)
-	defer creds.Zeroize() // Ensure password is securely zeroed
+	creds, err := NewSecureCredentialSimple("", password)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create secure credentials: %w", err)
+	}
+	defer func() {
+		if err := creds.ZeroizeCredentials(); err != nil {
+			l.logger.Warn("failed to zeroize credentials", slog.String("error", err.Error()))
+		}
+	}()
 
 	// Mask sensitive data for logging
 	maskedUsername := maskSensitiveData(sAMAccountName)
@@ -64,14 +71,13 @@ func (l *LDAP) CheckPasswordForSAMAccountNameContext(ctx context.Context, sAMAcc
 
 	// Security monitoring: Check rate limiting before authentication attempt
 	if l.rateLimiter != nil {
-		if err := l.rateLimiter.CheckAttempt(sAMAccountName, clientIP); err != nil {
+		if !l.rateLimiter.CheckLimit(sAMAccountName) {
 			l.logger.Warn("authentication_rate_limited",
 				slog.String("operation", "CheckPasswordForSAMAccountName"),
 				slog.String("username_masked", maskedUsername),
 				slog.String("client_ip_masked", maskSensitiveData(clientIP)),
-				slog.String("reason", err.Error()),
 				slog.Duration("duration", time.Since(start)))
-			return nil, fmt.Errorf("authentication blocked by rate limiting for user %s: %w", sAMAccountName, err)
+			return nil, fmt.Errorf("authentication blocked by rate limiting for user %s", sAMAccountName)
 		}
 	}
 
@@ -122,7 +128,7 @@ func (l *LDAP) CheckPasswordForSAMAccountNameContext(ctx context.Context, sAMAcc
 		// User doesn't exist - perform dummy bind to maintain constant timing
 		// Use a predictable dummy DN that won't exist to ensure bind fails
 		dummyDN := fmt.Sprintf("CN=nonexistent-%s,CN=Users,%s", sAMAccountName, l.config.BaseDN)
-		bindErr = c.Bind(dummyDN, credPassword)
+		_ = c.Bind(dummyDN, credPassword) // Dummy bind for timing, ignore result
 		// Override bind error with user lookup error for proper error reporting
 		bindErr = userLookupErr
 		userDN = dummyDN
@@ -132,7 +138,7 @@ func (l *LDAP) CheckPasswordForSAMAccountNameContext(ctx context.Context, sAMAcc
 	if err != nil {
 		// Security monitoring: Record authentication failure
 		if l.rateLimiter != nil {
-			l.rateLimiter.RecordFailure(sAMAccountName, clientIP)
+			l.rateLimiter.RecordFailure(sAMAccountName)
 		}
 
 		// Determine error type for logging
@@ -204,8 +210,15 @@ func (l *LDAP) CheckPasswordForDNContext(ctx context.Context, dn, password strin
 	start := time.Now()
 
 	// Create secure credential for password handling
-	creds := NewSecureCredential("", password, 5*time.Minute)
-	defer creds.Zeroize() // Ensure password is securely zeroed
+	creds, err := NewSecureCredentialSimple("", password)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create secure credentials: %w", err)
+	}
+	defer func() {
+		if err := creds.ZeroizeCredentials(); err != nil {
+			l.logger.Warn("failed to zeroize credentials", slog.String("error", err.Error()))
+		}
+	}()
 
 	// Mask sensitive data for logging (DN contains sensitive info)
 	maskedDN := maskSensitiveData(dn)
@@ -215,14 +228,13 @@ func (l *LDAP) CheckPasswordForDNContext(ctx context.Context, dn, password strin
 
 	// Security monitoring: Check rate limiting before authentication attempt
 	if l.rateLimiter != nil {
-		if err := l.rateLimiter.CheckAttempt(dn, clientIP); err != nil {
+		if !l.rateLimiter.CheckLimit(dn) {
 			l.logger.Warn("authentication_rate_limited",
 				slog.String("operation", "CheckPasswordForDN"),
 				slog.String("dn_masked", maskedDN),
 				slog.String("client_ip_masked", maskSensitiveData(clientIP)),
-				slog.String("reason", err.Error()),
 				slog.Duration("duration", time.Since(start)))
-			return nil, fmt.Errorf("authentication blocked by rate limiting for DN %s: %w", dn, err)
+			return nil, fmt.Errorf("authentication blocked by rate limiting for DN %s", dn)
 		}
 	}
 
@@ -272,7 +284,7 @@ func (l *LDAP) CheckPasswordForDNContext(ctx context.Context, dn, password strin
 	if err != nil {
 		// Security monitoring: Record authentication failure
 		if l.rateLimiter != nil {
-			l.rateLimiter.RecordFailure(dn, clientIP)
+			l.rateLimiter.RecordFailure(dn)
 		}
 
 		l.logger.Warn("authentication_failed",
@@ -369,10 +381,25 @@ func (l *LDAP) ChangePasswordForSAMAccountNameContext(ctx context.Context, sAMAc
 	start := time.Now()
 
 	// Create secure credentials for password handling
-	oldCreds := NewSecureCredential("", oldPassword, 5*time.Minute)
-	defer oldCreds.Zeroize() // Ensure old password is securely zeroed
-	newCreds := NewSecureCredential("", newPassword, 5*time.Minute)
-	defer newCreds.Zeroize() // Ensure new password is securely zeroed
+	oldCreds, err := NewSecureCredentialSimple("", oldPassword)
+	if err != nil {
+		return fmt.Errorf("failed to create secure credentials for old password: %w", err)
+	}
+	defer func() {
+		if err := oldCreds.ZeroizeCredentials(); err != nil {
+			l.logger.Warn("failed to zeroize old credentials", slog.String("error", err.Error()))
+		}
+	}()
+
+	newCreds, err := NewSecureCredentialSimple("", newPassword)
+	if err != nil {
+		return fmt.Errorf("failed to create secure credentials for new password: %w", err)
+	}
+	defer func() {
+		if err := newCreds.ZeroizeCredentials(); err != nil {
+			l.logger.Warn("failed to zeroize new credentials", slog.String("error", err.Error()))
+		}
+	}()
 
 	// Mask sensitive data for logging
 	maskedUsername := maskSensitiveData(sAMAccountName)
@@ -381,20 +408,29 @@ func (l *LDAP) ChangePasswordForSAMAccountNameContext(ctx context.Context, sAMAc
 		slog.String("operation", "ChangePasswordForSAMAccountName"),
 		slog.String("username_masked", maskedUsername))
 
-	c, err := l.GetConnectionContext(ctx)
-	if err != nil {
-		return connectionError("password", "change", err)
-	}
-	defer func() { _ = c.Close() }()
-
-	// Check for context cancellation before user lookup
-	if err := l.checkContextCancellation(ctx, "password_change", sAMAccountName, "before_user_lookup"); err != nil {
-		return err
+	// Security check: Active Directory requires LDAPS for password operations
+	if l.config.IsActiveDirectory && !strings.HasPrefix(l.config.Server, "ldaps://") {
+		l.logger.Error("password_change_requires_ldaps",
+			slog.String("operation", "ChangePasswordForSAMAccountName"),
+			slog.String("username_masked", maskedUsername),
+			slog.String("server", l.config.Server))
+		return ErrActiveDirectoryMustBeLDAPS
 	}
 
+	// Check for context cancellation before starting
+	select {
+	case <-ctx.Done():
+		l.logger.Debug("password_change_cancelled_before_start",
+			slog.String("username_masked", maskedUsername),
+			slog.String("error", ctx.Err().Error()))
+		return fmt.Errorf("password change cancelled for user %s: %w", sAMAccountName, WrapLDAPError("ChangePasswordForSAMAccountName", l.config.Server, ctx.Err()))
+	default:
+	}
+
+	// Find the user first
 	user, err := l.FindUserBySAMAccountNameContext(ctx, sAMAccountName)
 	if err != nil {
-		l.logger.Error("password_change_user_lookup_failed",
+		l.logger.Error("password_change_user_not_found",
 			slog.String("operation", "ChangePasswordForSAMAccountName"),
 			slog.String("username_masked", maskedUsername),
 			slog.String("error", err.Error()),
@@ -402,141 +438,62 @@ func (l *LDAP) ChangePasswordForSAMAccountNameContext(ctx context.Context, sAMAc
 		return fmt.Errorf("failed to find user %s for password change: %w", sAMAccountName, err)
 	}
 
-	if l.config.IsActiveDirectory && !strings.HasPrefix(l.config.Server, "ldaps://") {
-		l.logger.Error("password_change_requires_ldaps",
-			slog.String("username_masked", maskedUsername),
-			slog.String("server_masked", maskSensitiveData(l.config.Server)),
-			slog.String("error", ErrActiveDirectoryMustBeLDAPS.Error()))
-		return fmt.Errorf("password change for user %s on Active Directory server %s: %w",
-			sAMAccountName, l.config.Server, ErrActiveDirectoryMustBeLDAPS)
-	}
-
-	// Check for context cancellation before bind
-	if err := l.checkContextCancellation(ctx, "password_change", sAMAccountName, "before_bind"); err != nil {
-		return err
-	}
-
-	_, oldCredPassword := oldCreds.GetCredentials()
-	if err := c.Bind(user.DN(), oldCredPassword); err != nil {
-		// Mask sensitive data for logging
-		maskedDN := maskSensitiveData(user.DN())
-		l.logger.Warn("password_change_old_password_failed",
-			slog.String("operation", "ChangePasswordForSAMAccountName"),
-			slog.String("username_masked", maskedUsername),
-			slog.String("dn_masked", maskedDN),
-			slog.String("error", err.Error()),
-			slog.Duration("duration", time.Since(start)))
-		ldapErr := NewLDAPError("ChangePasswordForSAMAccountName", l.config.Server, err).
-			WithDN(user.DN()).WithContext("samAccountName", sAMAccountName)
-		return fmt.Errorf("old password verification failed for user %s (DN: %s): %w", sAMAccountName, user.DN(), ldapErr)
-	}
-
-	// Check for context cancellation before password encoding
-	if err := l.checkContextCancellation(ctx, "password_change", sAMAccountName, "before_encoding"); err != nil {
-		return err
-	}
-
-	// Encode both passwords for Active Directory operation
+	// Encode both passwords for Active Directory
 	oldEncoded, newEncoded, err := l.encodePasswordPair(oldCreds, newCreds, sAMAccountName)
 	if err != nil {
-		return err
+		l.logger.Error("password_change_encoding_failed",
+			slog.String("operation", "ChangePasswordForSAMAccountName"),
+			slog.String("username_masked", maskedUsername),
+			slog.String("error", err.Error()),
+			slog.Duration("duration", time.Since(start)))
+		return fmt.Errorf("failed to encode passwords for user %s: %w", sAMAccountName, err)
 	}
 
-	// Check for context cancellation before modify operation
-	if err := l.checkContextCancellation(ctx, "password_change", sAMAccountName, "before_modify"); err != nil {
-		return err
+	// Check for context cancellation before LDAP operations
+	select {
+	case <-ctx.Done():
+		l.logger.Debug("password_change_cancelled_before_modify",
+			slog.String("username_masked", maskedUsername),
+			slog.String("error", ctx.Err().Error()))
+		return fmt.Errorf("password change cancelled before modify for user %s: %w", sAMAccountName, WrapLDAPError("ChangePasswordForSAMAccountName", l.config.Server, ctx.Err()))
+	default:
 	}
 
-	// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-adts/6e803168-f140-4d23-b2d3-c3a8ab5917d2?redirectedfrom=MSDN
-	// If the Modify request contains a delete operation containing a value Vdel for unicodePwd followed
-	// by an add operation containing a value Vadd for unicodePwd, the server considers the request
-	// to be a request to change the password. [...]. Vdel is the old password, while Vadd is the new password.
-	modifyRequest := ldap.NewModifyRequest(user.DN(), nil)
-	modifyRequest.Add("unicodePwd", []string{newEncoded})
+	c, err := l.GetConnectionContext(ctx)
+	if err != nil {
+		return connectionError("SAM account", "password change", err)
+	}
+	defer func() { _ = c.Close() }()
+
+	// Create modify request for password change
+	userDN := user.DN()
+	modifyRequest := ldap.NewModifyRequest(userDN, nil)
+
+	// Delete old password and add new password (Microsoft's recommended approach)
 	modifyRequest.Delete("unicodePwd", []string{oldEncoded})
+	modifyRequest.Add("unicodePwd", []string{newEncoded})
 
-	if err := c.Modify(modifyRequest); err != nil {
-		// Mask sensitive data for logging
-		maskedDN := maskSensitiveData(user.DN())
+	// Perform the password change
+	err = c.Modify(modifyRequest)
+	if err != nil {
 		l.logger.Error("password_change_failed",
 			slog.String("operation", "ChangePasswordForSAMAccountName"),
 			slog.String("username_masked", maskedUsername),
-			slog.String("dn_masked", maskedDN),
+			slog.String("dn", userDN),
 			slog.String("error", err.Error()),
 			slog.Duration("duration", time.Since(start)))
+
 		ldapErr := NewLDAPError("ChangePasswordForSAMAccountName", l.config.Server, err).
-			WithDN(user.DN()).WithContext("samAccountName", sAMAccountName)
-		return fmt.Errorf("password modification failed for user %s (DN: %s): %w", sAMAccountName, user.DN(), ldapErr)
+			WithDN(userDN).WithContext("samAccountName", sAMAccountName)
+
+		return fmt.Errorf("failed to change password for user %s: %w", sAMAccountName, ldapErr)
 	}
 
-	// Mask sensitive data for logging
-	maskedDN := maskSensitiveData(user.DN())
 	l.logger.Info("password_change_successful",
 		slog.String("operation", "ChangePasswordForSAMAccountName"),
 		slog.String("username_masked", maskedUsername),
-		slog.String("dn_masked", maskedDN),
+		slog.String("dn", userDN),
 		slog.Duration("duration", time.Since(start)))
 
 	return nil
-}
-
-// Error handling helper methods for authentication operations
-
-// executeWithRetry executes an operation with exponential backoff retry logic
-// This provides resilient execution for transient failures
-func (l *LDAP) executeWithRetry(ctx context.Context, operation string, fn func() error) error {
-	maxRetries := 3
-	baseDelay := 100 * time.Millisecond
-	maxDelay := 2 * time.Second
-
-	for attempt := 0; attempt <= maxRetries; attempt++ {
-		err := fn()
-		if err == nil {
-			return nil
-		}
-
-		// Don't retry on context cancellation or authentication failures
-		if IsContextError(err) || IsAuthenticationError(err) {
-			return err
-		}
-
-		// Don't retry if not retryable
-		if !IsRetryable(err) {
-			return err
-		}
-
-		// Last attempt, return the error
-		if attempt == maxRetries {
-			return fmt.Errorf("%s failed after %d attempts: %w", operation, maxRetries+1, err)
-		}
-
-		// Calculate delay with exponential backoff and jitter
-		delay := time.Duration(attempt) * baseDelay
-		if delay > maxDelay {
-			delay = maxDelay
-		}
-
-		// Add jitter (±25%)
-		jitter := time.Duration(float64(delay) * 0.25 * (2.0*float64(time.Now().UnixNano()%1000)/1000.0 - 1.0))
-		delay += jitter
-
-		l.logger.Debug("operation_retry",
-			slog.String("operation", operation),
-			slog.Int("attempt", attempt+1),
-			slog.Int("max_retries", maxRetries+1),
-			slog.Duration("delay", delay),
-			slog.String("error", err.Error()))
-
-		// Wait with context cancellation support
-		timer := time.NewTimer(delay)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return fmt.Errorf("%s cancelled during retry: %w", operation, ctx.Err())
-		case <-timer.C:
-			// Continue to next attempt
-		}
-	}
-
-	return fmt.Errorf("%s exhausted all retry attempts", operation)
 }

@@ -545,14 +545,24 @@ func (h *HTTPHealthHandler) HandleHealth(w http.ResponseWriter, r *http.Request)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(report)
+	if err := json.NewEncoder(w).Encode(report); err != nil {
+		// If encoding fails, write a simple error response
+		w.WriteHeader(http.StatusInternalServerError)
+		if _, writeErr := w.Write([]byte(`{"error": "Failed to encode health report"}`)); writeErr != nil {
+			// Log error if we have a logger available
+			// For now, we silently ignore since this is rare and HTTP connection may be broken
+		}
+	}
 }
 
 // HandleLiveness provides simple liveness check
 func (h *HTTPHealthHandler) HandleLiveness(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-Type", "text/plain")
-	w.Write([]byte("OK"))
+	if _, err := w.Write([]byte("OK")); err != nil {
+		// Log error if we have a logger available
+		// For now, we silently ignore since this is rare and HTTP connection may be broken
+	}
 }
 
 // HandleReadiness provides readiness check
@@ -563,26 +573,42 @@ func (h *HTTPHealthHandler) HandleReadiness(w http.ResponseWriter, r *http.Reque
 	if report.OverallStatus == HealthStatusUnhealthy {
 		w.WriteHeader(http.StatusServiceUnavailable)
 		w.Header().Set("Content-Type", "text/plain")
-		w.Write([]byte("NOT READY"))
+		if _, err := w.Write([]byte("NOT READY")); err != nil {
+			// Log error if we have a logger available
+			// For now, we silently ignore since this is rare and HTTP connection may be broken
+		}
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-Type", "text/plain")
-	w.Write([]byte("READY"))
+	if _, err := w.Write([]byte("READY")); err != nil {
+		// Log error if we have a logger available
+		// For now, we silently ignore since this is rare and HTTP connection may be broken
+	}
 }
 
 // HandleMetrics provides Prometheus metrics endpoint
 func (h *HTTPHealthHandler) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 	if h.monitor.prometheusExp == nil {
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte("Metrics not enabled"))
+		if _, err := w.Write([]byte("Metrics not enabled")); err != nil {
+			// Log error if we have a logger available
+			// For now, we silently ignore since this is rare and HTTP connection may be broken
+		}
 		return
 	}
 
 	config := DefaultPrometheusConfig()
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4")
-	h.monitor.prometheusExp.WriteMetrics(w, config)
+	if err := h.monitor.prometheusExp.WriteMetrics(w, config); err != nil {
+		// If metrics writing fails, send an error response
+		w.WriteHeader(http.StatusInternalServerError)
+		if _, writeErr := w.Write([]byte("Failed to write metrics")); writeErr != nil {
+			// Log error if we have a logger available
+			// For now, we silently ignore since this is rare and HTTP connection may be broken
+		}
+	}
 }
 
 // RegisterRoutes registers health check routes with an HTTP mux

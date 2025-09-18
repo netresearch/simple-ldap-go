@@ -56,7 +56,7 @@ func main() {
 	}
 
 	// Create LDAP client
-	client, err := ldap.New(config, "CN=admin,CN=Users,DC=example,DC=com", "password")
+	client, err := ldap.New(&config, "CN=admin,CN=Users,DC=example,DC=com", "password")
 	if err != nil {
 		log.Fatalf("Failed to create LDAP client: %v", err)
 	}

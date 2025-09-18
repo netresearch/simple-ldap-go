@@ -19,7 +19,7 @@ func main() {
 
 	// Create LDAP client with administrative credentials
 	// Note: User creation/deletion requires elevated privileges
-	client, err := ldap.New(config, "cn=administrator,cn=Users,dc=example,dc=com", "adminPassword")
+	client, err := ldap.New(&config, "cn=administrator,cn=Users,dc=example,dc=com", "adminPassword")
 	if err != nil {
 		log.Fatalf("Failed to create LDAP client: %v", err)
 	}

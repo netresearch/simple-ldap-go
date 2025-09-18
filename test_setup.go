@@ -303,7 +303,7 @@ func (tc *TestContainer) createTestComputers(t *testing.T, conn *ldap.Conn) {
 
 // GetLDAPClient returns a configured LDAP client for testing
 func (tc *TestContainer) GetLDAPClient(t *testing.T) *LDAP {
-	client, err := New(tc.Config, tc.AdminUser, tc.AdminPass)
+	client, err := New(&tc.Config, tc.AdminUser, tc.AdminPass)
 	require.NoError(t, err)
 	return client
 }

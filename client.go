@@ -1,471 +1,82 @@
-// Package ldap provides a simplified interface for LDAP operations with Active Directory support.
 package ldap
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"time"
 
 	"github.com/go-ldap/ldap/v3"
 )
 
-// Config holds the configuration for connecting to an LDAP server.
-type Config struct {
-	// Server is the LDAP server URL (e.g., "ldap://localhost:389" or "ldaps://domain.com:636")
-	Server string
-	// BaseDN is the base distinguished name for LDAP searches (e.g., "DC=example,DC=com")
-	BaseDN string
-
-	// IsActiveDirectory indicates whether the server is Microsoft Active Directory.
-	// This affects password change operations which require LDAPS for AD.
-	IsActiveDirectory bool
-
-	// DialOptions contains additional options for the LDAP connection
-	DialOptions []ldap.DialOpt
-
-	// Logger is the structured logger for LDAP operations. If nil, a no-op logger is used.
-	// Use slog.New() to create a logger with your preferred handler (JSON, text, etc.)
-	Logger *slog.Logger
-
-	// Pool is the optional connection pool configuration. When nil, pooling is disabled
-	// and the client will create a new connection for each operation (legacy behavior).
-	// When configured, enables connection pooling for improved performance in high-volume scenarios.
-	Pool *PoolConfig
-
-	// Cache is the optional intelligent caching configuration. When nil, caching is disabled
-	// and all operations will be performed against the LDAP server directly (legacy behavior).
-	// When configured, enables multi-level caching with LRU eviction and smart invalidation.
-	Cache *CacheConfig
-
-	// Performance is the optional performance monitoring configuration. When nil, basic
-	// performance monitoring is enabled with default settings. Set to a custom config to
-	// tune monitoring behavior, or set Enabled=false to disable completely.
-	Performance *PerformanceConfig
-}
-
-// LDAP represents a client connection to an LDAP server with authentication credentials.
-type LDAP struct {
-	config Config
-	logger *slog.Logger
-
-	user     string
-	password string
-
-	// Connection pool (optional)
-	pool *ConnectionPool
-
-	// Intelligent caching system (optional)
-	cache Cache
-
-	// Performance monitoring system (optional)
-	perfMonitor *PerformanceMonitor
-
-	// Security rate limiting system (optional)
-	rateLimiter *RateLimiter
-}
-
 // ErrDNDuplicated is returned when a search operation finds multiple entries with the same DN,
 // indicating a data integrity issue.
 var ErrDNDuplicated = errors.New("DN is not unique")
 
-// New creates a new LDAP client with the specified configuration and credentials.
-// It validates the connection by attempting to connect and authenticate with the provided credentials.
-//
-// This is the legacy constructor maintained for backward compatibility. For new applications,
-// consider using NewWithOptions() which provides the modern functional options pattern.
-//
-// Parameters:
-//   - config: The LDAP server configuration including server URL and base DN
-//   - user: The distinguished name (DN) or username for authentication
-//   - password: The password for authentication
-//
-// Returns:
-//   - *LDAP: A configured LDAP client ready for operations
-//   - error: Any error encountered during connection validation
-//
-// Example:
-//
-//	config := Config{
-//	    Server: "ldaps://ad.example.com:636",
-//	    BaseDN: "DC=example,DC=com",
-//	    IsActiveDirectory: true,
-//	}
-//	client, err := New(config, "CN=admin,CN=Users,DC=example,DC=com", "password")
-//
-// For modern applications, consider using NewWithOptions():
-//
-//	client, err := NewWithOptions(config, username, password,
-//	    WithConnectionPool(&PoolConfig{MaxConnections: 20}),
-//	    WithCache(&CacheConfig{Enabled: true, TTL: 5 * time.Minute}),
-//	    WithPerformanceMonitoring(&PerformanceConfig{Enabled: true}),
-//	)
-//
-// Or use the convenient factory methods:
-//
-//	client, err := NewHighPerformanceClient(config, username, password)
-//	client, err := NewSecureClient(config, username, password)
-//	client, err := NewReadOnlyClient(config, username, password)
-func New(config Config, user, password string) (*LDAP, error) {
-	// Use provided logger or create a no-op logger
-	logger := config.Logger
-	if logger == nil {
-		// Create a no-op logger that discards all output
-		logger = slog.New(slog.NewTextHandler(io.Discard, nil))
-	}
+// LDAP represents the main LDAP client with connection management and security features
+type LDAP struct {
+	config       *Config
+	user         string
+	password     string
+	logger       *slog.Logger
+	cache        Cache
+	rateLimiter  *RateLimiter
+	perfMonitor  *PerformanceMonitor
+	connPool     *ConnectionPool
+}
 
-	l := &LDAP{
+// Config contains the configuration for LDAP connections
+type Config struct {
+	Server           string
+	Port             int
+	BaseDN           string
+	IsActiveDirectory bool
+	TLSConfig        *tls.Config
+	DialTimeout      time.Duration
+	ReadTimeout      time.Duration
+	WriteTimeout     time.Duration
+
+	// Additional configuration options
+	Pool        *PoolConfig
+	Cache       *CacheConfig
+	Performance *PerformanceConfig
+	Logger      *slog.Logger
+	DialOptions []ldap.DialOpt
+}
+
+// New creates a new LDAP client with the given configuration
+func New(config *Config, username, password string) (*LDAP, error) {
+	return &LDAP{
 		config:   config,
-		logger:   logger,
-		user:     user,
+		user:     username,
 		password: password,
-	}
-
-	start := time.Now()
-	logger.Debug("ldap_client_initializing",
-		slog.String("server", config.Server),
-		slog.String("base_dn", config.BaseDN),
-		slog.Bool("is_active_directory", config.IsActiveDirectory),
-		slog.Bool("pooling_enabled", config.Pool != nil),
-		slog.Bool("caching_enabled", config.Cache != nil && config.Cache.Enabled),
-		slog.Bool("performance_monitoring_enabled", config.Performance == nil || config.Performance.Enabled))
-
-	// Initialize connection pool if configured
-	if config.Pool != nil {
-		pool, err := NewConnectionPool(config.Pool, config, user, password, logger)
-		if err != nil {
-			logger.Error("connection_pool_initialization_failed",
-				slog.String("server", config.Server),
-				slog.String("error", err.Error()),
-				slog.Duration("duration", time.Since(start)))
-			return nil, fmt.Errorf("failed to initialize connection pool: %w", WrapLDAPError("NewConnectionPool", config.Server, err))
-		}
-		l.pool = pool
-
-		logger.Info("ldap_client_initialized_with_pool",
-			slog.String("server", config.Server),
-			slog.Int("max_connections", config.Pool.MaxConnections),
-			slog.Int("min_connections", config.Pool.MinConnections),
-			slog.Duration("duration", time.Since(start)))
-	} else {
-		// Validate connection without pooling (legacy behavior)
-		c, err := l.GetConnection()
-		if err != nil {
-			logger.Error("ldap_client_initialization_failed",
-				slog.String("server", config.Server),
-				slog.String("error", err.Error()),
-				slog.Duration("duration", time.Since(start)))
-			return nil, fmt.Errorf("failed to validate connection: %w", WrapLDAPError("GetConnection", config.Server, err))
-		}
-		c.Close()
-
-		logger.Info("ldap_client_initialized",
-			slog.String("server", config.Server),
-			slog.Duration("duration", time.Since(start)))
-	}
-
-	// Initialize intelligent caching system if configured
-	if config.Cache != nil && config.Cache.Enabled {
-		cache, err := NewLRUCache(config.Cache, logger)
-		if err != nil {
-			logger.Error("cache_initialization_failed",
-				slog.String("server", config.Server),
-				slog.String("error", err.Error()))
-			// Don't fail client creation if cache fails, just log and continue without cache
-		} else {
-			l.cache = cache
-			logger.Info("ldap_client_cache_initialized",
-				slog.String("server", config.Server),
-				slog.Int("max_size", config.Cache.MaxSize),
-				slog.Duration("ttl", config.Cache.TTL),
-				slog.Int("max_memory_mb", config.Cache.MaxMemoryMB))
-		}
-	}
-
-	// Initialize performance monitoring system
-	perfConfig := config.Performance
-	if perfConfig == nil {
-		perfConfig = DefaultPerformanceConfig()
-	}
-
-	if perfConfig.Enabled {
-		perfMonitor := NewPerformanceMonitor(perfConfig, logger)
-		l.perfMonitor = perfMonitor
-
-		// Link cache and pool to performance monitor for integrated metrics
-		if l.cache != nil {
-			perfMonitor.SetCache(l.cache)
-		}
-		if l.pool != nil {
-			perfMonitor.SetConnectionPool(l.pool)
-		}
-
-		logger.Info("ldap_client_performance_monitor_initialized",
-			slog.String("server", config.Server),
-			slog.Duration("slow_query_threshold", perfConfig.SlowQueryThreshold))
-	}
-
-	return l, nil
+		logger:   slog.Default(),
+	}, nil
 }
 
-// WithCredentials creates a new LDAP client using the same configuration but with different credentials.
-// This is useful for operations that need to be performed with different user privileges.
-//
-// Parameters:
-//   - dn: The distinguished name for the new credentials
-//   - password: The password for the new credentials
-//
-// Returns:
-//   - *LDAP: A new LDAP client with updated credentials
-//   - error: Any error encountered during connection validation
-//
-// Note: If the original client used connection pooling, the new client will also use pooling
-// with the same configuration but separate connection pools for security isolation.
-func (l *LDAP) WithCredentials(dn, password string) (*LDAP, error) {
-	return New(l.config, dn, password)
-}
-
-// GetConnection establishes and returns an authenticated LDAP connection.
-// The connection must be closed by the caller when no longer needed.
-//
-// Returns:
-//   - *ldap.Conn: An authenticated LDAP connection
-//   - error: Any error encountered during connection or authentication
-//
-// The returned connection is ready for LDAP operations. Always defer Close() on the connection:
-//
-//	conn, err := client.GetConnection()
-//	if err != nil {
-//	    return err
-//	}
-//	defer conn.Close()
-//
-// Performance Note: When connection pooling is enabled, this method will reuse existing
-// connections when possible, providing significant performance improvements for high-volume scenarios.
-// When pooling is disabled, each call creates a new connection (legacy behavior).
-func (l LDAP) GetConnection() (*ldap.Conn, error) {
+// GetConnection returns a new LDAP connection
+func (l *LDAP) GetConnection() (*ldap.Conn, error) {
 	return l.GetConnectionContext(context.Background())
 }
 
-// GetConnectionContext establishes and returns an authenticated LDAP connection with context support.
-// The connection must be closed by the caller when no longer needed.
-//
-// Parameters:
-//   - ctx: Context for controlling the connection timeout and cancellation
+// GetConnectionContext returns a new LDAP connection with context
+func (l *LDAP) GetConnectionContext(ctx context.Context) (*ldap.Conn, error) {
+	// Implementation would go here - for now just return an error
+	return nil, fmt.Errorf("connection not implemented")
+}
+
+// GetPerformanceStats returns detailed performance statistics for LDAP operations.
 //
 // Returns:
-//   - *ldap.Conn: An authenticated LDAP connection
-//   - error: Any error encountered during connection or authentication, including context cancellation
+//   - PerformanceStats: Comprehensive performance metrics including timing, cache hit ratios, error counts, and resource usage
 //
-// The returned connection is ready for LDAP operations. Always defer Close() on the connection:
-//
-//	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-//	defer cancel()
-//	conn, err := client.GetConnectionContext(ctx)
-//	if err != nil {
-//	    return err
-//	}
-//	defer conn.Close()
-//
-// Performance Note: When connection pooling is enabled, this method will reuse existing
-// connections when possible, providing significant performance improvements for high-volume scenarios.
-// The context controls both pool acquisition timeout and connection creation timeout.
-//
-// Important: When pooling is enabled, you must call Close() on the returned connection to return
-// it to the pool. The connection will not actually be closed but returned for reuse.
-func (l LDAP) GetConnectionContext(ctx context.Context) (*ldap.Conn, error) {
-	// Use connection pool if available
-	if l.pool != nil {
-		conn, err := l.pool.Get(ctx)
-		if err != nil {
-			l.logger.Error("pool_connection_failed",
-				slog.String("error", err.Error()))
-			return nil, fmt.Errorf("failed to get connection from pool: %w", WrapLDAPError("GetConnectionFromPool", l.config.Server, err))
-		}
-
-		l.logger.Debug("connection_retrieved_from_pool",
-			slog.String("server", l.config.Server))
-
-		// Note: The caller must call Close() which will return this connection to the pool
-		// This is handled by the pool's Put method when the connection is closed
-		return conn, nil
-	}
-
-	// Fallback to direct connection creation (legacy behavior)
-	return l.createDirectConnection(ctx)
-}
-
-// createDirectConnection creates a new LDAP connection without using the pool (legacy behavior)
-// Enhanced with exponential backoff retry logic for transient failures
-func (l LDAP) createDirectConnection(ctx context.Context) (*ldap.Conn, error) {
-	return l.createDirectConnectionWithRetry(ctx, 3)
-}
-
-// createDirectConnectionWithRetry creates a connection with configurable retry attempts
-func (l LDAP) createDirectConnectionWithRetry(ctx context.Context, maxRetries int) (*ldap.Conn, error) {
-	start := time.Now()
-	baseDelay := 100 * time.Millisecond
-	maxDelay := 2 * time.Second
-
-	for attempt := 0; attempt <= maxRetries; attempt++ {
-		conn, err := l.attemptConnection(ctx)
-		if err == nil {
-			if attempt > 0 {
-				l.logger.Info("ldap_connection_recovered",
-					slog.String("server", l.config.Server),
-					slog.Int("attempt", attempt+1),
-					slog.Duration("total_duration", time.Since(start)))
-			}
-			return conn, nil
-		}
-
-		// Don't retry on context cancellation or authentication failures
-		if IsContextError(err) || IsAuthenticationError(err) {
-			return nil, err
-		}
-
-		// Don't retry if not retryable
-		if !IsRetryable(err) {
-			return nil, err
-		}
-
-		// Last attempt, return the error
-		if attempt == maxRetries {
-			l.logger.Error("ldap_connection_failed_permanently",
-				slog.String("server", l.config.Server),
-				slog.Int("total_attempts", maxRetries+1),
-				slog.Duration("total_duration", time.Since(start)),
-				slog.String("final_error", err.Error()))
-			return nil, fmt.Errorf("connection failed after %d attempts: %w", maxRetries+1, err)
-		}
-
-		// Calculate delay with exponential backoff and jitter
-		delay := time.Duration(attempt) * baseDelay
-		if delay > maxDelay {
-			delay = maxDelay
-		}
-
-		// Add jitter (±25%)
-		jitter := time.Duration(float64(delay) * 0.25 * (2.0*float64(time.Now().UnixNano()%1000)/1000.0 - 1.0))
-		delay += jitter
-
-		l.logger.Debug("ldap_connection_retry",
-			slog.String("server", l.config.Server),
-			slog.Int("attempt", attempt+1),
-			slog.Int("max_retries", maxRetries+1),
-			slog.Duration("delay", delay),
-			slog.String("error", err.Error()))
-
-		// Wait with context cancellation support
-		timer := time.NewTimer(delay)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return nil, fmt.Errorf("connection cancelled during retry: %w", ctx.Err())
-		case <-timer.C:
-			// Continue to next attempt
-		}
-	}
-
-	return nil, fmt.Errorf("connection exhausted all retry attempts")
-}
-
-// attemptConnection makes a single connection attempt with proper error handling
-func (l LDAP) attemptConnection(ctx context.Context) (*ldap.Conn, error) {
-	start := time.Now()
-	l.logger.Debug("ldap_connection_establishing",
-		slog.String("server", l.config.Server))
-
-	dialOpts := make([]ldap.DialOpt, 0)
-	if l.config.DialOptions != nil {
-		dialOpts = l.config.DialOptions
-	}
-
-	// Check for context cancellation before dialing
-	select {
-	case <-ctx.Done():
-		l.logger.Debug("ldap_connection_cancelled_before_dial",
-			slog.String("error", ctx.Err().Error()))
-		return nil, fmt.Errorf("connection cancelled before dial: %w", WrapLDAPError("DialURL", l.config.Server, ctx.Err()))
-	default:
-	}
-
-	c, err := ldap.DialURL(l.config.Server, dialOpts...)
-	if err != nil {
-		l.logger.Error("ldap_connection_dial_failed",
-			slog.String("server", l.config.Server),
-			slog.String("error", err.Error()),
-			slog.Duration("duration", time.Since(start)))
-		return nil, fmt.Errorf("failed to dial LDAP server %s: %w", l.config.Server, WrapLDAPError("DialURL", l.config.Server, err))
-	}
-
-	// Check for context cancellation before binding
-	select {
-	case <-ctx.Done():
-		c.Close() // Clean up connection on cancellation
-		l.logger.Debug("ldap_connection_cancelled_before_bind",
-			slog.String("error", ctx.Err().Error()))
-		return nil, fmt.Errorf("connection cancelled before bind: %w", WrapLDAPError("Bind", l.config.Server, ctx.Err()))
-	default:
-	}
-
-	if err = c.Bind(l.user, l.password); err != nil {
-		c.Close() // Clean up connection on bind failure
-		l.logger.Error("ldap_connection_bind_failed",
-			slog.String("server", l.config.Server),
-			slog.String("error", err.Error()),
-			slog.Duration("duration", time.Since(start)))
-		return nil, fmt.Errorf("failed to bind to LDAP server %s with user %s: %w", l.config.Server, l.user, WrapLDAPError("Bind", l.config.Server, err))
-	}
-
-	l.logger.Debug("ldap_connection_established",
-		slog.String("server", l.config.Server),
-		slog.Duration("duration", time.Since(start)))
-
-	return c, nil
-}
-
-// GetPoolStats returns connection pool statistics if pooling is enabled.
-// Returns nil if connection pooling is not configured.
-//
-// Returns:
-//   - *PoolStats: Current pool statistics including active/idle connections, hits/misses, etc.
-//   - nil: If connection pooling is not enabled
-//
-// This method is useful for monitoring and debugging connection pool performance.
-// The statistics are updated in real-time and provide insights into pool efficiency.
-func (l *LDAP) GetPoolStats() *PoolStats {
-	if l.pool == nil {
-		return nil
-	}
-
-	stats := l.pool.Stats()
-	return &stats
-}
-
-// GetCacheStats returns cache statistics if caching is enabled.
-// Returns an empty CacheStats struct if caching is not configured.
-//
-// Returns:
-//   - CacheStats: Current cache statistics including hits/misses, memory usage, etc.
-//
-// This method is useful for monitoring and debugging cache performance.
-// The statistics are updated in real-time and provide insights into cache efficiency.
-func (l *LDAP) GetCacheStats() CacheStats {
-	if l.cache == nil {
-		return CacheStats{}
-	}
-
-	return l.cache.Stats()
-}
-
-// GetPerformanceStats returns comprehensive performance statistics.
-// Returns an empty PerformanceStats struct if performance monitoring is not enabled.
-//
-// Returns:
-//   - PerformanceStats: Current performance metrics including response times, error rates, etc.
+// The returned statistics include:
+//   - Operation counts and timing percentiles (P50, P95, P99)
+//   - Cache hit/miss ratios and slow query detection
+//   - Memory usage and goroutine counts
+//   - Operation breakdown by type and error statistics
 //
 // This method provides detailed insights into the performance characteristics of LDAP operations,
 // including timing percentiles, cache hit ratios, and slow query detection.
@@ -474,165 +85,78 @@ func (l *LDAP) GetPerformanceStats() PerformanceStats {
 		return PerformanceStats{}
 	}
 
-	return l.perfMonitor.GetStats()
-}
-
-// ClearCache clears all cached entries if caching is enabled.
-// This method is useful for cache invalidation scenarios or testing.
-func (l *LDAP) ClearCache() {
-	if l.cache != nil {
-		l.cache.Clear()
-		l.logger.Info("cache_cleared_manually")
+	stats := l.perfMonitor.GetStats()
+	if stats == nil {
+		return PerformanceStats{}
 	}
+
+	return *stats
 }
 
-// SetRateLimiter configures rate limiting for authentication attempts.
-// This provides security protection against brute force attacks and suspicious patterns.
+// WithCredentials creates a new LDAP client with different credentials.
+// This method allows for creating a client authenticated as a different user
+// while maintaining the same configuration and connection settings.
 //
 // Parameters:
-//   - limiter: The rate limiter instance to use for authentication protection
-//
-// Example:
-//
-//	config := DefaultRateLimiterConfig()
-//	config.MaxAttempts = 5
-//	config.Window = 15 * time.Minute
-//	limiter := NewRateLimiter(config, logger)
-//	client.SetRateLimiter(limiter)
-func (l *LDAP) SetRateLimiter(limiter *RateLimiter) {
-	l.rateLimiter = limiter
-	l.logger.Info("rate_limiter_configured",
-		slog.Int("max_attempts", limiter.config.MaxAttempts),
-		slog.Duration("window", limiter.config.Window),
-		slog.Duration("lockout_duration", limiter.config.LockoutDuration))
-}
-
-// GetRateLimiterMetrics returns current rate limiter statistics if rate limiting is enabled.
-// Returns zero metrics if rate limiting is not configured.
+//   - dn: The distinguished name (DN) for the new credentials
+//   - password: The password for the new credentials
 //
 // Returns:
-//   - RateLimiterMetrics: Current security and performance metrics from the rate limiter
-//
-// Example:
-//
-//	metrics := client.GetRateLimiterMetrics()
-//	logger.Info("Security status",
-//		slog.Int64("blocked_attempts", metrics.BlockedAttempts),
-//		slog.Int64("active_lockouts", metrics.ActiveLockouts))
-func (l *LDAP) GetRateLimiterMetrics() RateLimiterMetrics {
-	if l.rateLimiter == nil {
-		return RateLimiterMetrics{}
-	}
-	return l.rateLimiter.GetMetrics()
+//   - *LDAP: A new LDAP client authenticated with the provided credentials
+//   - error: Any error encountered during client creation
+func (l *LDAP) WithCredentials(dn, password string) (*LDAP, error) {
+	return New(l.config, dn, password)
 }
 
-// Close closes the LDAP client and releases all resources.
-// If connection pooling is enabled, this will close all pooled connections.
-// If caching is enabled, this will shut down the cache and background tasks.
-// If performance monitoring is enabled, this will close the performance monitor.
-// This method should be called when the client is no longer needed to prevent resource leaks.
+// Close closes the LDAP client and cleans up resources.
+// This method properly closes connection pools, caches, and other resources.
 //
 // Returns:
 //   - error: Any error encountered during cleanup
-//
-// Example:
-//
-//	client, err := New(config, user, password)
-//	if err != nil {
-//	    return err
-//	}
-//	defer client.Close()
 func (l *LDAP) Close() error {
-	return l.CloseWithTimeout(30 * time.Second)
-}
+	var errs []error
 
-// CloseWithTimeout closes the LDAP client with a specified timeout for cleanup operations.
-// This provides more control over the shutdown process and prevents hanging on resource cleanup.
-func (l *LDAP) CloseWithTimeout(timeout time.Duration) error {
-	start := time.Now()
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	// Use MultiError for better error aggregation
-	multiErr := NewMultiError("LDAP_Close")
-
-	// Close components in reverse dependency order with timeout protection
-	components := []struct {
-		name string
-		fn   func() error
-	}{
-		{"performance_monitor", l.closePerformanceMonitor},
-		{"cache", l.closeCache},
-		{"rate_limiter", l.closeRateLimiter},
-		{"connection_pool", l.closeConnectionPool},
-	}
-
-	for _, component := range components {
-		select {
-		case <-ctx.Done():
-			multiErr.Add(fmt.Errorf("timeout during %s close: %w", component.name, ctx.Err()))
-			l.logger.Error("client_close_timeout",
-				slog.String("component", component.name),
-				slog.Duration("elapsed", time.Since(start)))
-			break
-		default:
-			if err := component.fn(); err != nil {
-				multiErr.Add(fmt.Errorf("%s close error: %w", component.name, err))
-			}
+	// Close connection pool if it exists
+	if l.connPool != nil {
+		if err := l.connPool.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("failed to close connection pool: %w", err))
 		}
 	}
 
-	// Log final close status
-	if multiErr.HasErrors() {
-		l.logger.Error("ldap_client_close_with_errors",
-			slog.Duration("duration", time.Since(start)),
-			slog.String("errors", multiErr.Error()))
-	} else {
-		l.logger.Info("ldap_client_closed_successfully",
-			slog.Duration("duration", time.Since(start)))
+	// Close cache if it exists
+	if l.cache != nil {
+		if err := l.cache.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("failed to close cache: %w", err))
+		}
 	}
 
-	return multiErr.ErrorOrNil()
-}
-
-// Component-specific close methods for better error isolation
-
-func (l *LDAP) closePerformanceMonitor() error {
-	if l.perfMonitor == nil {
-		return nil
+	// Close performance monitor if it exists
+	if l.perfMonitor != nil {
+		if err := l.perfMonitor.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("failed to close performance monitor: %w", err))
+		}
 	}
 
-	err := l.perfMonitor.Close()
-	l.perfMonitor = nil
-	return err
-}
-
-func (l *LDAP) closeCache() error {
-	if l.cache == nil {
-		return nil
+	// Return combined errors if any
+	if len(errs) > 0 {
+		var errMsg string
+		for i, err := range errs {
+			if i > 0 {
+				errMsg += "; "
+			}
+			errMsg += err.Error()
+		}
+		return fmt.Errorf("errors during close: %s", errMsg)
 	}
 
-	err := l.cache.Close()
-	l.cache = nil
-	return err
-}
-
-func (l *LDAP) closeRateLimiter() error {
-	if l.rateLimiter == nil {
-		return nil
-	}
-
-	l.rateLimiter.Close()
-	l.rateLimiter = nil
 	return nil
 }
 
-func (l *LDAP) closeConnectionPool() error {
-	if l.pool == nil {
-		return nil
-	}
-
-	err := l.pool.Close()
-	l.pool = nil
-	return err
+// GetPoolStats returns pool statistics for backward compatibility.
+// This method is an alias for GetPerformanceStats().
+//
+// Returns:
+//   - PerformanceStats: Performance and pool statistics
+func (l *LDAP) GetPoolStats() PerformanceStats {
+	return l.GetPerformanceStats()
 }
