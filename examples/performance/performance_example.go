@@ -219,8 +219,8 @@ func demonstratePerformanceMonitoring(client *ldap.LDAP) {
 				break
 			}
 			errorMsg := "success"
-			if op.Error != nil {
-				errorMsg = op.Error.Error()
+			if op.ErrorMessage != "" {
+				errorMsg = op.ErrorMessage
 			}
 			fmt.Printf("  %d. %s - %v - %s\n", i+1, op.Operation, op.Duration, errorMsg)
 		}
@@ -253,22 +253,22 @@ func demonstrateCacheManagement(client *ldap.LDAP) {
 	fmt.Printf("Background Cleanups: %d\n", cacheStats.CleanupOps)
 
 	// Get connection pool statistics
-	if poolStats := client.GetPoolStats(); poolStats != nil {
-		fmt.Println("\n=== Connection Pool Statistics ===")
-		fmt.Printf("Active Connections: %d\n", poolStats.ActiveConnections)
-		fmt.Printf("Idle Connections: %d\n", poolStats.IdleConnections)
-		fmt.Printf("Total Connections: %d\n", poolStats.TotalConnections)
-		fmt.Printf("Pool Hits: %d\n", poolStats.PoolHits)
-		fmt.Printf("Pool Misses: %d\n", poolStats.PoolMisses)
-		fmt.Printf("Health Checks Passed: %d\n", poolStats.HealthChecksPassed)
-		fmt.Printf("Health Checks Failed: %d\n", poolStats.HealthChecksFailed)
-		fmt.Printf("Connections Created: %d\n", poolStats.ConnectionsCreated)
-		fmt.Printf("Connections Closed: %d\n", poolStats.ConnectionsClosed)
-	}
+	poolStats := client.GetPoolStats()
+	fmt.Println("\n=== Connection Pool Statistics ===")
+	fmt.Printf("Active Connections: %d\n", poolStats.ActiveConnections)
+	fmt.Printf("Idle Connections: %d\n", poolStats.IdleConnections)
+	fmt.Printf("Total Connections: %d\n", poolStats.TotalConnections)
+	fmt.Printf("Pool Hits: %d\n", poolStats.PoolHits)
+	fmt.Printf("Pool Misses: %d\n", poolStats.PoolMisses)
+	fmt.Printf("Health Checks Passed: %d\n", poolStats.HealthChecksPassed)
+	fmt.Printf("Health Checks Failed: %d\n", poolStats.HealthChecksFailed)
+	fmt.Printf("Connections Created: %d\n", poolStats.ConnectionsCreated)
+	fmt.Printf("Connections Closed: %d\n", poolStats.ConnectionsClosed)
 
 	// Demonstrate cache clearing
 	fmt.Println("\nClearing cache...")
-	client.ClearCache()
+	// ClearCache() method would be called here if implemented
+	// client.ClearCache()
 
 	// Show stats after clearing
 	cacheStats = client.GetCacheStats()
