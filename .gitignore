@@ -1,0 +1,18 @@
+# Test coverage files
+*.out
+coverage*.html
+unit_coverage.html
+
+# Test binaries
+enhanced_errors
+*_test
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
