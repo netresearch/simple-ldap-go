@@ -11,18 +11,18 @@ import (
 
 // Stub variables for non-integration builds
 var (
-	sharedContainer *SharedTestContainer
-	containerMu     sync.Mutex
+	sharedContainer *SharedTestContainer //nolint:unused
+	containerMu     sync.Mutex          //nolint:unused
 )
 
 // SharedTestContainer is a stub for non-integration builds
 type SharedTestContainer struct {
-	refCount int
-	mu       sync.Mutex
+	refCount int        //nolint:unused
+	mu       sync.Mutex //nolint:unused
 }
 
 // cleanup is a stub method
-func (stc *SharedTestContainer) cleanup(t *testing.T) {
+func (stc *SharedTestContainer) cleanup(t *testing.T) { //nolint:unused
 	// No-op stub
 }
 
