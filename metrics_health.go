@@ -551,6 +551,7 @@ func (h *HTTPHealthHandler) HandleHealth(w http.ResponseWriter, r *http.Request)
 		if _, writeErr := w.Write([]byte(`{"error": "Failed to encode health report"}`)); writeErr != nil {
 			// Log error if we have a logger available
 			// For now, we silently ignore since this is rare and HTTP connection may be broken
+			_ = writeErr // Explicitly acknowledge we're ignoring the error
 		}
 	}
 }
@@ -562,6 +563,7 @@ func (h *HTTPHealthHandler) HandleLiveness(w http.ResponseWriter, r *http.Reques
 	if _, err := w.Write([]byte("OK")); err != nil {
 		// Log error if we have a logger available
 		// For now, we silently ignore since this is rare and HTTP connection may be broken
+		_ = err // Explicitly acknowledge we're ignoring the error
 	}
 }
 
@@ -576,6 +578,7 @@ func (h *HTTPHealthHandler) HandleReadiness(w http.ResponseWriter, r *http.Reque
 		if _, err := w.Write([]byte("NOT READY")); err != nil {
 			// Log error if we have a logger available
 			// For now, we silently ignore since this is rare and HTTP connection may be broken
+			_ = err // Explicitly acknowledge we're ignoring the error
 		}
 		return
 	}
@@ -585,6 +588,7 @@ func (h *HTTPHealthHandler) HandleReadiness(w http.ResponseWriter, r *http.Reque
 	if _, err := w.Write([]byte("READY")); err != nil {
 		// Log error if we have a logger available
 		// For now, we silently ignore since this is rare and HTTP connection may be broken
+		_ = err // Explicitly acknowledge we're ignoring the error
 	}
 }
 
@@ -595,6 +599,7 @@ func (h *HTTPHealthHandler) HandleMetrics(w http.ResponseWriter, r *http.Request
 		if _, err := w.Write([]byte("Metrics not enabled")); err != nil {
 			// Log error if we have a logger available
 			// For now, we silently ignore since this is rare and HTTP connection may be broken
+			_ = err
 		}
 		return
 	}
@@ -607,6 +612,7 @@ func (h *HTTPHealthHandler) HandleMetrics(w http.ResponseWriter, r *http.Request
 		if _, writeErr := w.Write([]byte("Failed to write metrics")); writeErr != nil {
 			// Log error if we have a logger available
 			// For now, we silently ignore since this is rare and HTTP connection may be broken
+			_ = writeErr
 		}
 	}
 }
