@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/mail"
 	"net/url"
 	"regexp"
@@ -21,6 +22,8 @@ type SecureCredential struct {
 	username []byte
 	password []byte
 	provider CredentialProvider
+	expiry   time.Time
+	expired  bool
 }
 
 // CredentialProvider interface allows for custom credential management strategies
@@ -87,9 +90,28 @@ func NewSecureCredential(provider CredentialProvider) (*SecureCredential, error)
 		provider: provider,
 		username: []byte(username),
 		password: []byte(password),
+		expired:  false,
 	}
 
 	return sc, nil
+}
+
+// NewSecureCredentialWithTimeout creates a new SecureCredential with username, password and timeout (for test compatibility)
+func NewSecureCredentialWithTimeout(username, password string, timeout time.Duration) *SecureCredential {
+	provider := &DefaultCredentialProvider{
+		username: username,
+		password: password,
+	}
+
+	sc := &SecureCredential{
+		provider: provider,
+		username: []byte(username),
+		password: []byte(password),
+		expiry:   time.Now().Add(timeout),
+		expired:  false,
+	}
+
+	return sc
 }
 
 // NewSecureCredentialSimple creates a SecureCredential with basic string credentials
@@ -322,7 +344,43 @@ func (sc *SecureCredential) GetCredentials() (string, string) {
 	sc.mutex.RLock()
 	defer sc.mutex.RUnlock()
 
+	if sc.expired || (!sc.expiry.IsZero() && time.Now().After(sc.expiry)) {
+		return "", ""
+	}
+
 	return string(sc.username), string(sc.password)
+}
+
+// IsExpired checks if the credential has expired
+func (sc *SecureCredential) IsExpired() bool {
+	sc.mutex.RLock()
+	defer sc.mutex.RUnlock()
+
+	return sc.expired || (!sc.expiry.IsZero() && time.Now().After(sc.expiry))
+}
+
+// Zeroize securely clears credential data from memory
+func (sc *SecureCredential) Zeroize() {
+	sc.mutex.Lock()
+	defer sc.mutex.Unlock()
+
+	// Zero out the byte slices
+	for i := range sc.username {
+		sc.username[i] = 0
+	}
+	for i := range sc.password {
+		sc.password[i] = 0
+	}
+
+	// Clear the slices
+	sc.username = nil
+	sc.password = nil
+	sc.expired = true
+
+	// Call provider's zeroize method
+	if sc.provider != nil {
+		_ = sc.provider.ZeroizeCredentials()
+	}
 }
 
 // ZeroizeCredentials securely clears credential data from memory
@@ -357,6 +415,30 @@ func (sc *SecureCredential) Clone() (*SecureCredential, error) {
 
 	username, password := sc.GetCredentials()
 	return NewSecureCredentialSimple(username, password)
+}
+
+// TLSConfig represents TLS configuration settings
+type TLSConfig struct {
+	// MinVersion specifies the minimum TLS version
+	MinVersion uint16
+
+	// MaxVersion specifies the maximum TLS version
+	MaxVersion uint16
+
+	// CipherSuites specifies allowed cipher suites
+	CipherSuites []uint16
+
+	// InsecureSkipVerify disables certificate verification (INSECURE)
+	InsecureSkipVerify bool
+
+	// ServerName specifies the server name for SNI
+	ServerName string
+
+	// Certificates specifies client certificates
+	Certificates []tls.Certificate
+
+	// RootCAs specifies custom root CAs
+	RootCAs []string
 }
 
 // SecurityConfig contains security-related configuration options
@@ -879,6 +961,118 @@ func maskSensitiveData(data string) string {
 	masked := strings.Repeat("*", len(data)-2*visible)
 
 	return prefix + masked + suffix
+}
+
+// ValidateTLSConfig validates a TLS configuration for security compliance
+func ValidateTLSConfig(config *tls.Config) error {
+	if config == nil {
+		return fmt.Errorf("TLS config cannot be nil")
+	}
+
+	// Check minimum TLS version
+	if config.MinVersion < tls.VersionTLS12 {
+		return fmt.Errorf("minimum TLS version must be 1.2 or higher, got %d", config.MinVersion)
+	}
+
+	// Check for insecure skip verify
+	if config.InsecureSkipVerify {
+		return fmt.Errorf("InsecureSkipVerify is enabled - this is insecure")
+	}
+
+	// Validate cipher suites if specified
+	if len(config.CipherSuites) > 0 {
+		secureCiphers := map[uint16]bool{
+			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384:   true,
+			tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256:   true,
+			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384: true,
+			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256: true,
+		}
+
+		hasSecureCipher := false
+		for _, cipher := range config.CipherSuites {
+			if secureCiphers[cipher] {
+				hasSecureCipher = true
+				break
+			}
+		}
+
+		if !hasSecureCipher {
+			return fmt.Errorf("no secure cipher suites configured")
+		}
+	}
+
+	return nil
+}
+
+// CreateSecureTLSConfig creates a secure TLS configuration from TLSConfig
+func CreateSecureTLSConfig(cfg *TLSConfig) *tls.Config {
+	if cfg == nil {
+		return &tls.Config{
+			MinVersion: tls.VersionTLS12,
+			CipherSuites: []uint16{
+				tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+				tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+				tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+				tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+			},
+			InsecureSkipVerify: false,
+		}
+	}
+
+	tlsConfig := &tls.Config{
+		MinVersion:         cfg.MinVersion,
+		MaxVersion:         cfg.MaxVersion,
+		CipherSuites:       cfg.CipherSuites,
+		InsecureSkipVerify: cfg.InsecureSkipVerify,
+		ServerName:         cfg.ServerName,
+		Certificates:       cfg.Certificates,
+	}
+
+	// Set secure defaults if not specified
+	if tlsConfig.MinVersion == 0 {
+		tlsConfig.MinVersion = tls.VersionTLS12
+	}
+
+	if len(tlsConfig.CipherSuites) == 0 {
+		tlsConfig.CipherSuites = []uint16{
+			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+		}
+	}
+
+	return tlsConfig
+}
+
+// ValidateIPWhitelist validates a list of IP addresses/CIDR blocks
+func ValidateIPWhitelist(whitelist []string) ([]*net.IPNet, error) {
+	if len(whitelist) == 0 {
+		return []*net.IPNet{}, nil
+	}
+
+	var networks []*net.IPNet
+
+	for _, entry := range whitelist {
+		// Parse as CIDR
+		_, network, err := net.ParseCIDR(entry)
+		if err != nil {
+			// Try parsing as single IP
+			ip := net.ParseIP(entry)
+			if ip == nil {
+				return nil, fmt.Errorf("invalid IP address or CIDR block: %s", entry)
+			}
+			// Convert single IP to /32 or /128 CIDR
+			if ip.To4() != nil {
+				_, network, _ = net.ParseCIDR(entry + "/32")
+			} else {
+				_, network, _ = net.ParseCIDR(entry + "/128")
+			}
+		}
+		networks = append(networks, network)
+	}
+
+	return networks, nil
 }
 
 // logSecurityEvent logs security-related events

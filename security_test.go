@@ -236,7 +236,7 @@ func TestSecureCredential(t *testing.T) {
 		password := "secretPassword123"
 		timeout := 5 * time.Minute
 
-		cred := NewSecureCredential(username, password, timeout)
+		cred := NewSecureCredentialWithTimeout(username, password, timeout)
 
 		if cred.IsExpired() {
 			t.Error("New credential should not be expired")
@@ -260,7 +260,7 @@ func TestSecureCredential(t *testing.T) {
 	})
 
 	t.Run("Multiple zeroize calls", func(t *testing.T) {
-		cred := NewSecureCredential("testuser", "testpass", 5*time.Minute)
+		cred := NewSecureCredentialWithTimeout("testuser", "testpass", 5*time.Minute)
 		cred.Zeroize()
 		cred.Zeroize() // Should not panic
 
@@ -304,7 +304,7 @@ func TestCreateSecureTLSConfig(t *testing.T) {
 
 	tlsConfig := CreateSecureTLSConfig(cfg)
 	if tlsConfig == nil {
-		t.Error("Expected TLS config to be created")
+		t.Fatal("Expected TLS config to be created")
 	}
 
 	if tlsConfig.MinVersion != tls.VersionTLS12 {

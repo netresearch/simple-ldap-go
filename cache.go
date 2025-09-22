@@ -23,6 +23,27 @@ var (
 	ErrCacheFull = errors.New("cache is full")
 )
 
+// CacheStats contains cache performance statistics
+type CacheStats struct {
+	Hits             int64         `json:"hits"`
+	Misses           int64         `json:"misses"`
+	HitRatio         float64       `json:"hit_ratio"`
+	TotalEntries     int32         `json:"total_entries"`
+	MaxEntries       int32         `json:"max_entries"`
+	MemoryUsageMB    float64       `json:"memory_usage_mb"`
+	MemoryUsageBytes int64         `json:"memory_usage_bytes"`
+	AvgGetTime       time.Duration `json:"avg_get_time"`
+	AvgSetTime       time.Duration `json:"avg_set_time"`
+	Sets             int64         `json:"sets"`
+	Deletes          int64         `json:"deletes"`
+	Evictions        int64         `json:"evictions"`
+	Expirations      int64         `json:"expirations"`
+	NegativeHits     int64         `json:"negative_hits"`
+	NegativeEntries  int32         `json:"negative_entries"`
+	RefreshOps       int64         `json:"refresh_ops"`
+	CleanupOps       int64         `json:"cleanup_ops"`
+}
+
 // CacheConfig holds the configuration for the intelligent caching system
 type CacheConfig struct {
 	// Enabled controls whether caching is active (default: false for backwards compatibility)
@@ -58,40 +79,6 @@ func DefaultCacheConfig() *CacheConfig {
 		CompressionEnabled:   false,
 		CompressionThreshold: 1024,
 	}
-}
-
-// CacheStats provides detailed statistics about cache performance
-type CacheStats struct {
-	// Hit metrics
-	Hits     int64   // Total cache hits
-	Misses   int64   // Total cache misses
-	HitRatio float64 // Hit ratio percentage
-
-	// Entry metrics
-	TotalEntries int32 // Current number of entries
-	MaxEntries   int32 // Maximum entries reached
-
-	// Memory metrics
-	MemoryUsageBytes int64   // Approximate memory usage in bytes
-	MemoryUsageMB    float64 // Memory usage in MB
-
-	// Operation metrics
-	Sets        int64 // Total set operations
-	Deletes     int64 // Total delete operations
-	Evictions   int64 // Total evictions due to size/memory limits
-	Expirations int64 // Total expirations due to TTL
-
-	// Performance metrics
-	AvgGetTime time.Duration // Average get operation time
-	AvgSetTime time.Duration // Average set operation time
-
-	// Negative cache metrics
-	NegativeHits    int64 // Cache hits for negative results
-	NegativeEntries int32 // Current negative cache entries
-
-	// Background task metrics
-	RefreshOps int64 // Background refresh operations
-	CleanupOps int64 // Background cleanup operations
 }
 
 // CacheEntry represents a cached item with metadata

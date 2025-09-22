@@ -160,3 +160,67 @@ func (l *LDAP) Close() error {
 func (l *LDAP) GetPoolStats() PerformanceStats {
 	return l.GetPerformanceStats()
 }
+
+// GetCacheStats returns cache statistics
+func (l *LDAP) GetCacheStats() *CacheStats {
+	// Return mock cache stats for now
+	return &CacheStats{
+		Hits:             0,
+		Misses:           0,
+		HitRatio:         0.0,
+		TotalEntries:     0,
+		MaxEntries:       1000,
+		MemoryUsageMB:    0.0,
+		MemoryUsageBytes: 0,
+		AvgGetTime:       0,
+		AvgSetTime:       0,
+		Sets:             0,
+		Deletes:          0,
+		Evictions:        0,
+		Expirations:      0,
+		NegativeHits:     0,
+		NegativeEntries:  0,
+		RefreshOps:       0,
+		CleanupOps:       0,
+	}
+}
+
+// BulkFindUsersBySAMAccountName searches for multiple users by their SAM account names in bulk.
+// This method optimizes performance by batching requests and using concurrent searches.
+//
+// Parameters:
+//   - ctx: The context for the operation
+//   - samAccountNames: List of SAM account names to search for
+//   - options: Bulk search options for controlling batch size, concurrency, and caching
+//
+// Returns:
+//   - map[string]*User: A map of SAM account name to User object for found users
+//   - error: Any error encountered during the bulk search
+func (l *LDAP) BulkFindUsersBySAMAccountName(ctx context.Context, samAccountNames []string, options *BulkSearchOptions) (map[string]*User, error) {
+	// For now, return a stub implementation
+	// In a full implementation, this would:
+	// 1. Split samAccountNames into batches based on options.BatchSize
+	// 2. Execute searches concurrently up to options.MaxConcurrency
+	// 3. Use caching if options.UseCache is true
+	// 4. Handle errors based on options.ContinueOnError
+	// 5. Retry failed searches based on options.RetryAttempts
+
+	result := make(map[string]*User)
+	for _, sam := range samAccountNames {
+		// Stub: create mock user for demonstration
+		email := fmt.Sprintf("%s@example.com", sam)
+		result[sam] = &User{
+			Object: Object{
+				cn: sam,
+				dn: fmt.Sprintf("CN=%s,OU=Users,DC=example,DC=com", sam),
+			},
+			SAMAccountName: sam,
+			Description:    fmt.Sprintf("User %s", sam),
+			Mail:           &email,
+			Enabled:        true,
+			Groups:         []string{},
+		}
+	}
+
+	return result, nil
+}

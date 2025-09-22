@@ -117,6 +117,15 @@ type PerformanceMetrics struct {
 	TotalConnections  int                    `json:"total_connections"`
 	ConnectionsCreated int64                 `json:"connections_created"`
 
+	// Additional fields for example compatibility
+	ActiveConnections    int                    `json:"active_connections"`
+	IdleConnections      int                    `json:"idle_connections"`
+	HealthChecksPassed   int64                  `json:"health_checks_passed"`
+	HealthChecksFailed   int64                  `json:"health_checks_failed"`
+	ConnectionsClosed    int64                  `json:"connections_closed"`
+	ConnectionPoolRatio  float64                `json:"connection_pool_ratio"`
+	TopSlowOperations    []OperationMetric      `json:"top_slow_operations,omitempty"`
+
 	// Connection pool stats (if available)
 	PoolStats         *ConnectionPoolStats   `json:"pool_stats,omitempty"`
 }
@@ -546,4 +555,24 @@ func DefaultSearchOptions() *SearchOptions {
 		MaxResults:       1000,
 		Timeout:          30 * time.Second,
 	}
+}
+
+// BulkSearchOptions provides configuration for optimized bulk search operations
+type BulkSearchOptions struct {
+	// BatchSize determines how many searches to perform concurrently
+	BatchSize int
+	// Timeout sets a custom timeout for the entire bulk operation
+	Timeout time.Duration
+	// ContinueOnError enables continuing even if some searches fail
+	ContinueOnError bool
+	// UseCache enables/disables caching for bulk searches
+	UseCache bool
+	// CachePrefix is a prefix for cache keys in bulk operations
+	CachePrefix string
+	// MaxConcurrency limits the number of concurrent searches
+	MaxConcurrency int
+	// RetryAttempts specifies how many times to retry failed searches
+	RetryAttempts int
+	// RetryDelay specifies the delay between retry attempts
+	RetryDelay time.Duration
 }

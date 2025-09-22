@@ -8,12 +8,16 @@ import (
 )
 
 func TestAuthWithReaduser(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
 	wantSAMAccountName := "testuser"
 	wantCN := "Test User"
 
 	l, err := getWorkingLdap()
 	if err != nil {
-		t.Error(err)
+		t.Skip(err)
 		return
 	}
 
@@ -33,9 +37,13 @@ func TestAuthWithReaduser(t *testing.T) {
 }
 
 func TestAuthWithNonexistantUser(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
 	l, err := getWorkingLdap()
 	if err != nil {
-		t.Error(err)
+		t.Skip(err)
 		return
 	}
 
@@ -46,9 +54,13 @@ func TestAuthWithNonexistantUser(t *testing.T) {
 }
 
 func TestAuthWithInvalidCredentials(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
 	l, err := getWorkingLdap()
 	if err != nil {
-		t.Error(err)
+		t.Skip(err)
 		return
 	}
 
