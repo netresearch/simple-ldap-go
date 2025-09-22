@@ -54,15 +54,6 @@ func (l *LDAP) encodePasswordPair(oldCreds, newCreds *SecureCredential, username
 	return oldEncoded, newEncoded, nil
 }
 
-// getStringFromContext safely extracts a string value from context
-func getStringFromContext(ctx context.Context, key string) string {
-	if value := ctx.Value(key); value != nil {
-		if str, ok := value.(string); ok {
-			return str
-		}
-	}
-	return ""
-}
 
 // parseObjectEnabled determines if an LDAP object is enabled based on userAccountControl attribute.
 // This function parses the Active Directory userAccountControl attribute to determine if an account is enabled.
