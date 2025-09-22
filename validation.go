@@ -653,11 +653,7 @@ func (v *Validator) isValidFilterFormat(filter string) bool {
 	// Check for balanced parentheses
 	openCount := strings.Count(filter, "(")
 	closeCount := strings.Count(filter, ")")
-	if openCount != closeCount {
-		return false
-	}
-
-	return true
+	return openCount == closeCount
 }
 
 // isValidAttributeName checks if the attribute name has a valid format
