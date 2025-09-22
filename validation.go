@@ -267,13 +267,19 @@ func (v *Validator) ValidateFilter(filter string) *ValidationResult {
 		result.Errors = append(result.Errors, "Filter has invalid format")
 	}
 
-	// Add complexity metadata
-	if result.Valid {
-		result.Metadata["complexity"] = v.calculateFilterComplexity(normalizedFilter)
+	// Check complexity and add to metadata
+	complexity := v.calculateFilterComplexity(normalizedFilter)
+	result.Metadata["complexity"] = complexity
+
+	// Fail if complexity is too high (threshold of 50 for very complex filters)
+	if complexity > 50 {
+		result.Valid = false
+		result.Errors = append(result.Errors, "Filter too complex: maximum complexity exceeded")
 	}
 
 	return result
 }
+
 
 // ValidateCredentials validates username and password credentials
 func (v *Validator) ValidateCredentials(username, password string) *ValidationResult {
@@ -378,6 +384,9 @@ func (v *Validator) ValidateAttribute(attributeName, attributeValue string) *Val
 		result.Errors = append(result.Errors, fmt.Sprintf("Attribute value exceeds maximum length of %d characters", v.config.MaxValueLength))
 	}
 
+	// Set metadata about value type early (even for invalid attribute names)
+	result.Metadata["value_type"] = v.detectValueType(attributeValue)
+
 	// Check for empty attribute name
 	if strings.TrimSpace(attributeName) == "" {
 		result.Valid = false
@@ -435,9 +444,6 @@ func (v *Validator) ValidateAttribute(attributeName, attributeValue string) *Val
 	if result.Valid {
 		v.validateSpecificAttributeValue(normalizedAttributeName, normalizedAttributeValue, result)
 	}
-
-	// Detect value type
-	result.Metadata["value_type"] = v.detectValueType(attributeValue)
 
 	return result
 }
@@ -818,12 +824,17 @@ func (v *Validator) calculatePasswordStrength(password string, analysis *Passwor
 	entropyScore := math.Min(analysis.Entropy/40.0, 1.0) * 0.2
 	score += entropyScore
 
-	// Penalize common patterns
+	// Penalize common patterns - less harsh for longer passwords
 	lowerPassword := strings.ToLower(password)
 	commonPatterns := []string{"password", "123456", "qwerty", "admin", "letmein"}
 	for _, pattern := range commonPatterns {
 		if strings.Contains(lowerPassword, pattern) {
-			score *= 0.5 // Significant penalty
+			// Scale penalty based on password length - longer passwords get less penalty
+			penaltyFactor := 0.5 + (float64(len(password)) * 0.05) // 0.5 base + 0.05 per character
+			if penaltyFactor > 0.8 {
+				penaltyFactor = 0.8 // Cap at 80% of original score
+			}
+			score *= penaltyFactor
 			break
 		}
 	}
@@ -985,3 +996,5 @@ func CreateValidationSummary(results []*ValidationResult) *ValidationSummary {
 
 	return summary
 }
+
+

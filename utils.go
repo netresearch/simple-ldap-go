@@ -86,12 +86,11 @@ func getStringFromContext(ctx context.Context, key string) string {
 //   - 66050 (0x10202): Normal account, password never expires, disabled
 func parseObjectEnabled(userAccountControl string) (bool, error) {
 	if userAccountControl == "" {
-		// Empty userAccountControl typically means enabled in OpenLDAP systems
-		return true, nil
+		return false, fmt.Errorf("userAccountControl cannot be empty")
 	}
 
-	// Parse the userAccountControl value
-	uac, err := strconv.ParseUint(userAccountControl, 10, 32)
+	// Parse the userAccountControl value - accept both positive and negative numbers
+	uac, err := strconv.ParseInt(userAccountControl, 10, 32)
 	if err != nil {
 		return false, fmt.Errorf("failed to parse userAccountControl value '%s': %w", userAccountControl, err)
 	}

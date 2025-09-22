@@ -309,7 +309,10 @@ func Example_poolConfiguration() {
 		"Conservative": conservativeConfig,
 	}
 
-	for name, config := range configs {
+	// Iterate in deterministic order for consistent output
+	configOrder := []string{"Minimal", "Full", "HighPerf", "Conservative"}
+	for _, name := range configOrder {
+		config := configs[name]
 		fmt.Printf("%s Configuration:\n", name)
 		fmt.Printf("  Max Connections: %d\n", config.Pool.MaxConnections)
 		fmt.Printf("  Min Connections: %d\n", config.Pool.MinConnections)

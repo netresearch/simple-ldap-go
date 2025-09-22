@@ -135,6 +135,11 @@ func (l *LDAP) FindGroups() (groups []Group, err error) {
 // This method performs a subtree search starting from the configured BaseDN.
 // Groups that cannot be parsed are skipped and not included in the results.
 func (l *LDAP) FindGroupsContext(ctx context.Context) (groups []Group, err error) {
+	// Check for context cancellation first
+	if err := l.checkContextCancellation(ctx, "FindGroups", "N/A", "start"); err != nil {
+		return nil, ctx.Err()
+	}
+
 	start := time.Now()
 	l.logger.Debug("group_list_search_started",
 		slog.String("operation", "FindGroups"))

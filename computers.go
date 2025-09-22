@@ -352,6 +352,11 @@ func (l *LDAP) FindComputers() (computers []Computer, err error) {
 // This method performs a subtree search starting from the configured BaseDN.
 // Computers that cannot be parsed (due to missing required attributes) are skipped.
 func (l *LDAP) FindComputersContext(ctx context.Context) (computers []Computer, err error) {
+	// Check for context cancellation first
+	if err := l.checkContextCancellation(ctx, "FindComputers", "N/A", "start"); err != nil {
+		return nil, ctx.Err()
+	}
+
 	start := time.Now()
 	l.logger.Debug("computer_list_search_started",
 		slog.String("operation", "FindComputers"))
