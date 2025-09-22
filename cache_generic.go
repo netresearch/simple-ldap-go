@@ -318,7 +318,7 @@ func (c *GenericLRUCache[T]) GetWithRefresh(key string, refreshFunc func() (T, e
 	if value, found := c.Get(key); found {
 		// Check if stale and refresh is enabled
 		c.mu.RLock()
-		entry, _ := c.items[key]
+		entry := c.items[key]
 		isStale := entry != nil && entry.IsStale()
 		c.mu.RUnlock()
 
