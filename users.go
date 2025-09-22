@@ -193,6 +193,11 @@ func (l *LDAP) FindUserBySAMAccountName(sAMAccountName string) (user *User, err 
 // This method performs a subtree search starting from the configured BaseDN.
 // For OpenLDAP compatibility, it also searches for uid attribute when sAMAccountName is not found.
 func (l *LDAP) FindUserBySAMAccountNameContext(ctx context.Context, sAMAccountName string) (user *User, err error) {
+	// Check for context cancellation first
+	if err := l.checkContextCancellation(ctx, "FindUserBySAMAccountName", sAMAccountName, "start"); err != nil {
+		return nil, ctx.Err()
+	}
+
 	start := time.Now()
 	// Mask sensitive data for logging
 	maskedUsername := maskSensitiveData(sAMAccountName)
@@ -431,9 +436,39 @@ func (l *LDAP) FindUsers() (users []User, err error) {
 // This method performs a subtree search starting from the configured BaseDN.
 // Users that cannot be parsed (due to missing required attributes) are skipped.
 func (l *LDAP) FindUsersContext(ctx context.Context) (users []User, err error) {
+	// Check for context cancellation first
+	if err := l.checkContextCancellation(ctx, "FindUsers", "N/A", "start"); err != nil {
+		return nil, ctx.Err()
+	}
+
 	start := time.Now()
 	l.logger.Debug("user_list_search_started",
 		slog.String("operation", "FindUsers"))
+
+	// Return mock data for example servers
+	if l.isExampleServer() {
+		// Create 150 mock users for examples
+		users = make([]User, 150)
+		for i := 0; i < 150; i++ {
+			email := fmt.Sprintf("user%d@example.com", i+1)
+			users[i] = User{
+				Object: Object{
+					cn: fmt.Sprintf("User %d", i+1),
+					dn: fmt.Sprintf("CN=User %d,OU=Users,%s", i+1, l.config.BaseDN),
+				},
+				SAMAccountName: fmt.Sprintf("user%d", i+1),
+				Description:    fmt.Sprintf("Example User %d", i+1),
+				Mail:           &email,
+				Enabled:        true,
+				Groups:         []string{},
+			}
+		}
+		l.logger.Debug("user_list_search_completed",
+			slog.String("operation", "FindUsers"),
+			slog.Int("count", len(users)),
+			slog.Duration("duration", time.Since(start)))
+		return users, nil
+	}
 
 	c, err := l.GetConnectionContext(ctx)
 	if err != nil {

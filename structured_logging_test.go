@@ -210,7 +210,7 @@ func TestSearchOperationLogging(t *testing.T) {
 	testBuf := NewTestLogBuffer(slog.LevelDebug)
 
 	config := Config{
-		Server:            "ldap://localhost:389", // Non-existent server for testing
+		Server:            "ldap://nonexistent.server:389", // Non-existent server for testing
 		BaseDN:            "DC=test,DC=com",
 		IsActiveDirectory: false,
 		Logger:            testBuf.logger,

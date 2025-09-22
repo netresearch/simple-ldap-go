@@ -19,10 +19,10 @@ func TestLDAPError(t *testing.T) {
 		WithContext("username", "testuser").
 		WithContext("filter", "(objectClass=user)")
 
-	// Test error message formatting
+	// Test error message formatting - use UnmaskedError for testing
 	expectedMsg := `ldap TestOperation failed for DN "CN=test,DC=example,DC=com" on server "ldaps://test.com": connection refused`
-	if ldapErr.Error() != expectedMsg {
-		t.Errorf("Expected error message %q, got %q", expectedMsg, ldapErr.Error())
+	if ldapErr.UnmaskedError() != expectedMsg {
+		t.Errorf("Expected error message %q, got %q", expectedMsg, ldapErr.UnmaskedError())
 	}
 
 	// Test error unwrapping

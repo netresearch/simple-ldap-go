@@ -363,12 +363,12 @@ func TestComputerSAMAccountNameFormat(t *testing.T) {
 		}
 
 		for _, name := range validNames {
-			assert.True(t, strings.HasSuffix(name, "$"), "Valid computer name should end with $: %s", name)
+			assert.True(t, ValidateComputerSAMAccountName(name), "Valid computer name should pass validation: %s", name)
 		}
 
 		for _, name := range invalidNames {
 			if name != "" {
-				assert.False(t, strings.HasSuffix(name, "$") && !strings.HasSuffix(name, "$$"),
+				assert.False(t, ValidateComputerSAMAccountName(name),
 					"Invalid computer name: %s", name)
 			}
 		}

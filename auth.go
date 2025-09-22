@@ -50,10 +50,15 @@ func (l *LDAP) CheckPasswordForSAMAccountName(sAMAccountName, password string) (
 //
 // This is commonly used for login validation in Active Directory environments.
 func (l *LDAP) CheckPasswordForSAMAccountNameContext(ctx context.Context, sAMAccountName, password string) (*User, error) {
+	// Check for context cancellation first
+	if err := l.checkContextCancellation(ctx, "CheckPasswordForSAMAccountName", sAMAccountName, "start"); err != nil {
+		return nil, ctx.Err()
+	}
+
 	start := time.Now()
 
 	// Create secure credential for password handling
-	creds, err := NewSecureCredentialSimple("", password)
+	creds, err := NewSecureCredentialSimple(sAMAccountName, password)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create secure credentials: %w", err)
 	}

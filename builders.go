@@ -142,17 +142,11 @@ func (b *UserBuilder) Build() (*FullUser, error) {
 	if b.user.CN == "" {
 		return nil, errors.New("CN is required")
 	}
-	if b.user.FirstName == "" {
-		return nil, errors.New("FirstName is required")
-	}
-	if b.user.LastName == "" {
-		return nil, errors.New("LastName is required")
+	if b.user.SAMAccountName == nil {
+		return nil, errors.New("SAMAccountName is required")
 	}
 
-	// Set default values
-	if b.user.SAMAccountName == nil {
-		// SAMAccountName is optional in FullUser
-	}
+	// FirstName and LastName are optional - they can be derived from CN if needed
 
 	return b.user, nil
 }
@@ -689,4 +683,24 @@ func ValidateComputer(computer *FullComputer) ValidationResult {
 		Valid:  len(errors) == 0,
 		Errors: errors,
 	}
+}
+
+// ValidateComputerSAMAccountName validates computer SAMAccountName format with stricter rules
+func ValidateComputerSAMAccountName(samAccountName string) bool {
+	// Must end with exactly one '$'
+	if !strings.HasSuffix(samAccountName, "$") || strings.HasSuffix(samAccountName, "$$") {
+		return false
+	}
+
+	// Must be uppercase (stricter rule for Active Directory compliance)
+	if samAccountName != strings.ToUpper(samAccountName) {
+		return false
+	}
+
+	// Must not be empty
+	if samAccountName == "" || samAccountName == "$" {
+		return false
+	}
+
+	return true
 }
