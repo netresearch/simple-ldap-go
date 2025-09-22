@@ -1136,11 +1136,4 @@ func ValidateIPWhitelist(whitelist []string) ([]*net.IPNet, error) {
 	return networks, nil
 }
 
-// logSecurityEvent logs security-related events
-func logSecurityEvent(event string, details map[string]interface{}) {
-	// This is a placeholder implementation
-	// In a real implementation, you would use a proper security event logging system
-	_ = event
-	_ = details
-}
 

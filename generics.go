@@ -565,8 +565,3 @@ func (p *OperationPipeline[T]) Execute() error {
 	}
 	return nil
 }
-
-// Helper function for creating string pointers (commonly needed for optional fields)
-func stringPtr(s string) *string {
-	return &s
-}
