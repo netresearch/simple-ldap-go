@@ -324,12 +324,18 @@ func (pe *PrometheusExporter) writeMetric(w io.Writer, config *PrometheusConfig,
 
 	// Write help text if enabled
 	if config.IncludeHelp && help != "" {
-		fmt.Fprintf(w, "# HELP %s %s\n", fullName, help)
+		if _, err := fmt.Fprintf(w, "# HELP %s %s\n", fullName, help); err != nil {
+			// Log error writing help text
+			return
+		}
 	}
 
 	// Write type information if enabled
 	if config.IncludeType && metricType != "" {
-		fmt.Fprintf(w, "# TYPE %s %s\n", fullName, metricType)
+		if _, err := fmt.Fprintf(w, "# TYPE %s %s\n", fullName, metricType); err != nil {
+			// Log error writing type text
+			return
+		}
 	}
 
 	// Combine labels
@@ -350,9 +356,15 @@ func (pe *PrometheusExporter) writeMetric(w io.Writer, config *PrometheusConfig,
 		}
 		sort.Strings(labelPairs)
 
-		fmt.Fprintf(w, "%s{%s} %s\n", fullName, strings.Join(labelPairs, ","), formatPrometheusValue(value))
+		if _, err := fmt.Fprintf(w, "%s{%s} %s\n", fullName, strings.Join(labelPairs, ","), formatPrometheusValue(value)); err != nil {
+			// Log error writing metric with labels
+			return
+		}
 	} else {
-		fmt.Fprintf(w, "%s %s\n", fullName, formatPrometheusValue(value))
+		if _, err := fmt.Fprintf(w, "%s %s\n", fullName, formatPrometheusValue(value)); err != nil {
+			// Log error writing metric without labels
+			return
+		}
 	}
 }
 

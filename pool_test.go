@@ -50,7 +50,7 @@ func TestNewConnectionPool(t *testing.T) {
 
 	pool, err := NewConnectionPool(poolConfig, ldapConfig, user, password, logger)
 	require.NoError(t, err)
-	defer pool.Close()
+	defer func() { _ = pool.Close() }()
 
 	// Verify initial stats
 	stats := pool.Stats()
@@ -71,7 +71,7 @@ func TestConnectionPool_GetPut(t *testing.T) {
 
 	pool, err := NewConnectionPool(poolConfig, ldapConfig, user, password, logger)
 	require.NoError(t, err)
-	defer pool.Close()
+	defer func() { _ = pool.Close() }()
 
 	ctx := context.Background()
 
@@ -87,7 +87,7 @@ func TestConnectionPool_GetPut(t *testing.T) {
 		assert.Greater(t, stats.PoolHits+stats.PoolMisses, int64(0))
 
 		// Put connection back
-		conn.Close()
+		_ = conn.Close()
 
 		// Allow time for cleanup
 		time.Sleep(10 * time.Millisecond)
@@ -113,7 +113,7 @@ func TestConnectionPool_GetPut(t *testing.T) {
 
 		// Return all connections
 		for _, conn := range connections {
-			conn.Close()
+			_ = conn.Close()
 		}
 
 		// Allow cleanup time
@@ -137,7 +137,7 @@ func TestConnectionPool_Concurrency(t *testing.T) {
 
 	pool, err := NewConnectionPool(poolConfig, ldapConfig, user, password, logger)
 	require.NoError(t, err)
-	defer pool.Close()
+	defer func() { _ = pool.Close() }()
 
 	const numGoroutines = 10
 	const operationsPerGoroutine = 5
@@ -162,7 +162,7 @@ func TestConnectionPool_Concurrency(t *testing.T) {
 				time.Sleep(1 * time.Millisecond)
 
 				// Return connection
-				conn.Close()
+				_ = conn.Close()
 			}
 		}(i)
 	}
@@ -202,7 +202,7 @@ func TestConnectionPool_PoolExhaustion(t *testing.T) {
 
 	pool, err := NewConnectionPool(poolConfig, ldapConfig, user, password, logger)
 	require.NoError(t, err)
-	defer pool.Close()
+	defer func() { _ = pool.Close() }()
 
 	ctx := context.Background()
 
@@ -236,7 +236,7 @@ func TestConnectionPool_PoolExhaustion(t *testing.T) {
 	assert.NotNil(t, conn)
 
 	// Clean up
-	conn.Close()
+	_ = conn.Close()
 	for i := 1; i < len(connections); i++ {
 		connections[i].Close()
 	}
@@ -258,7 +258,7 @@ func TestConnectionPool_HealthChecks(t *testing.T) {
 
 	pool, err := NewConnectionPool(poolConfig, ldapConfig, user, password, logger)
 	require.NoError(t, err)
-	defer pool.Close()
+	defer func() { _ = pool.Close() }()
 
 	ctx := context.Background()
 
@@ -278,7 +278,7 @@ func TestConnectionPool_HealthChecks(t *testing.T) {
 
 	// Return connections and wait for health checks
 	for _, conn := range connections {
-		conn.Close()
+		_ = conn.Close()
 	}
 
 	// Wait longer than MaxIdleTime to trigger cleanup
@@ -305,7 +305,7 @@ func TestConnectionPool_Context(t *testing.T) {
 
 	pool, err := NewConnectionPool(poolConfig, ldapConfig, user, password, logger)
 	require.NoError(t, err)
-	defer pool.Close()
+	defer func() { _ = pool.Close() }()
 
 	t.Run("ContextCancellation", func(t *testing.T) {
 		// Create a context that cancels immediately
@@ -337,7 +337,7 @@ func BenchmarkConnectionPool_GetPut(b *testing.B) {
 
 	pool, err := NewConnectionPool(poolConfig, ldapConfig, user, password, logger)
 	require.NoError(b, err)
-	defer pool.Close()
+	defer func() { _ = pool.Close() }()
 
 	ctx := context.Background()
 
@@ -349,7 +349,7 @@ func BenchmarkConnectionPool_GetPut(b *testing.B) {
 				b.Error(err)
 				continue
 			}
-			conn.Close()
+			_ = conn.Close()
 		}
 	})
 

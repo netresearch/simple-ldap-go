@@ -18,7 +18,7 @@ func TestCacheBasicOperations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create cache: %v", err)
 	}
-	defer cache.Close()
+	defer func() { _ = cache.Close() }()
 
 	// Test basic set/get operations
 	key := "test:key:1"
@@ -61,7 +61,7 @@ func TestCacheExpiration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create cache: %v", err)
 	}
-	defer cache.Close()
+	defer func() { _ = cache.Close() }()
 
 	key := "test:expiration:1"
 	value := "expiring value"
@@ -95,7 +95,7 @@ func TestCacheLRUEviction(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create cache: %v", err)
 	}
-	defer cache.Close()
+	defer func() { _ = cache.Close() }()
 
 	// Fill cache to capacity
 	for i := 0; i < 3; i++ {
@@ -143,7 +143,7 @@ func TestCacheStats(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create cache: %v", err)
 	}
-	defer cache.Close()
+	defer func() { _ = cache.Close() }()
 
 	// Initial stats should be zero
 	stats := cache.Stats()
@@ -190,7 +190,7 @@ func TestNegativeCache(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create cache: %v", err)
 	}
-	defer cache.Close()
+	defer func() { _ = cache.Close() }()
 
 	key := "test:negative:1"
 
@@ -220,7 +220,7 @@ func TestPerformanceMonitor(t *testing.T) {
 	config.SlowQueryThreshold = 10 * time.Millisecond
 
 	monitor := NewPerformanceMonitor(config, slog.Default())
-	defer monitor.Close()
+	defer func() { _ = monitor.Close() }()
 
 	ctx := context.Background()
 
@@ -299,7 +299,7 @@ func TestContextCacheOperations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create cache: %v", err)
 	}
-	defer cache.Close()
+	defer func() { _ = cache.Close() }()
 
 	ctx := context.Background()
 	key := "test:context:key"
@@ -336,7 +336,7 @@ func BenchmarkCacheSet(b *testing.B) {
 	if err != nil {
 		b.Fatalf("Failed to create cache: %v", err)
 	}
-	defer cache.Close()
+	defer func() { _ = cache.Close() }()
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -357,7 +357,7 @@ func BenchmarkCacheGet(b *testing.B) {
 	if err != nil {
 		b.Fatalf("Failed to create cache: %v", err)
 	}
-	defer cache.Close()
+	defer func() { _ = cache.Close() }()
 
 	// Pre-populate cache
 	for i := 0; i < 1000; i++ {
@@ -384,7 +384,7 @@ func BenchmarkCacheMixed(b *testing.B) {
 	if err != nil {
 		b.Fatalf("Failed to create cache: %v", err)
 	}
-	defer cache.Close()
+	defer func() { _ = cache.Close() }()
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -405,7 +405,7 @@ func BenchmarkCacheMixed(b *testing.B) {
 func BenchmarkPerformanceMonitor(b *testing.B) {
 	config := DefaultPerformanceConfig()
 	monitor := NewPerformanceMonitor(config, slog.Default())
-	defer monitor.Close()
+	defer func() { _ = monitor.Close() }()
 
 	ctx := context.Background()
 
@@ -455,14 +455,14 @@ func TestCachePerformanceIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create cache: %v", err)
 	}
-	defer cache.Close()
+	defer func() { _ = cache.Close() }()
 
 	// Setup performance monitor
 	perfConfig := DefaultPerformanceConfig()
 	perfConfig.SlowQueryThreshold = 1 * time.Millisecond
 
 	perfMonitor := NewPerformanceMonitor(perfConfig, slog.Default())
-	defer perfMonitor.Close()
+	defer func() { _ = perfMonitor.Close() }()
 
 	ctx := context.Background()
 	userDN := "CN=Test User,CN=Users,DC=example,DC=com"

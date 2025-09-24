@@ -520,7 +520,10 @@ func (p *ConnectionPool) closeConnection(conn *pooledConnection) {
 	delete(p.connMap, conn.conn)
 	p.connMapMu.Unlock()
 
-	conn.conn.Close()
+	if err := conn.conn.Close(); err != nil {
+		p.logger.Debug("connection_close_error",
+			slog.String("error", err.Error()))
+	}
 	atomic.AddInt32(&p.stats.TotalConnections, -1)
 	atomic.AddInt64(&p.stats.ConnectionsClosed, 1)
 
@@ -603,7 +606,6 @@ func (p *ConnectionPool) performHealthChecks() {
 				}
 			}
 		default:
-			break
 		}
 	}
 
@@ -669,7 +671,6 @@ func (p *ConnectionPool) cleanupIdleConnections() {
 				}
 			}
 		default:
-			break
 		}
 	}
 

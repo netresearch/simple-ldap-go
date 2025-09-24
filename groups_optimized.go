@@ -389,7 +389,15 @@ func (l *LDAP) AddUserToGroupOptimized(ctx context.Context, userDN, groupDN stri
 	if err != nil {
 		return err
 	}
-	defer c.Close()
+	defer func() {
+		if err := c.Close(); err != nil {
+			l.logger.Debug("connection_close_error",
+				slog.String("operation", "AddUserToGroupOptimized"),
+				slog.String("user_dn", userDN),
+				slog.String("group_dn", groupDN),
+				slog.String("error", err.Error()))
+		}
+	}()
 
 	// Check for context cancellation before modify operation
 	select {
@@ -460,7 +468,15 @@ func (l *LDAP) RemoveUserFromGroupOptimized(ctx context.Context, userDN, groupDN
 	if err != nil {
 		return err
 	}
-	defer c.Close()
+	defer func() {
+		if err := c.Close(); err != nil {
+			l.logger.Debug("connection_close_error",
+				slog.String("operation", "RemoveUserFromGroupOptimized"),
+				slog.String("user_dn", userDN),
+				slog.String("group_dn", groupDN),
+				slog.String("error", err.Error()))
+		}
+	}()
 
 	// Check for context cancellation before modify operation
 	select {
@@ -509,7 +525,14 @@ func (l *LDAP) findGroupByDNDirect(ctx context.Context, dn string, options *Sear
 	if err != nil {
 		return nil, fmt.Errorf("failed to get connection for group DN search: %w", err)
 	}
-	defer c.Close()
+	defer func() {
+		if err := c.Close(); err != nil {
+			l.logger.Debug("connection_close_error",
+				slog.String("operation", "findGroupByDNDirect"),
+				slog.String("group_dn", dn),
+				slog.String("error", err.Error()))
+		}
+	}()
 
 	// Apply timeout if specified in options
 	searchCtx := ctx
@@ -569,7 +592,13 @@ func (l *LDAP) findGroupsDirect(ctx context.Context, options *SearchOptions) ([]
 	if err != nil {
 		return nil, err
 	}
-	defer c.Close()
+	defer func() {
+		if err := c.Close(); err != nil {
+			l.logger.Debug("connection_close_error",
+				slog.String("operation", "findGroupsDirect"),
+				slog.String("error", err.Error()))
+		}
+	}()
 
 	// Apply timeout if specified in options
 	searchCtx := ctx
@@ -632,7 +661,14 @@ func (l *LDAP) getUserGroupsDirect(ctx context.Context, userDN string, options *
 	if err != nil {
 		return nil, err
 	}
-	defer c.Close()
+	defer func() {
+		if err := c.Close(); err != nil {
+			l.logger.Debug("connection_close_error",
+				slog.String("operation", "getUserGroupsDirect"),
+				slog.String("user_dn", userDN),
+				slog.String("error", err.Error()))
+		}
+	}()
 
 	// Apply timeout if specified in options
 	searchCtx := ctx

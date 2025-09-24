@@ -34,7 +34,7 @@ func demonstrateStructuredLogging() {
 		slog.Error("Failed to open log file", slog.String("error", err.Error()))
 		return
 	}
-	defer logFile.Close()
+	defer func() { _ = logFile.Close() }()
 
 	textLogger := slog.New(slog.NewTextHandler(logFile, &slog.HandlerOptions{
 		Level: slog.LevelInfo, // Only log Info and above to file

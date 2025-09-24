@@ -44,7 +44,7 @@ func TestLDAP_WithConnectionPool(t *testing.T) {
 
 	client, err := New(&config, bindDN, bindPassword)
 	require.NoError(t, err)
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	// Verify pool is initialized
 	stats := client.GetPoolStats()
@@ -172,7 +172,7 @@ func TestLDAP_WithoutConnectionPool(t *testing.T) {
 
 	client, err := New(&config, bindDN, bindPassword)
 	require.NoError(t, err)
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	// Verify no pool is initialized
 	stats := client.GetPoolStats()
@@ -214,7 +214,7 @@ func TestLDAP_PooledConnectionInterface(t *testing.T) {
 
 	client, err := New(&config, bindDN, bindPassword)
 	require.NoError(t, err)
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	ctx := context.Background()
 
@@ -287,7 +287,7 @@ func BenchmarkLDAP_PooledVsNonPooled(b *testing.B) {
 
 		client, err := New(&config, bindDN, bindPassword)
 		require.NoError(b, err)
-		defer client.Close()
+		defer func() { _ = client.Close() }()
 
 		ctx := context.Background()
 
@@ -319,7 +319,7 @@ func BenchmarkLDAP_PooledVsNonPooled(b *testing.B) {
 
 		client, err := New(&config, bindDN, bindPassword)
 		require.NoError(b, err)
-		defer client.Close()
+		defer func() { _ = client.Close() }()
 
 		ctx := context.Background()
 
