@@ -227,7 +227,7 @@ func TestConnectionPool_PoolExhaustion(t *testing.T) {
 	assert.Error(t, err, "Expected timeout error when pool is exhausted")
 
 	// Return one connection
-	connections[0].Close()
+	_ = connections[0].Close()
 	time.Sleep(10 * time.Millisecond)
 
 	// Should be able to get a connection now
@@ -238,7 +238,7 @@ func TestConnectionPool_PoolExhaustion(t *testing.T) {
 	// Clean up
 	_ = conn.Close()
 	for i := 1; i < len(connections); i++ {
-		connections[i].Close()
+		_ = connections[i].Close()
 	}
 }
 

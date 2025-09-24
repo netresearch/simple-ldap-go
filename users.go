@@ -209,7 +209,14 @@ func (l *LDAP) FindUserBySAMAccountNameContext(ctx context.Context, sAMAccountNa
 	if err != nil {
 		return nil, connectionError("SAM account", "search", err)
 	}
-	defer c.Close()
+	defer func() {
+		if closeErr := c.Close(); closeErr != nil {
+			l.logger.Debug("connection_close_error",
+				slog.String("operation", "FindUserBySAMAccountName"),
+				slog.String("sam_account_name", sAMAccountName),
+				slog.String("error", closeErr.Error()))
+		}
+	}()
 
 	// Check for context cancellation before first search
 	if err := l.checkContextCancellation(ctx, "user_search", sAMAccountName, "before_first_search"); err != nil {
@@ -342,7 +349,13 @@ func (l *LDAP) FindUserByMailContext(ctx context.Context, mail string) (user *Us
 	if err != nil {
 		return nil, err
 	}
-	defer c.Close()
+	defer func() {
+		if closeErr := c.Close(); closeErr != nil {
+			l.logger.Debug("connection_close_error",
+				slog.String("operation", "FindUserByMail"),
+				slog.String("error", closeErr.Error()))
+		}
+	}()
 
 	// Check for context cancellation before search
 	select {
@@ -474,7 +487,13 @@ func (l *LDAP) FindUsersContext(ctx context.Context) (users []User, err error) {
 	if err != nil {
 		return nil, err
 	}
-	defer c.Close()
+	defer func() {
+		if closeErr := c.Close(); closeErr != nil {
+			l.logger.Debug("connection_close_error",
+				slog.String("operation", "FindUserByMail"),
+				slog.String("error", closeErr.Error()))
+		}
+	}()
 
 	// Check for context cancellation before search
 	select {
@@ -579,7 +598,13 @@ func (l *LDAP) AddUserToGroupContext(ctx context.Context, dn, groupDN string) er
 	if err != nil {
 		return err
 	}
-	defer c.Close()
+	defer func() {
+		if closeErr := c.Close(); closeErr != nil {
+			l.logger.Debug("connection_close_error",
+				slog.String("operation", "FindUserByMail"),
+				slog.String("error", closeErr.Error()))
+		}
+	}()
 
 	// Check for context cancellation before modify operation
 	select {
@@ -652,7 +677,13 @@ func (l *LDAP) RemoveUserFromGroupContext(ctx context.Context, dn, groupDN strin
 	if err != nil {
 		return err
 	}
-	defer c.Close()
+	defer func() {
+		if closeErr := c.Close(); closeErr != nil {
+			l.logger.Debug("connection_close_error",
+				slog.String("operation", "FindUserByMail"),
+				slog.String("error", closeErr.Error()))
+		}
+	}()
 
 	// Check for context cancellation before modify operation
 	select {
@@ -785,7 +816,13 @@ func (l *LDAP) CreateUserContext(ctx context.Context, user FullUser, password st
 	if err != nil {
 		return "", err
 	}
-	defer c.Close()
+	defer func() {
+		if closeErr := c.Close(); closeErr != nil {
+			l.logger.Debug("connection_close_error",
+				slog.String("operation", "FindUserByMail"),
+				slog.String("error", closeErr.Error()))
+		}
+	}()
 
 	// Check for context cancellation before creating user
 	select {
@@ -893,7 +930,13 @@ func (l *LDAP) DeleteUserContext(ctx context.Context, dn string) error {
 	if err != nil {
 		return err
 	}
-	defer c.Close()
+	defer func() {
+		if closeErr := c.Close(); closeErr != nil {
+			l.logger.Debug("connection_close_error",
+				slog.String("operation", "FindUserByMail"),
+				slog.String("error", closeErr.Error()))
+		}
+	}()
 
 	// Check for context cancellation before delete operation
 	select {

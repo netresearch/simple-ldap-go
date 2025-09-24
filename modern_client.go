@@ -129,7 +129,7 @@ func NewWithOptions(config Config, username, password string, opts ...Option) (*
 				slog.Duration("duration", time.Since(start)))
 			return nil, fmt.Errorf("failed to validate connection: %w", WrapLDAPError("GetConnection", l.config.Server, err))
 		}
-		c.Close()
+		_ = c.Close()
 
 		l.logger.Info("ldap_modern_client_initialized",
 			slog.String("server", l.config.Server),

@@ -205,7 +205,7 @@ func (hm *HealthMonitor) checkLDAPConnection(ctx context.Context) HealthCheck {
 		check.Error = fmt.Sprintf("Failed to get LDAP connection: %v", err)
 		return check
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Simple connectivity test
 	err = conn.Bind(hm.ldapClient.user, hm.ldapClient.password)
