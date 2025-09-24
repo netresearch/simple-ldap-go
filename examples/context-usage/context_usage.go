@@ -141,7 +141,9 @@ func main() {
 		fmt.Printf("   Failed to get connection: %v\\n", err)
 	} else {
 		fmt.Printf("   Successfully established connection\\n")
-		defer conn.Close()
+		defer func() {
+			_ = conn.Close()
+		}()
 
 		// Use the connection for custom operations if needed
 		// This demonstrates that context is properly propagated to the connection level

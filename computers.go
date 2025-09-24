@@ -87,7 +87,13 @@ func (l *LDAP) FindComputerByDNContext(ctx context.Context, dn string) (computer
 	if err != nil {
 		return nil, fmt.Errorf("failed to get connection for computer DN search: %w", err)
 	}
-	defer c.Close()
+	defer func() {
+		if closeErr := c.Close(); closeErr != nil {
+			l.logger.Debug("connection_close_error",
+				slog.String("operation", "FindComputerByDN"),
+				slog.String("error", closeErr.Error()))
+		}
+	}()
 
 	// Check for context cancellation before search
 	select {
@@ -232,7 +238,13 @@ func (l *LDAP) FindComputerBySAMAccountNameContext(ctx context.Context, sAMAccou
 	if err != nil {
 		return nil, err
 	}
-	defer c.Close()
+	defer func() {
+		if closeErr := c.Close(); closeErr != nil {
+			l.logger.Debug("connection_close_error",
+				slog.String("operation", "FindComputerBySAMAccountName"),
+				slog.String("error", closeErr.Error()))
+		}
+	}()
 
 	// Check for context cancellation before search
 	select {
@@ -365,7 +377,13 @@ func (l *LDAP) FindComputersContext(ctx context.Context) (computers []Computer, 
 	if err != nil {
 		return nil, err
 	}
-	defer c.Close()
+	defer func() {
+		if closeErr := c.Close(); closeErr != nil {
+			l.logger.Debug("connection_close_error",
+				slog.String("operation", "FindComputers"),
+				slog.String("error", closeErr.Error()))
+		}
+	}()
 
 	// Check for context cancellation before search
 	select {
