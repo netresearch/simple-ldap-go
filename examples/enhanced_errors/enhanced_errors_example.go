@@ -42,7 +42,7 @@ func demonstrateEnhancedErrorHandling() {
 		demonstrateErrorAnalysis("LDAP Client Creation", err)
 		return
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	// Example 1: Authentication with Enhanced Error Handling
 	fmt.Println("=== Example 1: Authentication Error Handling ===")

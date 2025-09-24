@@ -140,7 +140,7 @@ func Search[T LDAPObject](ctx context.Context, l *LDAP, filter string, baseDN st
 	if err != nil {
 		return nil, fmt.Errorf("failed to get connection: %w", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	result, err := conn.SearchWithPaging(searchReq, 1000)
 	if err != nil {
@@ -215,7 +215,7 @@ func Create[T LDAPObject](ctx context.Context, l *LDAP, obj T) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to get connection: %w", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	if err := conn.Add(addReq); err != nil {
 		return "", fmt.Errorf("add operation failed: %w", WrapLDAPError("Add", l.config.Server, err))
@@ -282,7 +282,7 @@ func Modify[T LDAPObject](ctx context.Context, l *LDAP, obj T, changes map[strin
 	if err != nil {
 		return fmt.Errorf("failed to get connection: %w", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	if err := conn.Modify(modReq); err != nil {
 		return fmt.Errorf("modify operation failed: %w", WrapLDAPError("Modify", l.config.Server, err))
@@ -331,7 +331,7 @@ func DeleteByDN(ctx context.Context, l *LDAP, dn string) error {
 	if err != nil {
 		return fmt.Errorf("failed to get connection: %w", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	if err := conn.Del(delReq); err != nil {
 		return fmt.Errorf("delete operation failed: %w", WrapLDAPError("Del", l.config.Server, err))
@@ -398,7 +398,7 @@ func FindByDN[T LDAPObject](ctx context.Context, l *LDAP, dn string) (T, error) 
 	if err != nil {
 		return zero, fmt.Errorf("failed to get connection: %w", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	result, err := conn.Search(searchReq)
 	if err != nil {

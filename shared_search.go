@@ -31,7 +31,13 @@ func (l *LDAP) findByDNContext(ctx context.Context, dn string, params dnSearchPa
 	if err != nil {
 		return nil, fmt.Errorf("failed to get connection for %s search: %w", params.logPrefix[:len(params.logPrefix)-1], err)
 	}
-	defer c.Close()
+	defer func() {
+		if closeErr := c.Close(); closeErr != nil {
+			l.logger.Debug("connection_close_error",
+				slog.String("operation", params.logPrefix),
+				slog.String("error", closeErr.Error()))
+		}
+	}()
 
 	// Check for context cancellation before search
 	select {

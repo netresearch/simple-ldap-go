@@ -230,7 +230,11 @@ func (p *ConnectionPool) Put(conn *ldap.Conn) error {
 	p.mu.RLock()
 	if p.closed {
 		p.mu.RUnlock()
-		conn.Close()
+		if err := conn.Close(); err != nil {
+			p.logger.Debug("connection_close_error",
+				slog.String("operation", "Put"),
+				slog.String("error", err.Error()))
+		}
 		return ErrPoolClosed
 	}
 	p.mu.RUnlock()
@@ -245,7 +249,11 @@ func (p *ConnectionPool) Put(conn *ldap.Conn) error {
 
 	if !exists {
 		// Connection not from pool, close directly
-		conn.Close()
+		if err := conn.Close(); err != nil {
+			p.logger.Debug("connection_close_error",
+				slog.String("operation", "Put"),
+				slog.String("error", err.Error()))
+		}
 		return nil
 	}
 
@@ -402,13 +410,21 @@ func (p *ConnectionPool) createConnection(ctx context.Context) (*ldap.Conn, erro
 	// Check for context cancellation before binding
 	select {
 	case <-connCtx.Done():
-		conn.Close()
+		if err := conn.Close(); err != nil {
+			p.logger.Debug("connection_close_error",
+				slog.String("operation", "createConnection"),
+				slog.String("error", err.Error()))
+		}
 		return nil, connCtx.Err()
 	default:
 	}
 
 	if err = conn.Bind(p.user, p.password); err != nil {
-		conn.Close()
+		if closeErr := conn.Close(); closeErr != nil {
+			p.logger.Debug("connection_close_error",
+				slog.String("operation", "createConnection"),
+				slog.String("error", closeErr.Error()))
+		}
 		p.logger.Error("connection_bind_failed",
 			slog.String("server", p.ldapConfig.Server),
 			slog.String("error", err.Error()),

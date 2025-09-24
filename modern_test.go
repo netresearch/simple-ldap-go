@@ -179,7 +179,7 @@ func TestFactoryMethods(t *testing.T) {
 			assert.Contains(t, err.Error(), "connection")
 		} else {
 			require.NotNil(t, client)
-			defer client.Close()
+			defer func() { _ = client.Close() }()
 		}
 	})
 
@@ -194,7 +194,7 @@ func TestFactoryMethods(t *testing.T) {
 			assert.Contains(t, err.Error(), "connection")
 		} else {
 			require.NotNil(t, client)
-			defer client.Close()
+			defer func() { _ = client.Close() }()
 		}
 	})
 
@@ -209,7 +209,7 @@ func TestFactoryMethods(t *testing.T) {
 			assert.Contains(t, err.Error(), "connection")
 		} else {
 			require.NotNil(t, client)
-			defer client.Close()
+			defer func() { _ = client.Close() }()
 		}
 	})
 
@@ -224,7 +224,7 @@ func TestFactoryMethods(t *testing.T) {
 			assert.Contains(t, err.Error(), "connection")
 		} else {
 			require.NotNil(t, client)
-			defer client.Close()
+			defer func() { _ = client.Close() }()
 		}
 	})
 
@@ -239,7 +239,7 @@ func TestFactoryMethods(t *testing.T) {
 			assert.Contains(t, err.Error(), "connection")
 		} else {
 			require.NotNil(t, client)
-			defer client.Close()
+			defer func() { _ = client.Close() }()
 		}
 	})
 
@@ -254,7 +254,7 @@ func TestFactoryMethods(t *testing.T) {
 			assert.Contains(t, err.Error(), "connection")
 		} else {
 			require.NotNil(t, client)
-			defer client.Close()
+			defer func() { _ = client.Close() }()
 		}
 	})
 }
@@ -514,7 +514,7 @@ func BenchmarkClientCreation(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			client, err := NewBasicClient(config, username, password)
 			if err == nil {
-				client.Close()
+				_ = client.Close()
 			}
 		}
 	})
@@ -527,7 +527,7 @@ func BenchmarkClientCreation(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			client, err := NewWithOptions(config, username, password, options...)
 			if err == nil {
-				client.Close()
+				_ = client.Close()
 			}
 		}
 	})
@@ -537,7 +537,7 @@ func BenchmarkClientCreation(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			client, err := NewHighPerformanceClient(config, username, password)
 			if err == nil {
-				client.Close()
+				_ = client.Close()
 			}
 		}
 	})
@@ -682,7 +682,7 @@ func (h *TestHelper) CreateTestClient(t *testing.T, options ...Option) *LDAP {
 
 	t.Cleanup(func() {
 		if client != nil {
-			client.Close()
+			_ = client.Close()
 		}
 	})
 

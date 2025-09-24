@@ -38,7 +38,7 @@ func Example_connectionPooling() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer client.Close() // Important: Close to cleanup all pooled connections
+	defer func() { _ = client.Close() }() // Important: Close to cleanup all pooled connections
 
 	// Perform operations - connections will be reused from the pool
 	ctx := context.Background()
@@ -81,7 +81,7 @@ func Example_concurrentOperations() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	// Simulate high-concurrency scenario
 	const numWorkers = 20
@@ -158,7 +158,7 @@ func Example_poolMonitoring() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	// Monitor pool statistics over time
 	ticker := time.NewTicker(2 * time.Second)
@@ -221,7 +221,7 @@ func Example_backwardCompatibility() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	// All existing operations work exactly as before
 	ctx := context.Background()
