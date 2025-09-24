@@ -120,7 +120,7 @@ func demonstrateConnectionErrors(client *ldap.LDAP) {
 		handleConnectionError(err)
 	}
 	if invalidClient != nil {
-		invalidClient.Close()
+		_ = invalidClient.Close()
 	}
 }
 

@@ -70,7 +70,9 @@ func demonstrateModernClientCreation(logger *slog.Logger) error {
 	if err != nil {
 		fmt.Printf("Expected connection error in demo: %v\n", err)
 	} else {
-		defer client1.Close()
+		defer func() {
+		_ = client1.Close()
+	}()
 		fmt.Println("✓ Basic client created successfully")
 	}
 
@@ -106,7 +108,9 @@ func demonstrateModernClientCreation(logger *slog.Logger) error {
 	if err != nil {
 		fmt.Printf("Expected connection error in demo: %v\n", err)
 	} else {
-		defer client2.Close()
+		defer func() {
+		_ = client2.Close()
+	}()
 		fmt.Println("✓ High-performance client created successfully")
 	}
 

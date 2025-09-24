@@ -221,7 +221,9 @@ func TestLDAP_PooledConnectionInterface(t *testing.T) {
 	t.Run("ConnectionInterfaceCompliance", func(t *testing.T) {
 		conn, err := client.GetConnectionContext(ctx)
 		require.NoError(t, err)
-		defer conn.Close()
+		defer func() {
+			_ = conn.Close()
+		}()
 
 		// Test that pooled connection implements required interface methods
 		assert.NotNil(t, conn)
@@ -249,7 +251,7 @@ func TestLDAP_PooledConnectionInterface(t *testing.T) {
 		for i := 0; i < 5; i++ {
 			conn, err := client.GetConnectionContext(ctx)
 			require.NoError(t, err)
-			conn.Close() // Should return to pool
+			_ = conn.Close() // Should return to pool
 		}
 
 		finalStats := client.GetPoolStats()
