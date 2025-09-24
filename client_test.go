@@ -161,7 +161,7 @@ func TestGetConnection(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
 
-		conn.Close()
+		_ = conn.Close()
 	})
 
 	t.Run("connection with dial options", func(t *testing.T) {
@@ -177,7 +177,7 @@ func TestGetConnection(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, conn)
 
-		conn.Close()
+		_ = conn.Close()
 	})
 }
 
@@ -298,6 +298,6 @@ func BenchmarkGetConnection(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
-		conn.Close()
+		_ = conn.Close()
 	}
 }

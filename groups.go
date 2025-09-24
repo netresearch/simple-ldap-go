@@ -148,7 +148,13 @@ func (l *LDAP) FindGroupsContext(ctx context.Context) (groups []Group, err error
 	if err != nil {
 		return nil, err
 	}
-	defer c.Close()
+	defer func() {
+		if err := c.Close(); err != nil {
+			l.logger.Debug("connection_close_error",
+				slog.String("operation", "FindGroups"),
+				slog.String("error", err.Error()))
+		}
+	}()
 
 	// Check for context cancellation before search
 	select {

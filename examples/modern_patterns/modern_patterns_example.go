@@ -3,7 +3,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log"
 	"log/slog"
@@ -122,7 +121,7 @@ func demonstrateModernClientCreation(logger *slog.Logger) error {
 	if err != nil {
 		fmt.Printf("Expected connection error in demo: %v\n", err)
 	} else {
-		defer secureClient.Close()
+		defer func() { _ = secureClient.Close() }()
 		fmt.Println("✓ Secure client created successfully")
 	}
 
@@ -131,7 +130,7 @@ func demonstrateModernClientCreation(logger *slog.Logger) error {
 	if err != nil {
 		fmt.Printf("Expected connection error in demo: %v\n", err)
 	} else {
-		defer readOnlyClient.Close()
+		defer func() { _ = readOnlyClient.Close() }()
 		fmt.Println("✓ Read-only client created successfully")
 	}
 
@@ -140,7 +139,7 @@ func demonstrateModernClientCreation(logger *slog.Logger) error {
 	if err != nil {
 		fmt.Printf("Expected connection error in demo: %v\n", err)
 	} else {
-		defer perfClient.Close()
+		defer func() { _ = perfClient.Close() }()
 		fmt.Println("✓ High-performance client created successfully")
 	}
 
@@ -261,7 +260,7 @@ func demonstrateGenerics(logger *slog.Logger) error {
 		fmt.Println("✓ Generic patterns demonstrated (would work with real connection)")
 		return nil
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	// Example 1: Generic search (type-safe)
 	fmt.Println("Generic search operations...")
@@ -324,7 +323,7 @@ func demonstrateConcurrencyPatterns(logger *slog.Logger) error {
 		fmt.Println("✓ Concurrency patterns demonstrated (would work with real connection)")
 		return nil
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	// Example 1: Worker pool pattern
 	fmt.Println("Worker pool pattern...")
@@ -334,7 +333,7 @@ func demonstrateConcurrencyPatterns(logger *slog.Logger) error {
 			BufferSize:  50,
 			Timeout:     2 * time.Minute,
 		})
-		defer pool.Close()
+		defer func() { _ = pool.Close() }()
 
 		// Submit work items
 		users := []*ldap.FullUser{
@@ -384,7 +383,7 @@ func demonstrateConcurrencyPatterns(logger *slog.Logger) error {
 				}
 				return nil
 			})
-		defer processor.Close()
+		defer func() { _ = processor.Close() }()
 
 		// Add items for processing
 		for _, user := range users {
@@ -452,7 +451,7 @@ func demonstrateInterfaceSegregation(logger *slog.Logger) error {
 		fmt.Println("✓ Interface segregation demonstrated (would work with real connection)")
 		return nil
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	// Example 1: Using client as UserReader interface
 	fmt.Println("Using UserReader interface...")
@@ -482,125 +481,8 @@ func useUserReader(reader ldap.UserReader) {
 	// - FindUserByMailContext
 }
 
-// useReadOnlyDirectory demonstrates using the ReadOnlyDirectory interface
-func useReadOnlyDirectory(readOnly ldap.ReadOnlyDirectory) {
-	fmt.Println("  - ReadOnlyDirectory interface allows read operations for all object types")
-	// This function can call read methods for users, groups, and computers
-	// but cannot perform any write operations
-}
 
-// useDirectoryManager demonstrates using the full DirectoryManager interface
-func useDirectoryManager(manager ldap.DirectoryManager) {
-	fmt.Println("  - DirectoryManager interface allows full CRUD operations")
-	// This function has access to all LDAP operations:
-	// - User, Group, and Computer management
-	// - Connection management
-	// - Statistics and monitoring
-}
 
-// Resource management patterns demonstration
-func demonstrateResourceManagement() error {
-	fmt.Println("Demonstrating modern resource management...")
 
-	config := ldap.Config{
-		Server:            "ldaps://ad.example.com:636",
-		BaseDN:            "DC=example,DC=com",
-		IsActiveDirectory: true,
-	}
 
-	client, err := ldap.NewWithOptions(config, "CN=admin,CN=Users,DC=example,DC=com", "password")
-	if err != nil {
-		fmt.Printf("Expected connection error in demo: %v\n", err)
-		return nil
-	}
-	defer client.Close() // Modern resource cleanup
 
-	// Example 1: WithConnection pattern for resource management
-	fmt.Println("WithConnection pattern...")
-	/*
-		err = client.WithConnection(ctx, func(conn *ldap.Conn) error {
-			// Use connection for multiple operations
-			// Connection is automatically cleaned up when function returns
-
-			searchResult, err := conn.Search(searchRequest)
-			if err != nil {
-				return err
-			}
-
-			// Process results...
-			return nil
-		})
-	*/
-
-	// Example 2: Transaction pattern for grouped operations
-	fmt.Println("Transaction pattern...")
-	/*
-		err = client.Transaction(ctx, func(tx *ldap.Transaction) error {
-			// All operations use the same connection
-			user, err := tx.CreateUser(userData, "password")
-			if err != nil {
-				return err
-			}
-
-			err = tx.AddUserToGroup(user.DN(), groupDN)
-			if err != nil {
-				// Attempt cleanup on error
-				tx.DeleteUser(user.DN())
-				return err
-			}
-
-			return nil
-		})
-	*/
-
-	fmt.Println("✓ Resource management patterns demonstrated")
-	return nil
-}
-
-// Error handling patterns demonstration
-func demonstrateErrorHandling() {
-	fmt.Println("Demonstrating modern error handling patterns...")
-
-	// Example 1: Enhanced error types with context
-	config := ldap.Config{
-		Server: "invalid://server",
-		BaseDN: "DC=example,DC=com",
-	}
-
-	_, err := ldap.NewWithOptions(config, "user", "password")
-	if err != nil {
-		fmt.Printf("✓ Enhanced error with context: %v\n", err)
-
-		// Check for specific error types
-		var ldapErr *ldap.LDAPError
-		if errors.As(err, &ldapErr) {
-			fmt.Printf("  - LDAP Error Code: %d\n", ldapErr.Code)
-			fmt.Printf("  - Server: %s\n", ldapErr.Server)
-			fmt.Printf("  - Operation: %s\n", ldapErr.Op)
-		}
-	}
-
-	// Example 2: Validation errors with details
-	_, err = ldap.NewUserBuilder().
-		WithCN("").
-		WithSAMAccountName("invalid/name").
-		Build()
-
-	if err != nil {
-		fmt.Printf("✓ Validation error with details: %v\n", err)
-	}
-}
-
-// Helper function to simulate parsing user from DN (for demo purposes)
-func parseUserFromDN(dn string) *ldap.FullUser {
-	return &ldap.FullUser{
-		CN:             "Parsed User",
-		SAMAccountName: stringPtr("parsed"),
-		Description:    stringPtr(fmt.Sprintf("Parsed from %s", dn)),
-	}
-}
-
-// Helper function to create string pointers
-func stringPtr(s string) *string {
-	return &s
-}

@@ -682,17 +682,17 @@ func (c *LRUCache) estimateEntrySize(key string, value interface{}) int32 {
 	case []byte:
 		size += len(v)
 	case *User:
-		size += len(v.Object.dn) + len(v.SAMAccountName) + len(v.Description)
+		size += len(v.dn) + len(v.SAMAccountName) + len(v.Description)
 		if v.Mail != nil {
 			size += len(*v.Mail)
 		}
 		size += len(v.Groups) * 50 // Estimate 50 chars per DN
 	case *Group:
-		size += len(v.Object.dn)
+		size += len(v.dn)
 		size += len(v.Members) * 50 // Estimate 50 chars per member DN
 	case []User:
 		for _, u := range v {
-			size += len(u.Object.dn) + len(u.SAMAccountName) + len(u.Description)
+			size += len(u.dn) + len(u.SAMAccountName) + len(u.Description)
 			if u.Mail != nil {
 				size += len(*u.Mail)
 			}
@@ -700,7 +700,7 @@ func (c *LRUCache) estimateEntrySize(key string, value interface{}) int32 {
 		}
 	case []Group:
 		for _, g := range v {
-			size += len(g.Object.dn)
+			size += len(g.dn)
 			size += len(g.Members) * 50
 		}
 	default:

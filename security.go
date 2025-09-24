@@ -197,12 +197,13 @@ func ValidateLDAPFilter(filter string) (string, error) {
 	depth := 0
 	maxDepth := 0
 	for _, r := range filter {
-		if r == '(' {
+		switch r {
+		case '(':
 			depth++
 			if depth > maxDepth {
 				maxDepth = depth
 			}
-		} else if r == ')' {
+		case ')':
 			depth--
 		}
 	}

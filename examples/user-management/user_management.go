@@ -4,7 +4,6 @@ package main
 import (
 	"fmt"
 	"log"
-	"time"
 
 	ldap "github.com/netresearch/simple-ldap-go"
 )
@@ -177,9 +176,3 @@ func deleteUser(client *ldap.LDAP) {
 	fmt.Printf("User deletion skipped for safety (uncomment in code to enable)\n")
 }
 
-func formatTime(t *time.Time) string {
-	if t == nil {
-		return "Never"
-	}
-	return t.Format("2006-01-02 15:04:05")
-}
