@@ -19,6 +19,11 @@ func main() {
 func enhancedErrorsDemo() {
 	fmt.Println("=== Enhanced Error Handling Examples ===")
 	demonstrateEnhancedErrorHandling()
+
+	// Demonstrate structured logging integration (example function)
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	sampleErr := fmt.Errorf("sample error for demonstration")
+	logErrorWithContext(logger, "example-operation", sampleErr)
 }
 
 func demonstrateEnhancedErrorHandling() {
@@ -266,3 +271,48 @@ func extractLDAPError(err error) *ldap.LDAPError {
 	return nil
 }
 
+// Example of how to integrate with structured logging
+func logErrorWithContext(logger *slog.Logger, operation string, err error) {
+	severity := ldap.GetErrorSeverity(err)
+
+	attrs := []slog.Attr{
+		slog.String("operation", operation),
+		slog.String("error", err.Error()),
+		slog.String("severity", severity.String()),
+	}
+
+	// Add LDAP-specific context if available
+	if ldapErr := extractLDAPError(err); ldapErr != nil {
+		attrs = append(attrs,
+			slog.String("ldap_server", ldapErr.Server),
+			slog.String("ldap_operation", ldapErr.Op))
+
+		if ldapErr.DN != "" {
+			attrs = append(attrs, slog.String("ldap_dn", ldapErr.DN))
+		}
+
+		if ldapErr.Code != 0 {
+			attrs = append(attrs, slog.Int("ldap_code", ldapErr.Code))
+		}
+
+		// Add context information
+		for key, value := range ldapErr.Context {
+			attrs = append(attrs, slog.Any(fmt.Sprintf("context_%s", key), value))
+		}
+	}
+
+	// Log with appropriate level based on severity
+	level := slog.LevelError
+	switch severity {
+	case ldap.SeverityCritical:
+		level = slog.LevelError
+	case ldap.SeverityError:
+		level = slog.LevelError
+	case ldap.SeverityWarning:
+		level = slog.LevelWarn
+	case ldap.SeverityInfo:
+		level = slog.LevelInfo
+	}
+
+	logger.LogAttrs(context.Background(), level, "ldap_operation_failed", attrs...)
+}

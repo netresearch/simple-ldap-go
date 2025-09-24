@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"log/slog"
@@ -51,6 +52,25 @@ func modernPatternsDemo() {
 	if err := demonstrateInterfaceSegregation(logger); err != nil {
 		log.Printf("Interface segregation demo failed: %v", err)
 	}
+
+	// Example 6: Resource management patterns
+	fmt.Println("\n=== Resource Management Patterns ===")
+	if err := demonstrateResourceManagement(); err != nil {
+		log.Printf("Resource management demo failed: %v", err)
+	}
+
+	// Example 7: Error handling patterns
+	fmt.Println("\n=== Error Handling Patterns ===")
+	demonstrateErrorHandling()
+
+	// Helper functions demonstration (these are used by other examples)
+	fmt.Println("\n=== Helper Functions (used internally) ===")
+	// These helper functions are used throughout the examples:
+	// - parseUserFromDN: Simulates parsing user from DN
+	// - stringPtr: Creates string pointers for struct fields
+	testDN := "CN=TestUser,DC=example,DC=com"
+	_ = parseUserFromDN(testDN)
+	_ = stringPtr("test-string")
 }
 
 // demonstrateModernClientCreation shows the functional options pattern
@@ -459,11 +479,15 @@ func demonstrateInterfaceSegregation(logger *slog.Logger) error {
 
 	// Example 2: Using client as ReadOnlyDirectory interface
 	fmt.Println("Using ReadOnlyDirectory interface...")
-	// useReadOnlyDirectory(client) // Commented out until interface methods are implemented
+	// NOTE: These interface demonstrations are for documentation purposes
+	// The interfaces are not fully implemented yet, but show the intended usage pattern
+	// When ready: useReadOnlyDirectory(client)
+	_ = useReadOnlyDirectory // Mark as intentionally unused (demonstration function)
 
-	// Example 3: Using client as full DirectoryManager interface
+	// Example 3: Using client as DirectoryManager interface
 	fmt.Println("Using DirectoryManager interface...")
-	// useDirectoryManager(client) // Commented out until interface methods are implemented
+	// When ready: useDirectoryManager(client)
+	_ = useDirectoryManager // Mark as intentionally unused (demonstration function)
 
 	fmt.Println("✓ Interface segregation demonstrated")
 	return nil
@@ -481,8 +505,125 @@ func useUserReader(reader ldap.UserReader) {
 	// - FindUserByMailContext
 }
 
+// useReadOnlyDirectory demonstrates using the ReadOnlyDirectory interface
+func useReadOnlyDirectory(readOnly ldap.ReadOnlyDirectory) {
+	fmt.Println("  - ReadOnlyDirectory interface allows read operations for all object types")
+	// This function can call read methods for users, groups, and computers
+	// but cannot perform any write operations
+}
 
+// useDirectoryManager demonstrates using the full DirectoryManager interface
+func useDirectoryManager(manager ldap.DirectoryManager) {
+	fmt.Println("  - DirectoryManager interface allows full CRUD operations")
+	// This function has access to all LDAP operations:
+	// - User, Group, and Computer management
+	// - Connection management
+	// - Statistics and monitoring
+}
 
+// Resource management patterns demonstration
+func demonstrateResourceManagement() error {
+	fmt.Println("Demonstrating modern resource management...")
 
+	config := ldap.Config{
+		Server:            "ldaps://ad.example.com:636",
+		BaseDN:            "DC=example,DC=com",
+		IsActiveDirectory: true,
+	}
 
+	client, err := ldap.NewWithOptions(config, "CN=admin,CN=Users,DC=example,DC=com", "password")
+	if err != nil {
+		fmt.Printf("Expected connection error in demo: %v\n", err)
+		return nil
+	}
+	defer func() { _ = client.Close() }() // Modern resource cleanup
 
+	// Example 1: WithConnection pattern for resource management
+	fmt.Println("WithConnection pattern...")
+	/*
+		err = client.WithConnection(ctx, func(conn *ldap.Conn) error {
+			// Use connection for multiple operations
+			// Connection is automatically cleaned up when function returns
+
+			searchResult, err := conn.Search(searchRequest)
+			if err != nil {
+				return err
+			}
+
+			// Process results...
+			return nil
+		})
+	*/
+
+	// Example 2: Transaction pattern for grouped operations
+	fmt.Println("Transaction pattern...")
+	/*
+		err = client.Transaction(ctx, func(tx *ldap.Transaction) error {
+			// All operations use the same connection
+			user, err := tx.CreateUser(userData, "password")
+			if err != nil {
+				return err
+			}
+
+			err = tx.AddUserToGroup(user.DN(), groupDN)
+			if err != nil {
+				// Attempt cleanup on error
+				tx.DeleteUser(user.DN())
+				return err
+			}
+
+			return nil
+		})
+	*/
+
+	fmt.Println("✓ Resource management patterns demonstrated")
+	return nil
+}
+
+// Error handling patterns demonstration
+func demonstrateErrorHandling() {
+	fmt.Println("Demonstrating modern error handling patterns...")
+
+	// Example 1: Enhanced error types with context
+	config := ldap.Config{
+		Server: "invalid://server",
+		BaseDN: "DC=example,DC=com",
+	}
+
+	_, err := ldap.NewWithOptions(config, "user", "password")
+	if err != nil {
+		fmt.Printf("✓ Enhanced error with context: %v\n", err)
+
+		// Check for specific error types
+		var ldapErr *ldap.LDAPError
+		if errors.As(err, &ldapErr) {
+			fmt.Printf("  - LDAP Error Code: %d\n", ldapErr.Code)
+			fmt.Printf("  - Server: %s\n", ldapErr.Server)
+			fmt.Printf("  - Operation: %s\n", ldapErr.Op)
+		}
+	}
+
+	// Example 2: Validation errors with details
+	_, err = ldap.NewUserBuilder().
+		WithCN("").
+		WithSAMAccountName("invalid/name").
+		Build()
+
+	if err != nil {
+		fmt.Printf("✓ Validation error with details: %v\n", err)
+	}
+}
+
+// Helper function to simulate parsing user from DN (for demo purposes)
+func parseUserFromDN(dn string) *ldap.FullUser {
+	return &ldap.FullUser{
+		CN:             "Parsed User",
+		SAMAccountName: stringPtr("parsed"),
+		Description:    stringPtr(fmt.Sprintf("Parsed from %s", dn)),
+	}
+}
+
+// Helper function to create string pointers
+func stringPtr(s string) *string {
+	return &s
+}

@@ -75,6 +75,9 @@ func main() {
 
 	// Demonstrate cache management
 	demonstrateCacheManagement(client)
+
+	// Demonstrate configuration examples for different use cases
+	demonstrateConfigurationExamples()
 }
 
 func demonstrateUserOperations(client *ldap.LDAP, ctx context.Context) {
@@ -275,3 +278,103 @@ func demonstrateCacheManagement(client *ldap.LDAP) {
 	fmt.Printf("Cache entries after clear: %d\n", cacheStats.TotalEntries)
 }
 
+// Example showing configuration for different use cases
+func demonstrateConfigurationExamples() {
+	fmt.Println("\n=== Configuration Examples ===")
+
+	// High-performance read-heavy workload
+	highPerfConfig := ldap.Config{
+		Server: "ldaps://ad.example.com:636",
+		BaseDN: "DC=example,DC=com",
+
+		Pool: &ldap.PoolConfig{
+			MaxConnections: 50,
+			MinConnections: 10,
+			MaxIdleTime:    5 * time.Minute,
+		},
+
+		Cache: &ldap.CacheConfig{
+			Enabled:              true,
+			TTL:                  10 * time.Minute,
+			MaxSize:              5000,
+			RefreshOnAccess:      true,
+			NegativeCacheTTL:     1 * time.Minute,
+			MaxMemoryMB:          128,
+			CompressionEnabled:   true,
+			CompressionThreshold: 512,
+		},
+
+		Performance: &ldap.PerformanceConfig{
+			Enabled:              true,
+			SlowQueryThreshold:   200 * time.Millisecond,
+			EnableBulkOperations: true,
+			EnablePrefetch:       true,
+		},
+	}
+
+	fmt.Printf("High-performance config: Pool=%d, Cache=%d entries, %d MB\n",
+		highPerfConfig.Pool.MaxConnections,
+		highPerfConfig.Cache.MaxSize,
+		highPerfConfig.Cache.MaxMemoryMB)
+
+	// Memory-constrained environment
+	lowMemoryConfig := ldap.Config{
+		Server: "ldap://internal.example.com:389",
+		BaseDN: "DC=internal,DC=com",
+
+		Pool: &ldap.PoolConfig{
+			MaxConnections: 5,
+			MinConnections: 2,
+			MaxIdleTime:    2 * time.Minute,
+		},
+
+		Cache: &ldap.CacheConfig{
+			Enabled:              true,
+			TTL:                  2 * time.Minute,
+			MaxSize:              100,
+			MaxMemoryMB:          8,
+			CompressionEnabled:   true,
+			CompressionThreshold: 256,
+		},
+
+		Performance: &ldap.PerformanceConfig{
+			Enabled:            true,
+			SlowQueryThreshold: 1 * time.Second,
+			SampleRate:         0.1, // Sample 10% to reduce overhead
+		},
+	}
+
+	fmt.Printf("Low-memory config: Pool=%d, Cache=%d entries, %d MB\n",
+		lowMemoryConfig.Pool.MaxConnections,
+		lowMemoryConfig.Cache.MaxSize,
+		lowMemoryConfig.Cache.MaxMemoryMB)
+
+	// Write-heavy workload (minimal caching)
+	writeHeavyConfig := ldap.Config{
+		Server: "ldaps://ad.example.com:636",
+		BaseDN: "DC=example,DC=com",
+
+		Pool: &ldap.PoolConfig{
+			MaxConnections: 20,
+			MinConnections: 5,
+		},
+
+		Cache: &ldap.CacheConfig{
+			Enabled:          true,
+			TTL:              30 * time.Second, // Short TTL for write-heavy
+			MaxSize:          500,
+			NegativeCacheTTL: 10 * time.Second,
+			MaxMemoryMB:      32,
+		},
+
+		Performance: &ldap.PerformanceConfig{
+			Enabled:              true,
+			SlowQueryThreshold:   100 * time.Millisecond,
+			EnableBulkOperations: true,
+		},
+	}
+
+	fmt.Printf("Write-heavy config: TTL=%v, Cache=%d entries\n",
+		writeHeavyConfig.Cache.TTL,
+		writeHeavyConfig.Cache.MaxSize)
+}
