@@ -4,6 +4,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"time"
 
 	ldap "github.com/netresearch/simple-ldap-go"
 )
@@ -97,6 +98,10 @@ func findUsers(client *ldap.LDAP) {
 		} else {
 			fmt.Printf("    Email: (not set)\n")
 		}
+		// Demonstration of formatTime helper with current time
+		// (LastLogon field would be used here if it existed in User struct)
+		now := time.Now()
+		fmt.Printf("    Created: %s (example)\n", formatTime(&now))
 		fmt.Printf("    Groups: %d\n", len(user.Groups))
 	}
 
@@ -176,3 +181,9 @@ func deleteUser(client *ldap.LDAP) {
 	fmt.Printf("User deletion skipped for safety (uncomment in code to enable)\n")
 }
 
+func formatTime(t *time.Time) string {
+	if t == nil {
+		return "Never"
+	}
+	return t.Format("2006-01-02 15:04:05")
+}
