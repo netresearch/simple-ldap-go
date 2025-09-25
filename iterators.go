@@ -3,6 +3,7 @@ package ldap
 import (
 	"context"
 	"iter"
+	"log/slog"
 
 	"github.com/go-ldap/ldap/v3"
 )
@@ -19,7 +20,11 @@ func (l *LDAP) SearchIter(ctx context.Context, searchRequest *ldap.SearchRequest
 			return
 		}
 		defer func() {
-			_ = conn.Close()
+			if closeErr := conn.Close(); closeErr != nil {
+				l.logger.Debug("connection_close_error",
+					slog.String("operation", "SearchIter"),
+					slog.String("error", closeErr.Error()))
+			}
 		}()
 
 		// Perform the search
@@ -31,6 +36,14 @@ func (l *LDAP) SearchIter(ctx context.Context, searchRequest *ldap.SearchRequest
 
 		// Iterate over entries
 		for _, entry := range result.Entries {
+			// Check for context cancellation
+			select {
+			case <-ctx.Done():
+				yield(nil, ctx.Err())
+				return
+			default:
+			}
+
 			if !yield(entry, nil) {
 				// Caller terminated iteration early
 				return
@@ -50,13 +63,25 @@ func (l *LDAP) SearchPagedIter(ctx context.Context, searchRequest *ldap.SearchRe
 			return
 		}
 		defer func() {
-			_ = conn.Close()
+			if closeErr := conn.Close(); closeErr != nil {
+				l.logger.Debug("connection_close_error",
+					slog.String("operation", "SearchPagedIter"),
+					slog.String("error", closeErr.Error()))
+			}
 		}()
 
 		pagingControl := ldap.NewControlPaging(pageSize)
 		controls := []ldap.Control{pagingControl}
 
 		for {
+			// Check for context cancellation before each page
+			select {
+			case <-ctx.Done():
+				yield(nil, ctx.Err())
+				return
+			default:
+			}
+
 			searchRequest.Controls = controls
 			response, err := conn.Search(searchRequest)
 			if err != nil {
@@ -66,6 +91,14 @@ func (l *LDAP) SearchPagedIter(ctx context.Context, searchRequest *ldap.SearchRe
 
 			// Yield entries from this page
 			for _, entry := range response.Entries {
+				// Check for context cancellation
+				select {
+				case <-ctx.Done():
+					yield(nil, ctx.Err())
+					return
+				default:
+				}
+
 				if !yield(entry, nil) {
 					// Caller terminated iteration early
 					return
@@ -116,6 +149,14 @@ func (l *LDAP) GroupMembersIter(ctx context.Context, groupDN string) iter.Seq2[s
 			members = append(members, entry.GetAttributeValues("uniqueMember")...)
 
 			for _, member := range members {
+				// Check for context cancellation
+				select {
+				case <-ctx.Done():
+					yield("", ctx.Err())
+					return
+				default:
+				}
+
 				if !yield(member, nil) {
 					return
 				}
