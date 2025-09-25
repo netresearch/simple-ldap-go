@@ -72,7 +72,24 @@ import (
 | `ldap.ConfigBuilder` | `search.ConfigBuilder` |
 | `ldap.QueryBuilder` | `search.QueryBuilder` |
 
-### 3. Update Constructor Calls
+### 3. Update Method Calls to Function Calls
+
+| Old Method (v1.x) | New Function (v2.0) |
+|-------------------|---------------------|
+| `client.FindUserByDN(dn)` | `objects.FindUserByDN(client, dn)` |
+| `client.FindUserBySAMAccountName(sam)` | `objects.FindUserBySAMAccountName(client, sam)` |
+| `client.FindUserByMail(email)` | `objects.FindUserByMail(client, email)` |
+| `client.FindUsers()` | `objects.FindUsers(client)` |
+| `client.FindGroupByDN(dn)` | `objects.FindGroupByDN(client, dn)` |
+| `client.FindGroups()` | `objects.FindGroups(client)` |
+| `client.FindComputerByDN(dn)` | `objects.FindComputerByDN(client, dn)` |
+| `client.FindComputers()` | `objects.FindComputers(client)` |
+| `client.AddUserToGroup(u, g)` | `objects.AddUserToGroup(client, u, g)` |
+| `client.RemoveUserFromGroup(u, g)` | `objects.RemoveUserFromGroup(client, u, g)` |
+| `client.CreateUser(user, pass)` | `objects.CreateUser(client, user, pass)` |
+| `client.DeleteUser(dn)` | `objects.DeleteUser(client, dn)` |
+
+### 4. Update Constructor Calls
 
 | Old Function | New Function |
 |--------------|--------------|
