@@ -11,6 +11,14 @@ import (
 	"time"
 )
 
+// LDAPClient represents the interface that the LDAP client must implement
+// This avoids circular imports while allowing the pool to use the LDAP client
+type LDAPClient interface {
+	// Basic interface - can be expanded as needed
+	GetConnection() (interface{}, error)
+	GetConnectionContext(ctx context.Context) (interface{}, error)
+}
+
 // WorkerPool provides a worker pool pattern for concurrent LDAP operations.
 // This pattern is useful for bulk operations like creating multiple users or processing search results.
 type WorkerPool[T any] struct {
@@ -20,7 +28,7 @@ type WorkerPool[T any] struct {
 	ctx         context.Context
 	cancel      context.CancelFunc
 	wg          sync.WaitGroup
-	client      *LDAP
+	client      LDAPClient
 	logger      *slog.Logger
 
 	// Metrics
