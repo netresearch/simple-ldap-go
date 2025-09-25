@@ -5,14 +5,14 @@ package testutil
 
 import (
 	"os"
-	"testing"
 	"sync"
+	"testing"
 )
 
 // Stub variables for non-integration builds
 var (
 	sharedContainer *SharedTestContainer //nolint:unused
-	containerMu     sync.Mutex          //nolint:unused
+	containerMu     sync.Mutex           //nolint:unused
 )
 
 // SharedTestContainer is a stub for non-integration builds

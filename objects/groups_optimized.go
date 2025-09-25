@@ -7,7 +7,27 @@ import (
 	"time"
 
 	"github.com/go-ldap/ldap/v3"
+	ldaplib "github.com/netresearch/simple-ldap-go"
 )
+
+// SearchOptions provides configuration for optimized search operations
+// Temporarily duplicated in objects package for v2.0.0
+type SearchOptions struct {
+	UseCache         bool
+	CacheKey         string
+	UseNegativeCache bool
+	MaxResults       int
+	AttributeFilter  []string
+}
+
+// DefaultSearchOptions returns SearchOptions with sensible defaults
+func DefaultSearchOptions() *SearchOptions {
+	return &SearchOptions{
+		UseCache:         true,
+		UseNegativeCache: true,
+		MaxResults:       1000,
+	}
+}
 
 // FindGroupByDNOptimized retrieves a group by its distinguished name with caching and performance monitoring.
 //

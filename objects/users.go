@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/go-ldap/ldap/v3"
+	ldaplib "github.com/netresearch/simple-ldap-go"
 )
 
 var (

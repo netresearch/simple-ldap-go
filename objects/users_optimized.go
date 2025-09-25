@@ -4,6 +4,8 @@ import (
 	"context"
 	"log/slog"
 	"time"
+
+	ldaplib "github.com/netresearch/simple-ldap-go"
 )
 
 // FindUserByDNOptimized retrieves a user by their distinguished name with caching and performance monitoring.

@@ -11,6 +11,13 @@ import (
 	"github.com/go-ldap/ldap/v3"
 )
 
+// Config represents LDAP configuration interface to avoid circular imports
+type Config interface {
+	GetServer() string
+	GetBaseDN() string
+	GetDialOptions() []ldap.DialOpt
+}
+
 var (
 	// ErrPoolClosed is returned when attempting to use a closed connection pool
 	ErrPoolClosed = errors.New("connection pool is closed")
@@ -384,11 +391,11 @@ func (p *ConnectionPool) createConnection(ctx context.Context) (*ldap.Conn, erro
 
 	start := time.Now()
 	p.logger.Debug("creating_new_connection",
-		slog.String("server", p.ldapConfig.Server))
+		slog.String("server", p.ldapConfig.GetServer()))
 
 	dialOpts := make([]ldap.DialOpt, 0)
-	if p.ldapConfig.DialOptions != nil {
-		dialOpts = p.ldapConfig.DialOptions
+	if p.ldapConfig.GetDialOptions() != nil {
+		dialOpts = p.ldapConfig.GetDialOptions()
 	}
 
 	// Check for context cancellation before dialing
@@ -398,10 +405,10 @@ func (p *ConnectionPool) createConnection(ctx context.Context) (*ldap.Conn, erro
 	default:
 	}
 
-	conn, err := ldap.DialURL(p.ldapConfig.Server, dialOpts...)
+	conn, err := ldap.DialURL(p.ldapConfig.GetServer(), dialOpts...)
 	if err != nil {
 		p.logger.Error("connection_dial_failed",
-			slog.String("server", p.ldapConfig.Server),
+			slog.String("server", p.ldapConfig.GetServer()),
 			slog.String("error", err.Error()),
 			slog.Duration("duration", time.Since(start)))
 		return nil, err
@@ -426,7 +433,7 @@ func (p *ConnectionPool) createConnection(ctx context.Context) (*ldap.Conn, erro
 				slog.String("error", closeErr.Error()))
 		}
 		p.logger.Error("connection_bind_failed",
-			slog.String("server", p.ldapConfig.Server),
+			slog.String("server", p.ldapConfig.GetServer()),
 			slog.String("error", err.Error()),
 			slog.Duration("duration", time.Since(start)))
 		return nil, err
@@ -459,7 +466,7 @@ func (p *ConnectionPool) createConnection(ctx context.Context) (*ldap.Conn, erro
 	atomic.AddInt64(&p.stats.PoolMisses, 1)
 
 	p.logger.Debug("connection_created",
-		slog.String("server", p.ldapConfig.Server),
+		slog.String("server", p.ldapConfig.GetServer()),
 		slog.Duration("duration", time.Since(start)),
 		slog.Int("total_connections", int(atomic.LoadInt32(&p.stats.TotalConnections))))
 
@@ -487,7 +494,7 @@ func (p *ConnectionPool) isConnectionHealthy(conn *pooledConnection) bool {
 
 	// Create a minimal search request to test connection
 	searchReq := &ldap.SearchRequest{
-		BaseDN:       p.ldapConfig.BaseDN,
+		BaseDN:       p.ldapConfig.GetBaseDN(),
 		Scope:        ldap.ScopeBaseObject,
 		DerefAliases: ldap.NeverDerefAliases,
 		Filter:       "(objectClass=*)",

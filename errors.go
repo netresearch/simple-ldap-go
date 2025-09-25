@@ -502,15 +502,15 @@ func NewMultiError(errors ...error) *MultiError {
 func maskContextValue(key string, value interface{}) interface{} {
 	// List of context keys that contain sensitive information
 	sensitiveKeys := map[string]bool{
-		"samAccountName": true,
-		"username":       true,
-		"dn":             true,
+		"samAccountName":    true,
+		"username":          true,
+		"dn":                true,
 		"distinguishedName": true,
-		"server":         true,
-		"password":       true,
-		"credential":     true,
-		"token":          true,
-		"secret":         true,
+		"server":            true,
+		"password":          true,
+		"credential":        true,
+		"token":             true,
+		"secret":            true,
 	}
 
 	// Check if this key contains sensitive information
@@ -534,9 +534,9 @@ var (
 	ErrPasswordExpired    = errors.New("password expired")
 
 	// Connection errors
-	ErrConnectionFailed   = errors.New("connection failed")
-	ErrServerUnavailable  = errors.New("server unavailable")
-	ErrTimeoutExceeded    = errors.New("timeout exceeded")
+	ErrConnectionFailed  = errors.New("connection failed")
+	ErrServerUnavailable = errors.New("server unavailable")
+	ErrTimeoutExceeded   = errors.New("timeout exceeded")
 
 	// Search/Object errors
 	ErrObjectNotFound = errors.New("object not found")
@@ -564,10 +564,10 @@ func (e *CircuitBreakerError) Error() string {
 
 // TimeoutError with constructor expected by resilience.go
 type TimeoutError struct {
-	Operation      string
-	Duration       time.Duration
-	TimeoutPeriod  time.Duration  // renamed from Timeout to avoid method name conflict
-	Err            error
+	Operation     string
+	Duration      time.Duration
+	TimeoutPeriod time.Duration // renamed from Timeout to avoid method name conflict
+	Err           error
 }
 
 func (e *TimeoutError) Error() string {

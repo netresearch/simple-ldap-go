@@ -3,32 +3,34 @@ package ldap
 
 import (
 	"context"
+
+	"github.com/netresearch/simple-ldap-go/objects"
 )
 
 // UserReader defines methods for reading user information from LDAP.
 // This interface follows the Interface Segregation Principle by separating read operations.
 type UserReader interface {
 	// FindUserByDN retrieves a user by their distinguished name
-	FindUserByDN(dn string) (*User, error)
+	FindUserByDN(dn string) (*objects.User, error)
 	// FindUserByDNContext retrieves a user by their distinguished name with context
-	FindUserByDNContext(ctx context.Context, dn string) (*User, error)
+	FindUserByDNContext(ctx context.Context, dn string) (*objects.User, error)
 	// FindUserBySAMAccountName retrieves a user by their SAM account name
-	FindUserBySAMAccountName(name string) (*User, error)
+	FindUserBySAMAccountName(name string) (*objects.User, error)
 	// FindUserBySAMAccountNameContext retrieves a user by their SAM account name with context
-	FindUserBySAMAccountNameContext(ctx context.Context, name string) (*User, error)
+	FindUserBySAMAccountNameContext(ctx context.Context, name string) (*objects.User, error)
 	// FindUserByMail retrieves a user by their email address
-	FindUserByMail(mail string) (*User, error)
+	FindUserByMail(mail string) (*objects.User, error)
 	// FindUserByMailContext retrieves a user by their email address with context
-	FindUserByMailContext(ctx context.Context, mail string) (*User, error)
+	FindUserByMailContext(ctx context.Context, mail string) (*objects.User, error)
 }
 
 // UserWriter defines methods for writing/modifying user information in LDAP.
 // This interface follows the Interface Segregation Principle by separating write operations.
 type UserWriter interface {
 	// CreateUser creates a new user with the provided information and password
-	CreateUser(user FullUser, password string) (string, error)
+	CreateUser(user objects.FullUser, password string) (string, error)
 	// CreateUserContext creates a new user with the provided information and password with context
-	CreateUserContext(ctx context.Context, user FullUser, password string) (string, error)
+	CreateUserContext(ctx context.Context, user objects.FullUser, password string) (string, error)
 	// DeleteUser deletes a user by their distinguished name
 	DeleteUser(dn string) error
 	// DeleteUserContext deletes a user by their distinguished name with context
@@ -45,22 +47,22 @@ type UserManager interface {
 	UserReader
 	UserWriter
 	// GetUserGroups retrieves the groups a user belongs to
-	GetUserGroups(userDN string) ([]Group, error)
+	GetUserGroups(userDN string) ([]objects.Group, error)
 	// GetUserGroupsContext retrieves the groups a user belongs to with context
-	GetUserGroupsContext(ctx context.Context, userDN string) ([]Group, error)
+	GetUserGroupsContext(ctx context.Context, userDN string) ([]objects.Group, error)
 }
 
 // GroupReader defines methods for reading group information from LDAP.
 // This interface follows the Interface Segregation Principle by separating read operations.
 type GroupReader interface {
 	// FindGroupByDN retrieves a group by their distinguished name
-	FindGroupByDN(dn string) (*Group, error)
+	FindGroupByDN(dn string) (*objects.Group, error)
 	// FindGroupByDNContext retrieves a group by their distinguished name with context
-	FindGroupByDNContext(ctx context.Context, dn string) (*Group, error)
+	FindGroupByDNContext(ctx context.Context, dn string) (*objects.Group, error)
 	// FindGroupByCN retrieves a group by their common name
-	FindGroupByCN(cn string) (*Group, error)
+	FindGroupByCN(cn string) (*objects.Group, error)
 	// FindGroupByCNContext retrieves a group by their common name with context
-	FindGroupByCNContext(ctx context.Context, cn string) (*Group, error)
+	FindGroupByCNContext(ctx context.Context, cn string) (*objects.Group, error)
 }
 
 // GroupWriter defines methods for writing/modifying group information in LDAP.
@@ -90,9 +92,9 @@ type GroupManager interface {
 	GroupReader
 	GroupWriter
 	// GetGroupMembers retrieves the members of a group
-	GetGroupMembers(groupDN string) ([]User, error)
+	GetGroupMembers(groupDN string) ([]objects.User, error)
 	// GetGroupMembersContext retrieves the members of a group with context
-	GetGroupMembersContext(ctx context.Context, groupDN string) ([]User, error)
+	GetGroupMembersContext(ctx context.Context, groupDN string) ([]objects.User, error)
 }
 
 // ComputerReader defines methods for reading computer information from LDAP.

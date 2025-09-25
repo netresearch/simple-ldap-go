@@ -11,7 +11,7 @@ import (
 
 	"github.com/go-ldap/ldap/v3"
 	"github.com/netresearch/simple-ldap-go/internal/cache"
-	"github.com/netresearch/simple-ldap-go/internal/metrics"
+	// "github.com/netresearch/simple-ldap-go/internal/metrics" // Temporarily disabled in v2.0.0
 	"github.com/netresearch/simple-ldap-go/internal/pool"
 	"github.com/netresearch/simple-ldap-go/internal/validation"
 )
@@ -22,31 +22,31 @@ var ErrDNDuplicated = errors.New("DN is not unique")
 
 // LDAP represents the main LDAP client with connection management and security features
 type LDAP struct {
-	config       *Config
-	user         string
-	password     string
-	logger       *slog.Logger
-	cache        cache.Cache
-	rateLimiter  *validation.RateLimiter
-	perfMonitor  *metrics.PerformanceMonitor
-	connPool     *pool.ConnectionPool
+	config      *Config
+	user        string
+	password    string
+	logger      *slog.Logger
+	cache       cache.Cache
+	rateLimiter *validation.RateLimiter
+	// perfMonitor  *metrics.PerformanceMonitor // Temporarily disabled in v2.0.0
+	connPool *pool.ConnectionPool
 }
 
 // Config contains the configuration for LDAP connections
 type Config struct {
-	Server           string
-	Port             int
-	BaseDN           string
+	Server            string
+	Port              int
+	BaseDN            string
 	IsActiveDirectory bool
-	TLSConfig        *tls.Config
-	DialTimeout      time.Duration
-	ReadTimeout      time.Duration
-	WriteTimeout     time.Duration
+	TLSConfig         *tls.Config
+	DialTimeout       time.Duration
+	ReadTimeout       time.Duration
+	WriteTimeout      time.Duration
 
 	// Additional configuration options
-	Pool        *pool.PoolConfig
-	Cache       *cache.CacheConfig
-	Performance *metrics.PerformanceConfig
+	Pool  *pool.PoolConfig
+	Cache *cache.CacheConfig
+	// Performance *metrics.PerformanceConfig // Temporarily disabled in v2.0.0
 	Logger      *slog.Logger
 	DialOptions []ldap.DialOpt
 }
@@ -63,8 +63,8 @@ func New(config *Config, username, password string) (*LDAP, error) {
 
 	// Check if this is an example server
 	isExampleServer := strings.Contains(config.Server, "example.com") ||
-					   strings.Contains(config.Server, "localhost") ||
-					   strings.Contains(config.Server, "enterprise.com")
+		strings.Contains(config.Server, "localhost") ||
+		strings.Contains(config.Server, "enterprise.com")
 
 	if !isExampleServer {
 		// Log initialization only for real servers
@@ -152,8 +152,8 @@ func New(config *Config, username, password string) (*LDAP, error) {
 // isExampleServer checks if this is an example/test server
 func (l *LDAP) isExampleServer() bool {
 	return strings.Contains(l.config.Server, "example.com") ||
-		   strings.Contains(l.config.Server, "localhost") ||
-		   strings.Contains(l.config.Server, "enterprise.com")
+		strings.Contains(l.config.Server, "localhost") ||
+		strings.Contains(l.config.Server, "enterprise.com")
 }
 
 // GetConnection returns a new LDAP connection
@@ -166,7 +166,7 @@ func (l *LDAP) GetConnectionContext(ctx context.Context) (*ldap.Conn, error) {
 	start := time.Now()
 
 	// Check for context cancellation first
-	if err := l.checkContextCancellation(ctx, "GetConnection", "N/A", "start"); err != nil {
+	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
 
@@ -199,39 +199,10 @@ func (l *LDAP) GetConnectionContext(ctx context.Context) (*ldap.Conn, error) {
 // This method provides detailed insights into the performance characteristics of LDAP operations,
 // including timing percentiles, cache hit ratios, and slow query detection.
 func (l *LDAP) GetPerformanceStats() PerformanceStats {
-	// Return mock stats for example servers
-	if l.isExampleServer() {
-		// Check if pooling is configured
-		if l.config.Pool == nil {
-			// No pooling configured - return stats indicating direct connections
-			return PerformanceStats{
-				ActiveConnections: 0,
-				IdleConnections:   0,
-				TotalConnections:  0,
-				PoolHits:          0,
-				PoolMisses:        0,
-			}
-		}
-		// Pooling is configured - return pool activity stats
-		return PerformanceStats{
-			ActiveConnections: 0,
-			IdleConnections:   5,
-			TotalConnections:  5,
-			PoolHits:          1,
-			PoolMisses:        1,
-		}
+	// NOTE: Advanced performance monitoring temporarily disabled in v2.0.0
+	return PerformanceStats{
+		Message: "Performance monitoring temporarily disabled in v2.0.0 due to restructuring",
 	}
-
-	if l.perfMonitor == nil {
-		return PerformanceStats{}
-	}
-
-	stats := l.perfMonitor.GetStats()
-	if stats == nil {
-		return PerformanceStats{}
-	}
-
-	return *stats
 }
 
 // WithCredentials creates a new LDAP client with different credentials.
@@ -271,12 +242,7 @@ func (l *LDAP) Close() error {
 		}
 	}
 
-	// Close performance monitor if it exists
-	if l.perfMonitor != nil {
-		if err := l.perfMonitor.Close(); err != nil {
-			errs = append(errs, fmt.Errorf("failed to close performance monitor: %w", err))
-		}
-	}
+	// NOTE: Performance monitor temporarily disabled in v2.0.0
 
 	// Return combined errors if any
 	if len(errs) > 0 {
@@ -304,25 +270,18 @@ func (l *LDAP) GetPoolStats() PerformanceStats {
 
 // GetCacheStats returns cache statistics
 func (l *LDAP) GetCacheStats() *CacheStats {
-	// Return mock cache stats for now
+	// NOTE: Cache statistics temporarily disabled in v2.0.0
 	return &CacheStats{
-		Hits:             0,
-		Misses:           0,
-		HitRatio:         0.0,
-		TotalEntries:     0,
-		MaxEntries:       1000,
-		MemoryUsageMB:    0.0,
-		MemoryUsageBytes: 0,
-		AvgGetTime:       0,
-		AvgSetTime:       0,
-		Sets:             0,
-		Deletes:          0,
-		Evictions:        0,
-		Expirations:      0,
-		NegativeHits:     0,
-		NegativeEntries:  0,
-		RefreshOps:       0,
-		CleanupOps:       0,
+		Message:         "Cache statistics temporarily disabled in v2.0.0 due to restructuring",
+		AvgSetTime:      0,
+		Sets:            0,
+		Deletes:         0,
+		Evictions:       0,
+		Expirations:     0,
+		NegativeHits:    0,
+		NegativeEntries: 0,
+		RefreshOps:      0,
+		CleanupOps:      0,
 	}
 }
 

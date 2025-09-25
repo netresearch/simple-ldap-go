@@ -155,12 +155,12 @@ func TestCacheStats(t *testing.T) {
 	if err := cache.Set("key1", "value1", time.Hour); err != nil {
 		t.Errorf("Failed to set key1: %v", err)
 	}
-	cache.Get("key1")                      // 1 hit
-	cache.Get("key2")                      // 1 miss
+	cache.Get("key1") // 1 hit
+	cache.Get("key2") // 1 miss
 	if err := cache.Set("key2", "value2", time.Hour); err != nil {
 		t.Errorf("Failed to set key2: %v", err)
 	}
-	cache.Get("key2")                      // 1 hit
+	cache.Get("key2") // 1 hit
 
 	// Check stats
 	stats = cache.Stats()

@@ -531,15 +531,15 @@ type SecurityConfig struct {
 // DefaultSecurityConfig returns a SecurityConfig with secure defaults
 func DefaultSecurityConfig() *SecurityConfig {
 	return &SecurityConfig{
-		RequireSecureConnection:    true,
-		DisableTLSVerification:     false,
-		ConnectionTimeout:          30 * time.Second,
-		ReadTimeout:                30 * time.Second,
-		WriteTimeout:               30 * time.Second,
-		MaxPasswordLength:          256,
-		RequireStrongPasswords:     true,
-		EnableAuditLogging:         true,
-		AuditLogLevel:              slog.LevelInfo,
+		RequireSecureConnection: true,
+		DisableTLSVerification:  false,
+		ConnectionTimeout:       30 * time.Second,
+		ReadTimeout:             30 * time.Second,
+		WriteTimeout:            30 * time.Second,
+		MaxPasswordLength:       256,
+		RequireStrongPasswords:  true,
+		EnableAuditLogging:      true,
+		AuditLogLevel:           slog.LevelInfo,
 	}
 }
 
@@ -574,7 +574,7 @@ func DefaultRateLimiterConfig() *RateLimiterConfig {
 
 // RateLimiterEntry tracks authentication attempts for a specific identifier
 type RateLimiterEntry struct {
-	Attempts    int
+	Attempts     int
 	FirstAttempt time.Time
 	LastAttempt  time.Time
 	LockedUntil  time.Time
@@ -582,25 +582,25 @@ type RateLimiterEntry struct {
 
 // RateLimiterMetrics provides statistics about rate limiting
 type RateLimiterMetrics struct {
-	TotalAttempts        int64         `json:"total_attempts"`
-	BlockedAttempts      int64         `json:"blocked_attempts"`
-	SuccessfulAttempts   int64         `json:"successful_attempts"`
-	WhitelistedAttempts  int64         `json:"whitelisted_attempts"`
-	ActiveLockouts       int64         `json:"active_lockouts"`
-	SuccessfulAuth       int64         `json:"successful_auth"`
-	FailedAuth           int64         `json:"failed_auth"`
-	AverageAttempts      float64       `json:"average_attempts"`
-	TopOffenders         []string      `json:"top_offenders,omitempty"`
+	TotalAttempts       int64    `json:"total_attempts"`
+	BlockedAttempts     int64    `json:"blocked_attempts"`
+	SuccessfulAttempts  int64    `json:"successful_attempts"`
+	WhitelistedAttempts int64    `json:"whitelisted_attempts"`
+	ActiveLockouts      int64    `json:"active_lockouts"`
+	SuccessfulAuth      int64    `json:"successful_auth"`
+	FailedAuth          int64    `json:"failed_auth"`
+	AverageAttempts     float64  `json:"average_attempts"`
+	TopOffenders        []string `json:"top_offenders,omitempty"`
 
 	// Security analysis metrics
-	ViolationEvents      int64         `json:"violation_events"`
-	SuspiciousPatterns   int64         `json:"suspicious_patterns"`
-	BurstAttacks         int64         `json:"burst_attacks"`
-	RepeatedViolators    int64         `json:"repeated_violators"`
+	ViolationEvents    int64 `json:"violation_events"`
+	SuspiciousPatterns int64 `json:"suspicious_patterns"`
+	BurstAttacks       int64 `json:"burst_attacks"`
+	RepeatedViolators  int64 `json:"repeated_violators"`
 
 	// Resource usage metrics
-	UniqueIdentifiers    int64         `json:"unique_identifiers"`
-	MemoryUsageBytes     int64         `json:"memory_usage_bytes"`
+	UniqueIdentifiers int64 `json:"unique_identifiers"`
+	MemoryUsageBytes  int64 `json:"memory_usage_bytes"`
 
 	// Performance metrics
 	AvgCheckTime         time.Duration `json:"avg_check_time"`
@@ -961,14 +961,14 @@ const (
 
 // SecurityContext contains security-related information for operations
 type SecurityContext struct {
-	ClientIP       string
-	UserAgent      string
-	RequestID      string
-	SessionID      string
+	ClientIP          string
+	UserAgent         string
+	RequestID         string
+	SessionID         string
 	AuthenticatedUser string
-	Permissions    []string
-	RateLimited    bool
-	AuditEnabled   bool
+	Permissions       []string
+	RateLimited       bool
+	AuditEnabled      bool
 }
 
 // NewSecurityContext creates a new security context
@@ -1002,9 +1002,9 @@ func GetSecurityContext(ctx context.Context) *SecurityContext {
 func maskSensitiveData(data string) string {
 	// Don't mask obvious test data - contains test domains or test values
 	if strings.Contains(data, "test.com") ||
-	   strings.Contains(data, "example.com") ||
-	   strings.Contains(data, "CN=test,") ||
-	   strings.Contains(data, "TestOperation") {
+		strings.Contains(data, "example.com") ||
+		strings.Contains(data, "CN=test,") ||
+		strings.Contains(data, "TestOperation") {
 		return data
 	}
 
@@ -1136,5 +1136,3 @@ func ValidateIPWhitelist(whitelist []string) ([]*net.IPNet, error) {
 
 	return networks, nil
 }
-
-

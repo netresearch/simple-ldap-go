@@ -23,24 +23,24 @@ const (
 // PasswordAnalysis contains analysis results for password strength
 type PasswordAnalysis struct {
 	Length     int     `json:"length"`
-	Strength   float64 `json:"strength"`   // 0.0 to 1.0
-	Entropy    float64 `json:"entropy"`    // Bits of entropy
-	HasUpper   bool    `json:"has_upper"`  // Contains uppercase letters
-	HasLower   bool    `json:"has_lower"`  // Contains lowercase letters
-	HasDigit   bool    `json:"has_digit"`  // Contains digits
+	Strength   float64 `json:"strength"`    // 0.0 to 1.0
+	Entropy    float64 `json:"entropy"`     // Bits of entropy
+	HasUpper   bool    `json:"has_upper"`   // Contains uppercase letters
+	HasLower   bool    `json:"has_lower"`   // Contains lowercase letters
+	HasDigit   bool    `json:"has_digit"`   // Contains digits
 	HasSpecial bool    `json:"has_special"` // Contains special characters
 }
 
 // ValidationSummary contains aggregated validation results
 type ValidationSummary struct {
-	TotalChecks       int                  `json:"total_checks"`
-	PassedChecks      int                  `json:"passed_checks"`
-	FailedChecks      int                  `json:"failed_checks"`
-	OverallValid      bool                 `json:"overall_valid"`
-	SecurityScore     float64              `json:"security_score"`    // 0.0 to 1.0
-	Recommendations   []string             `json:"recommendations"`
-	Results           []*ValidationResult  `json:"results"`
-	GeneratedAt       time.Time            `json:"generated_at"`
+	TotalChecks     int                 `json:"total_checks"`
+	PassedChecks    int                 `json:"passed_checks"`
+	FailedChecks    int                 `json:"failed_checks"`
+	OverallValid    bool                `json:"overall_valid"`
+	SecurityScore   float64             `json:"security_score"` // 0.0 to 1.0
+	Recommendations []string            `json:"recommendations"`
+	Results         []*ValidationResult `json:"results"`
+	GeneratedAt     time.Time           `json:"generated_at"`
 }
 
 // ValidationConfig contains configuration for input validation
@@ -279,7 +279,6 @@ func (v *Validator) ValidateFilter(filter string) *ValidationResult {
 
 	return result
 }
-
 
 // ValidateCredentials validates username and password credentials
 func (v *Validator) ValidateCredentials(username, password string) *ValidationResult {
@@ -723,10 +722,10 @@ func SanitizeFilter(filter string) string {
 
 	// Escape special LDAP characters
 	replacements := map[string]string{
-		"\\": "\\5c",
-		"*":  "\\2a",
-		"(":  "\\28",
-		")":  "\\29",
+		"\\":   "\\5c",
+		"*":    "\\2a",
+		"(":    "\\28",
+		")":    "\\29",
 		"\x00": "\\00",
 	}
 
@@ -992,5 +991,3 @@ func CreateValidationSummary(results []*ValidationResult) *ValidationSummary {
 
 	return summary
 }
-
-

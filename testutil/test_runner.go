@@ -15,9 +15,9 @@ import (
 // TestRunnerConfig configures test execution behavior
 type TestRunnerConfig struct {
 	// Parallel execution settings
-	EnableParallel     bool
-	MaxParallelTests   int
-	ParallelPackages   bool
+	EnableParallel   bool
+	MaxParallelTests int
+	ParallelPackages bool
 
 	// Timeout settings
 	TestTimeout        time.Duration
@@ -34,8 +34,8 @@ type TestRunnerConfig struct {
 	EnableMemProfiling bool
 
 	// Container settings
-	ReuseContainers    bool
-	ContainerTimeout   time.Duration
+	ReuseContainers  bool
+	ContainerTimeout time.Duration
 }
 
 // DefaultTestConfig returns optimized test configuration
@@ -50,9 +50,9 @@ func DefaultTestConfig() *TestRunnerConfig {
 		EnableParallel:      true,
 		MaxParallelTests:    maxParallel,
 		ParallelPackages:    true,
-		TestTimeout:         30 * time.Second,  // Reduced from default 10m
-		IntegrationTimeout:  60 * time.Second,  // Specific timeout for integration tests
-		UnitTimeout:         5 * time.Second,   // Fast timeout for unit tests
+		TestTimeout:         30 * time.Second, // Reduced from default 10m
+		IntegrationTimeout:  60 * time.Second, // Specific timeout for integration tests
+		UnitTimeout:         5 * time.Second,  // Fast timeout for unit tests
 		RunIntegrationTests: !testing.Short(),
 		RunUnitTests:        true,
 		RunBenchmarks:       false,
@@ -152,9 +152,9 @@ func GetTestMetadata(testName string) TestMetadata {
 
 // OptimizedTestRunner provides test execution optimization
 type OptimizedTestRunner struct {
-	config       *TestRunnerConfig
-	sharedCtx    context.Context
-	cancel       context.CancelFunc
+	config    *TestRunnerConfig
+	sharedCtx context.Context
+	cancel    context.CancelFunc
 }
 
 // NewOptimizedTestRunner creates a test runner with optimizations
