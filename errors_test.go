@@ -309,7 +309,7 @@ func TestFormatErrorWithContext(t *testing.T) {
 		WithContext("timeout_seconds", 30).
 		WithContext("retry_count", 3)
 
-	formatted := FormatErrorWithContext(ldapErr, make(map[string]interface{}))
+	formatted := FormatErrorWithContext(ldapErr)
 
 	// Check that formatted error contains key information
 	expectedSubstrings := []string{
