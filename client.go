@@ -18,26 +18,26 @@ var ErrDNDuplicated = errors.New("DN is not unique")
 
 // LDAP represents the main LDAP client with connection management and security features
 type LDAP struct {
-	config       *Config
-	user         string
-	password     string
-	logger       *slog.Logger
-	cache        Cache
-	rateLimiter  *RateLimiter
-	perfMonitor  *PerformanceMonitor
-	connPool     *ConnectionPool
+	config      *Config
+	user        string
+	password    string
+	logger      *slog.Logger
+	cache       Cache
+	rateLimiter *RateLimiter
+	perfMonitor *PerformanceMonitor
+	connPool    *ConnectionPool
 }
 
 // Config contains the configuration for LDAP connections
 type Config struct {
-	Server           string
-	Port             int
-	BaseDN           string
+	Server            string
+	Port              int
+	BaseDN            string
 	IsActiveDirectory bool
-	TLSConfig        *tls.Config
-	DialTimeout      time.Duration
-	ReadTimeout      time.Duration
-	WriteTimeout     time.Duration
+	TLSConfig         *tls.Config
+	DialTimeout       time.Duration
+	ReadTimeout       time.Duration
+	WriteTimeout      time.Duration
 
 	// Additional configuration options
 	Pool        *PoolConfig
@@ -59,8 +59,8 @@ func New(config *Config, username, password string) (*LDAP, error) {
 
 	// Check if this is an example server
 	isExampleServer := strings.Contains(config.Server, "example.com") ||
-					   strings.Contains(config.Server, "localhost") ||
-					   strings.Contains(config.Server, "enterprise.com")
+		strings.Contains(config.Server, "localhost") ||
+		strings.Contains(config.Server, "enterprise.com")
 
 	if !isExampleServer {
 		// Log initialization only for real servers
@@ -148,8 +148,8 @@ func New(config *Config, username, password string) (*LDAP, error) {
 // isExampleServer checks if this is an example/test server
 func (l *LDAP) isExampleServer() bool {
 	return strings.Contains(l.config.Server, "example.com") ||
-		   strings.Contains(l.config.Server, "localhost") ||
-		   strings.Contains(l.config.Server, "enterprise.com")
+		strings.Contains(l.config.Server, "localhost") ||
+		strings.Contains(l.config.Server, "enterprise.com")
 }
 
 // GetConnection returns a new LDAP connection

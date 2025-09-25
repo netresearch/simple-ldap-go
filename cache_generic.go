@@ -70,8 +70,8 @@ type GenericLRUCache[T any] struct {
 
 	// Core data structures
 	items   map[string]*GenericCacheEntry[T] // Key -> CacheEntry mapping
-	lruList *list.List                        // LRU ordering
-	mu      sync.RWMutex                      // Read-write mutex for thread safety
+	lruList *list.List                       // LRU ordering
+	mu      sync.RWMutex                     // Read-write mutex for thread safety
 
 	// Statistics (atomic for thread safety)
 	stats CacheStats

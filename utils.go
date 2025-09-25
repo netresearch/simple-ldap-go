@@ -54,7 +54,6 @@ func (l *LDAP) encodePasswordPair(oldCreds, newCreds *SecureCredential, username
 	return oldEncoded, newEncoded, nil
 }
 
-
 // parseObjectEnabled determines if an LDAP object is enabled based on userAccountControl attribute.
 // This function parses the Active Directory userAccountControl attribute to determine if an account is enabled.
 //

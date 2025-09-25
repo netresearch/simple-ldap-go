@@ -11,20 +11,20 @@ import (
 
 // PrometheusExporter provides Prometheus-formatted metrics export
 type PrometheusExporter struct {
-	perfMonitor  *PerformanceMonitor
-	rateLimiter  *RateLimiter
-	cache        Cache
-	pool         *ConnectionPool
-	namespace    string
-	labels       map[string]string
+	perfMonitor *PerformanceMonitor
+	rateLimiter *RateLimiter
+	cache       Cache
+	pool        *ConnectionPool
+	namespace   string
+	labels      map[string]string
 }
 
 // PrometheusConfig configures the Prometheus metrics exporter
 type PrometheusConfig struct {
-	Namespace    string            // Metrics namespace (e.g., "ldap_client")
-	Labels       map[string]string // Additional labels for all metrics
-	IncludeHelp  bool              // Include help text for metrics
-	IncludeType  bool              // Include type information for metrics
+	Namespace   string            // Metrics namespace (e.g., "ldap_client")
+	Labels      map[string]string // Additional labels for all metrics
+	IncludeHelp bool              // Include help text for metrics
+	IncludeType bool              // Include type information for metrics
 }
 
 // DefaultPrometheusConfig returns sensible defaults for Prometheus export

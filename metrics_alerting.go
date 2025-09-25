@@ -47,15 +47,15 @@ type AlertRule struct {
 	Description      string                 `json:"description"`
 	Category         AlertCategory          `json:"category"`
 	Severity         AlertSeverity          `json:"severity"`
-	Condition        string                 `json:"condition"`        // Human-readable condition
-	CheckFunc        func() (bool, string)  `json:"-"`               // Function to check condition
-	Cooldown         time.Duration          `json:"cooldown"`        // Minimum time between alerts
+	Condition        string                 `json:"condition"` // Human-readable condition
+	CheckFunc        func() (bool, string)  `json:"-"`         // Function to check condition
+	Cooldown         time.Duration          `json:"cooldown"`  // Minimum time between alerts
 	Labels           map[string]string      `json:"labels"`
 	Metadata         map[string]interface{} `json:"metadata"`
 	Enabled          bool                   `json:"enabled"`
 	LastTriggered    *time.Time             `json:"last_triggered,omitempty"`
 	TriggerCount     int64                  `json:"trigger_count"`
-	AutoResolve      bool                   `json:"auto_resolve"`      // Auto-resolve when condition is false
+	AutoResolve      bool                   `json:"auto_resolve"`       // Auto-resolve when condition is false
 	AutoResolveAfter time.Duration          `json:"auto_resolve_after"` // Auto-resolve after duration
 }
 
@@ -71,44 +71,44 @@ type NotificationChannel struct {
 
 // AlertingConfig configures the alerting system
 type AlertingConfig struct {
-	Enabled                bool                   `json:"enabled"`
-	CheckInterval          time.Duration          `json:"check_interval"`
-	MaxConcurrentChecks    int                    `json:"max_concurrent_checks"`
-	AlertRetention         time.Duration          `json:"alert_retention"`
-	DefaultCooldown        time.Duration          `json:"default_cooldown"`
-	NotificationTimeout    time.Duration          `json:"notification_timeout"`
-	GlobalLabels           map[string]string      `json:"global_labels"`
-	SeverityFilters        []AlertSeverity        `json:"severity_filters"`
-	CategoryFilters        []AlertCategory        `json:"category_filters"`
-	NotificationChannels   []NotificationChannel  `json:"notification_channels"`
-	Rules                  []AlertRule            `json:"rules"`
-	WebhookConfig          *WebhookConfig         `json:"webhook_config,omitempty"`
-	EmailConfig            *EmailConfig           `json:"email_config,omitempty"`
+	Enabled              bool                  `json:"enabled"`
+	CheckInterval        time.Duration         `json:"check_interval"`
+	MaxConcurrentChecks  int                   `json:"max_concurrent_checks"`
+	AlertRetention       time.Duration         `json:"alert_retention"`
+	DefaultCooldown      time.Duration         `json:"default_cooldown"`
+	NotificationTimeout  time.Duration         `json:"notification_timeout"`
+	GlobalLabels         map[string]string     `json:"global_labels"`
+	SeverityFilters      []AlertSeverity       `json:"severity_filters"`
+	CategoryFilters      []AlertCategory       `json:"category_filters"`
+	NotificationChannels []NotificationChannel `json:"notification_channels"`
+	Rules                []AlertRule           `json:"rules"`
+	WebhookConfig        *WebhookConfig        `json:"webhook_config,omitempty"`
+	EmailConfig          *EmailConfig          `json:"email_config,omitempty"`
 }
 
 // WebhookConfig configures webhook notifications
 type WebhookConfig struct {
-	URL             string            `json:"url"`
-	Method          string            `json:"method"`
-	Headers         map[string]string `json:"headers"`
-	Timeout         time.Duration     `json:"timeout"`
-	RetryAttempts   int               `json:"retry_attempts"`
-	RetryInterval   time.Duration     `json:"retry_interval"`
-	TLSVerify       bool              `json:"tls_verify"`
-	BasicAuth       *BasicAuthConfig  `json:"basic_auth,omitempty"`
+	URL           string            `json:"url"`
+	Method        string            `json:"method"`
+	Headers       map[string]string `json:"headers"`
+	Timeout       time.Duration     `json:"timeout"`
+	RetryAttempts int               `json:"retry_attempts"`
+	RetryInterval time.Duration     `json:"retry_interval"`
+	TLSVerify     bool              `json:"tls_verify"`
+	BasicAuth     *BasicAuthConfig  `json:"basic_auth,omitempty"`
 }
 
 // EmailConfig configures email notifications
 type EmailConfig struct {
-	SMTPHost     string   `json:"smtp_host"`
-	SMTPPort     int      `json:"smtp_port"`
-	Username     string   `json:"username"`
-	Password     string   `json:"password"`
-	From         string   `json:"from"`
-	To           []string `json:"to"`
-	Subject      string   `json:"subject"`
-	UseTLS       bool     `json:"use_tls"`
-	UseStartTLS  bool     `json:"use_starttls"`
+	SMTPHost    string   `json:"smtp_host"`
+	SMTPPort    int      `json:"smtp_port"`
+	Username    string   `json:"username"`
+	Password    string   `json:"password"`
+	From        string   `json:"from"`
+	To          []string `json:"to"`
+	Subject     string   `json:"subject"`
+	UseTLS      bool     `json:"use_tls"`
+	UseStartTLS bool     `json:"use_starttls"`
 }
 
 // BasicAuthConfig for webhook authentication
@@ -119,22 +119,22 @@ type BasicAuthConfig struct {
 
 // AlertManager manages the alerting system
 type AlertManager struct {
-	config          *AlertingConfig
-	rules           map[string]*AlertRule
-	channels        map[string]*NotificationChannel
-	activeAlerts    map[string]*Alert
-	alertHistory    []*Alert
-	perfMonitor     *PerformanceMonitor
-	rateLimiter     *RateLimiter
-	healthMonitor   *HealthMonitor
+	config           *AlertingConfig
+	rules            map[string]*AlertRule
+	channels         map[string]*NotificationChannel
+	activeAlerts     map[string]*Alert
+	alertHistory     []*Alert
+	perfMonitor      *PerformanceMonitor
+	rateLimiter      *RateLimiter
+	healthMonitor    *HealthMonitor
 	securityAnalyzer *SecurityAnalyzer
-	logger          *slog.Logger
-	ctx             context.Context
-	cancel          context.CancelFunc
-	wg              sync.WaitGroup
-	mu              sync.RWMutex
-	checkSemaphore  chan struct{}
-	started         bool
+	logger           *slog.Logger
+	ctx              context.Context
+	cancel           context.CancelFunc
+	wg               sync.WaitGroup
+	mu               sync.RWMutex
+	checkSemaphore   chan struct{}
+	started          bool
 }
 
 // DefaultAlertingConfig returns sensible defaults for alerting
@@ -785,12 +785,12 @@ func (am *AlertManager) GetStats() AlertingStats {
 	defer am.mu.RUnlock()
 
 	stats := AlertingStats{
-		RulesTotal:     int64(len(am.rules)),
-		RulesEnabled:   0,
-		ChannelsTotal:  int64(len(am.channels)),
-		ChannelsActive: 0,
-		ActiveAlerts:   int64(len(am.activeAlerts)),
-		TotalAlerts:    int64(len(am.alertHistory)),
+		RulesTotal:       int64(len(am.rules)),
+		RulesEnabled:     0,
+		ChannelsTotal:    int64(len(am.channels)),
+		ChannelsActive:   0,
+		ActiveAlerts:     int64(len(am.activeAlerts)),
+		TotalAlerts:      int64(len(am.alertHistory)),
 		AlertsByCategory: make(map[string]int64),
 		AlertsBySeverity: make(map[string]int64),
 	}
