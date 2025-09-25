@@ -3,9 +3,7 @@
 
 package ldap
 
-import (
-	"errors"
-)
+import ()
 
 // Option represents a functional option for configuring an LDAP client.
 type Option func(*LDAP)
@@ -63,8 +61,6 @@ type BulkSearchOptions struct {
 
 // Common errors temporarily placed in main package for v2.0.0
 var (
-	ErrUserNotFound  = errors.New("user not found")
-	ErrGroupNotFound = errors.New("group not found")
 )
 
 // maskSensitiveData masks sensitive information for logging
@@ -76,15 +72,14 @@ func maskSensitiveData(data string) string {
 	return data[:2] + "***" + data[len(data)-2:]
 }
 
-// Object represents a basic LDAP object (temporarily in main package for v2.0.0)
+// Object represents an LDAP object (minimal for v2.0.0)
 type Object struct {
-	cn string
+	// The distinguished name
 	dn string
-}
-
-// CN returns the common name
-func (o Object) CN() string {
-	return o.cn
+	// The common name
+	cn string
+	// The attributes
+	attributes map[string][]string
 }
 
 // DN returns the distinguished name
@@ -92,14 +87,17 @@ func (o Object) DN() string {
 	return o.dn
 }
 
-// User represents an LDAP user object (temporarily in main package for v2.0.0)
-type User struct {
-	Object
-	Enabled        bool
-	SAMAccountName string
-	Description    string
-	Mail           *string
-	Groups         []string
+// CN returns the common name
+func (o Object) CN() string {
+	return o.cn
+}
+
+// GetAttributeValues returns the values for an attribute
+func (o Object) GetAttributeValues(name string) []string {
+	if o.attributes == nil {
+		return nil
+	}
+	return o.attributes[name]
 }
 
 // SearchOptions provides configuration for optimized search operations

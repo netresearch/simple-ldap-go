@@ -3,7 +3,6 @@ package ldap
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -16,9 +15,6 @@ import (
 	"github.com/netresearch/simple-ldap-go/internal/validation"
 )
 
-// ErrDNDuplicated is returned when a search operation finds multiple entries with the same DN,
-// indicating a data integrity issue.
-var ErrDNDuplicated = errors.New("DN is not unique")
 
 // LDAP represents the main LDAP client with connection management and security features
 type LDAP struct {
