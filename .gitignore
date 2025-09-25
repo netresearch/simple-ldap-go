@@ -6,6 +6,7 @@ unit_coverage.html
 # Test binaries
 enhanced_errors
 *_test
+basic_usage
 
 # IDE files
 .idea/
