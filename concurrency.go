@@ -114,7 +114,7 @@ func NewWorkerPool[T any](client *LDAP, config *WorkerPoolConfig) *WorkerPool[T]
 	}
 
 	// Start workers
-	for i := 0; i < config.WorkerCount; i++ {
+	for i := range config.WorkerCount {
 		pool.wg.Add(1)
 		go pool.worker(i, config.FailFast)
 	}

@@ -350,7 +350,7 @@ closeDirect:
 
 // warmPool pre-populates the pool with minimum connections
 func (p *ConnectionPool) warmPool(ctx context.Context) error {
-	for i := 0; i < p.config.MinConnections; i++ {
+	for i := range p.config.MinConnections {
 		_, err := p.createConnection(ctx)
 		if err != nil {
 			p.logger.Error("pool_warm_connection_failed",
@@ -607,7 +607,7 @@ func (p *ConnectionPool) performHealthChecks() {
 
 	// Check connections in available channel (idle connections)
 	availableCount := len(p.available)
-	for i := 0; i < availableCount; i++ {
+	for range availableCount {
 		select {
 		case conn := <-p.available:
 			if conn != nil && !p.isConnectionHealthy(conn) {
@@ -668,7 +668,7 @@ func (p *ConnectionPool) cleanupIdleConnections() {
 	var cleanedUp int
 	availableCount := len(p.available)
 
-	for i := 0; i < availableCount && currentTotal > p.config.MinConnections; i++ {
+	for range min(availableCount, currentTotal-p.config.MinConnections) {
 		select {
 		case conn := <-p.available:
 			if conn != nil && time.Since(conn.lastUsed) > p.config.MaxIdleTime {
