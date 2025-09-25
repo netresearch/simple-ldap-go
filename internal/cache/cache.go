@@ -12,8 +12,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/netresearch/simple-ldap-go/objects"
 )
 
 var (
@@ -683,31 +681,10 @@ func (c *LRUCache) estimateEntrySize(key string, value interface{}) int32 {
 		size += len(v)
 	case []byte:
 		size += len(v)
-	case *objects.User:
-		size += len(v.dn) + len(v.SAMAccountName) + len(v.Description)
-		if v.Mail != nil {
-			size += len(*v.Mail)
-		}
-		size += len(v.Groups) * 50 // Estimate 50 chars per DN
-	case *objects.Group:
-		size += len(v.dn)
-		size += len(v.Members) * 50 // Estimate 50 chars per member DN
-	case []objects.User:
-		for _, u := range v {
-			size += len(u.dn) + len(u.SAMAccountName) + len(u.Description)
-			if u.Mail != nil {
-				size += len(*u.Mail)
-			}
-			size += len(u.Groups) * 50
-		}
-	case []objects.Group:
-		for _, g := range v {
-			size += len(g.dn)
-			size += len(g.Members) * 50
-		}
 	default:
-		// For unknown types, use a conservative estimate
-		size += 256
+		// For unknown types, use a conservative estimate based on typical LDAP object size
+		// This covers User, Group, Computer objects without importing the objects package
+		size += 512
 	}
 
 	return int32(size + 64) // Add overhead for CacheEntry struct

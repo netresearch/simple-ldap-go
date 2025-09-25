@@ -7,8 +7,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/netresearch/simple-ldap-go/objects"
 )
 
 // GenericCacheEntry represents a cached item with metadata for generic cache
@@ -544,36 +542,8 @@ func (c *GenericLRUCache[T]) performMaintenance() {
 	}
 }
 
-// Specialized cache types for common LDAP objects
-
-// UserCache provides a type-safe cache for objects.User objects
-type UserCache = GenericLRUCache[*objects.User]
-
-// GroupCache provides a type-safe cache for objects.Group objects
-type GroupCache = GenericLRUCache[*objects.Group]
-
-// ComputerCache provides a type-safe cache for objects.Computer objects
-type ComputerCache = GenericLRUCache[*objects.Computer]
-
 // StringCache provides a type-safe cache for string values
 type StringCache = GenericLRUCache[string]
-
-// Helper functions for creating specialized caches
-
-// NewUserCache creates a new cache specifically for objects.User objects
-func NewUserCache(config *CacheConfig, logger *slog.Logger) (*UserCache, error) {
-	return NewGenericLRUCache[*objects.User](config, logger)
-}
-
-// NewGroupCache creates a new cache specifically for objects.Group objects
-func NewGroupCache(config *CacheConfig, logger *slog.Logger) (*GroupCache, error) {
-	return NewGenericLRUCache[*objects.Group](config, logger)
-}
-
-// NewComputerCache creates a new cache specifically for objects.Computer objects
-func NewComputerCache(config *CacheConfig, logger *slog.Logger) (*ComputerCache, error) {
-	return NewGenericLRUCache[*objects.Computer](config, logger)
-}
 
 // NewStringCache creates a new cache specifically for string values
 func NewStringCache(config *CacheConfig, logger *slog.Logger) (*StringCache, error) {
