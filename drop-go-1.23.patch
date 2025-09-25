@@ -1,0 +1,43 @@
+From: Sebastian Mendel <sebastian.mendel@netresearch.de>
+Date: Thu, 25 Sep 2025 12:00:00 +0000
+Subject: [PATCH] ci: drop Go 1.23 support to match testcontainers v0.39.0 requirements
+
+- testcontainers-go v0.39.0 requires Go 1.24 as minimum version
+- Updated CI matrix to test only Go 1.24 and 1.25
+- Aligns with go.mod which already specifies go 1.24.0
+
+---
+ .github/workflows/optimized-tests.yml | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/.github/workflows/optimized-tests.yml b/.github/workflows/optimized-tests.yml
+index abc1234..def5678 100644
+--- a/.github/workflows/optimized-tests.yml
++++ b/.github/workflows/optimized-tests.yml
+@@ -13,7 +13,7 @@ jobs:
+     runs-on: ubuntu-latest
+     strategy:
+       matrix:
+-        go-version: ['1.23', '1.24', '1.25']
++        go-version: ['1.24', '1.25']
+
+     steps:
+     - name: Checkout code
+@@ -55,7 +55,7 @@ jobs:
+     runs-on: ubuntu-latest
+     strategy:
+       matrix:
+-        go-version: ['1.23', '1.24', '1.25']
++        go-version: ['1.24', '1.25']
+
+     steps:
+     - name: Checkout code
+@@ -223,7 +223,7 @@ jobs:
+     runs-on: ubuntu-latest
+     strategy:
+       matrix:
+-        go-version: ['1.23', '1.24', '1.25']
++        go-version: ['1.24', '1.25']
+
+     steps:
+     - name: Checkout code
