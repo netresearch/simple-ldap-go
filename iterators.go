@@ -18,7 +18,9 @@ func (l *LDAP) SearchIter(ctx context.Context, searchRequest *ldap.SearchRequest
 			yield(nil, err)
 			return
 		}
-		defer conn.Close()
+		defer func() {
+			_ = conn.Close()
+		}()
 
 		// Perform the search
 		result, err := conn.Search(searchRequest)
@@ -47,7 +49,9 @@ func (l *LDAP) SearchPagedIter(ctx context.Context, searchRequest *ldap.SearchRe
 			yield(nil, err)
 			return
 		}
-		defer conn.Close()
+		defer func() {
+			_ = conn.Close()
+		}()
 
 		pagingControl := ldap.NewControlPaging(pageSize)
 		controls := []ldap.Control{pagingControl}
