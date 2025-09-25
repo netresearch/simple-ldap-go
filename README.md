@@ -182,6 +182,7 @@ Comprehensive examples are available in the [examples](examples/) directory:
 import (
     "github.com/netresearch/simple-ldap-go"
     "github.com/netresearch/simple-ldap-go/objects"
+    "github.com/netresearch/simple-ldap-go/search"
 )
 
 // Client creation
@@ -195,16 +196,44 @@ user, err := client.CheckPasswordForSAMAccountName("jdoe", "password")
 user, err := client.FindUserBySAMAccountName("jdoe")
 users, err := client.FindUsers()
 
-// User management
+// Work with structured objects
+var fullUser *objects.FullUser = ...
 err := client.CreateUser(fullUser, "ou=Users,dc=example,dc=com")
-err := client.DeleteUser("cn=John Doe,ou=Users,dc=example,dc=com")
 
-// Group operations
-group, err := client.FindGroupByDN("cn=Admins,dc=example,dc=com")
-err := client.AddUserToGroup(userDN, groupDN)
+// Use builders for complex queries
+builder := search.NewUserBuilder().
+    WithAttributes("cn", "mail", "department").
+    WithFilter("department", "Engineering")
 ```
 
 See the [Go Reference](https://pkg.go.dev/github.com/netresearch/simple-ldap-go) for complete API documentation.
+
+## Migration Guide
+
+### From v1.1.x to v2.0.0 (Breaking Change)
+
+Version 2.0.0 introduces a new structured package organization. This is a **breaking change**.
+
+See [MIGRATION.md](MIGRATION.md) for detailed migration instructions.
+
+#### Quick Summary
+
+**Old imports:**
+```go
+import "github.com/netresearch/simple-ldap-go"
+var user *ldap.User
+```
+
+**New imports:**
+```go
+import (
+    "github.com/netresearch/simple-ldap-go"
+    "github.com/netresearch/simple-ldap-go/objects"
+)
+var user *objects.User
+```
+
+**What doesn't change:** All LDAP client methods remain exactly the same.
 
 ## Configuration
 
