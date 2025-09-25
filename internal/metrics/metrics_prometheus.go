@@ -7,14 +7,18 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/netresearch/simple-ldap-go/internal/cache"
+	"github.com/netresearch/simple-ldap-go/internal/pool"
+	"github.com/netresearch/simple-ldap-go/internal/validation"
 )
 
 // PrometheusExporter provides Prometheus-formatted metrics export
 type PrometheusExporter struct {
 	perfMonitor  *PerformanceMonitor
-	rateLimiter  *RateLimiter
-	cache        Cache
-	pool         *ConnectionPool
+	rateLimiter  *validation.RateLimiter
+	cache        cache.Cache
+	pool         *pool.ConnectionPool
 	namespace    string
 	labels       map[string]string
 }
@@ -59,17 +63,17 @@ func (pe *PrometheusExporter) SetPerformanceMonitor(monitor *PerformanceMonitor)
 }
 
 // SetRateLimiter sets the rate limiter for metrics export
-func (pe *PrometheusExporter) SetRateLimiter(limiter *RateLimiter) {
+func (pe *PrometheusExporter) SetRateLimiter(limiter *validation.RateLimiter) {
 	pe.rateLimiter = limiter
 }
 
 // SetCache sets the cache for metrics export
-func (pe *PrometheusExporter) SetCache(cache Cache) {
+func (pe *PrometheusExporter) SetCache(cache cache.Cache) {
 	pe.cache = cache
 }
 
 // SetConnectionPool sets the connection pool for metrics export
-func (pe *PrometheusExporter) SetConnectionPool(pool *ConnectionPool) {
+func (pe *PrometheusExporter) SetConnectionPool(pool *pool.ConnectionPool) {
 	pe.pool = pool
 }
 
@@ -260,7 +264,7 @@ func (pe *PrometheusExporter) writeCacheMetrics(w io.Writer, config *PrometheusC
 		float64(stats.Misses), nil)
 
 	pe.writeMetric(w, config, "cache_hit_ratio", "gauge",
-		"Cache hit ratio as percentage",
+		"cache.Cache hit ratio as percentage",
 		stats.HitRatio, nil)
 
 	pe.writeMetric(w, config, "cache_sets_total", "counter",

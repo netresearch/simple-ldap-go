@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"net/mail"
 	"strings"
+
+	"github.com/netresearch/simple-ldap-go/objects"
 )
 
 // UserBuilder implements the builder pattern for creating FullUser objects.
 // This provides a fluent, chainable API for constructing users with validation.
 type UserBuilder struct {
-	user   *FullUser
+	user   *objects.FullUser
 	errors []error
 }
 
@@ -27,7 +29,7 @@ type UserBuilder struct {
 //	    Build()
 func NewUserBuilder() *UserBuilder {
 	return &UserBuilder{
-		user: &FullUser{
+		user: &objects.FullUser{
 			CN:        "",
 			FirstName: "",
 			LastName:  "",
@@ -132,7 +134,7 @@ func (b *UserBuilder) WithLastName(lastName string) *UserBuilder {
 
 // Build creates the FullUser object and validates all required fields.
 // Returns an error if any validation failed during the building process.
-func (b *UserBuilder) Build() (*FullUser, error) {
+func (b *UserBuilder) Build() (*objects.FullUser, error) {
 	// Check for any errors accumulated during building
 	if len(b.errors) > 0 {
 		return nil, fmt.Errorf("user builder validation failed: %v", b.errors)
@@ -155,7 +157,7 @@ func (b *UserBuilder) Build() (*FullUser, error) {
 // This follows Go's convention for Must* functions which panic on error.
 // Use Build() if you want to handle errors gracefully.
 // This method should only be used when you're certain the configuration is valid.
-func (b *UserBuilder) MustBuild() *FullUser {
+func (b *UserBuilder) MustBuild() *objects.FullUser {
 	user, err := b.Build()
 	if err != nil {
 		panic(fmt.Sprintf("user builder failed: %v", err))
@@ -627,7 +629,7 @@ func (b *QueryBuilder) BuildFilter() (string, error) {
 // Note: ValidationResult is defined in validation.go to avoid duplication
 
 // ValidateUser validates a user object created by UserBuilder.
-func ValidateUser(user *FullUser) ValidationResult {
+func ValidateUser(user *objects.FullUser) ValidationResult {
 	var errors []string
 
 	if user.CN == "" {

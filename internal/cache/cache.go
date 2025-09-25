@@ -12,6 +12,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/netresearch/simple-ldap-go/objects"
 )
 
 var (
@@ -681,16 +683,16 @@ func (c *LRUCache) estimateEntrySize(key string, value interface{}) int32 {
 		size += len(v)
 	case []byte:
 		size += len(v)
-	case *User:
+	case *objects.User:
 		size += len(v.dn) + len(v.SAMAccountName) + len(v.Description)
 		if v.Mail != nil {
 			size += len(*v.Mail)
 		}
 		size += len(v.Groups) * 50 // Estimate 50 chars per DN
-	case *Group:
+	case *objects.Group:
 		size += len(v.dn)
 		size += len(v.Members) * 50 // Estimate 50 chars per member DN
-	case []User:
+	case []objects.User:
 		for _, u := range v {
 			size += len(u.dn) + len(u.SAMAccountName) + len(u.Description)
 			if u.Mail != nil {
@@ -698,7 +700,7 @@ func (c *LRUCache) estimateEntrySize(key string, value interface{}) int32 {
 			}
 			size += len(u.Groups) * 50
 		}
-	case []Group:
+	case []objects.Group:
 		for _, g := range v {
 			size += len(g.dn)
 			size += len(g.Members) * 50

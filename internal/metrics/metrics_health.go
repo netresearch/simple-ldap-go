@@ -6,6 +6,10 @@ import (
 	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/netresearch/simple-ldap-go/internal/cache"
+	"github.com/netresearch/simple-ldap-go/internal/pool"
+	"github.com/netresearch/simple-ldap-go/internal/validation"
 )
 
 // HealthStatus represents the overall health status
@@ -39,13 +43,18 @@ type HealthReport struct {
 	Summary       map[string]interface{} `json:"summary"`
 }
 
+// LDAPClient interface represents the minimal LDAP client needed for health monitoring
+type LDAPClient interface {
+	// Add methods needed by health monitor if any
+}
+
 // HealthMonitor provides health checking and scoring capabilities
 type HealthMonitor struct {
-	ldapClient      *LDAP
+	ldapClient      LDAPClient
 	perfMonitor     *PerformanceMonitor
-	rateLimiter     *RateLimiter
-	cache           Cache
-	pool            *ConnectionPool
+	rateLimiter     *validation.RateLimiter
+	cache           cache.Cache
+	pool            *pool.ConnectionPool
 	prometheusExp   *PrometheusExporter
 	startTime       time.Time
 	version         string
@@ -92,7 +101,7 @@ func DefaultHealthThresholds() *HealthThresholds {
 }
 
 // NewHealthMonitor creates a new health monitoring system
-func NewHealthMonitor(ldapClient *LDAP, version string) *HealthMonitor {
+func NewHealthMonitor(ldapClient LDAPClient, version string) *HealthMonitor {
 	return &HealthMonitor{
 		ldapClient: ldapClient,
 		startTime:  time.Now(),
@@ -107,17 +116,17 @@ func (hm *HealthMonitor) SetPerformanceMonitor(monitor *PerformanceMonitor) {
 }
 
 // SetRateLimiter sets the rate limiter for health checks
-func (hm *HealthMonitor) SetRateLimiter(limiter *RateLimiter) {
+func (hm *HealthMonitor) SetRateLimiter(limiter *validation.RateLimiter) {
 	hm.rateLimiter = limiter
 }
 
 // SetCache sets the cache for health checks
-func (hm *HealthMonitor) SetCache(cache Cache) {
+func (hm *HealthMonitor) SetCache(cache cache.Cache) {
 	hm.cache = cache
 }
 
 // SetConnectionPool sets the connection pool for health checks
-func (hm *HealthMonitor) SetConnectionPool(pool *ConnectionPool) {
+func (hm *HealthMonitor) SetConnectionPool(pool *pool.ConnectionPool) {
 	hm.pool = pool
 }
 
@@ -395,7 +404,7 @@ func (hm *HealthMonitor) checkCache(ctx context.Context) HealthCheck {
 		check.Description = fmt.Sprintf("Low cache hit ratio: %.2f%%", stats.HitRatio)
 	} else {
 		check.Status = HealthStatusHealthy
-		check.Description = "Cache performance is healthy"
+		check.Description = "cache.Cache performance is healthy"
 	}
 
 	return check

@@ -11,10 +11,19 @@ import (
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/netresearch/simple-ldap-go/internal/validation"
 )
 
-// AlertSeverity represents the severity level of an alert (reuses existing ErrorSeverity)
-type AlertSeverity = ErrorSeverity
+// AlertSeverity represents the severity level of an alert
+type AlertSeverity int
+
+const (
+	SeverityInfo AlertSeverity = iota
+	SeverityWarning
+	SeverityError
+	SeverityCritical
+)
 
 // AlertCategory represents the category of an alert
 type AlertCategory string
@@ -125,7 +134,7 @@ type AlertManager struct {
 	activeAlerts    map[string]*Alert
 	alertHistory    []*Alert
 	perfMonitor     *PerformanceMonitor
-	rateLimiter     *RateLimiter
+	rateLimiter     *validation.RateLimiter
 	healthMonitor   *HealthMonitor
 	securityAnalyzer *SecurityAnalyzer
 	logger          *slog.Logger
@@ -208,7 +217,7 @@ func (am *AlertManager) SetPerformanceMonitor(monitor *PerformanceMonitor) {
 }
 
 // SetRateLimiter sets the rate limiter for alerting
-func (am *AlertManager) SetRateLimiter(limiter *RateLimiter) {
+func (am *AlertManager) SetRateLimiter(limiter *validation.RateLimiter) {
 	am.mu.Lock()
 	defer am.mu.Unlock()
 	am.rateLimiter = limiter

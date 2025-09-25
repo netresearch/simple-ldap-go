@@ -10,6 +10,9 @@ import (
 
 	"github.com/go-ldap/ldap/v3"
 	"golang.org/x/text/encoding/unicode"
+
+	ldaplib "github.com/netresearch/simple-ldap-go"
+	"github.com/netresearch/simple-ldap-go/objects"
 )
 
 var (
@@ -27,11 +30,11 @@ var (
 //   - password: The password to validate
 //
 // Returns:
-//   - *User: The user object if authentication succeeds
+//   - *objects.User: The user object if authentication succeeds
 //   - error: ErrUserNotFound if the user doesn't exist, or authentication error if credentials are invalid
 //
 // This is commonly used for login validation in Active Directory environments.
-func (l *LDAP) CheckPasswordForSAMAccountName(sAMAccountName, password string) (*User, error) {
+func (l *ldaplib.LDAP) CheckPasswordForSAMAccountName(sAMAccountName, password string) (*objects.User, error) {
 	return l.CheckPasswordForSAMAccountNameContext(context.Background(), sAMAccountName, password)
 }
 
@@ -44,12 +47,12 @@ func (l *LDAP) CheckPasswordForSAMAccountName(sAMAccountName, password string) (
 //   - password: The password to validate
 //
 // Returns:
-//   - *User: The user object if authentication succeeds
+//   - *objects.User: The user object if authentication succeeds
 //   - error: ErrUserNotFound if the user doesn't exist, authentication error if credentials are invalid,
 //     or context cancellation error
 //
 // This is commonly used for login validation in Active Directory environments.
-func (l *LDAP) CheckPasswordForSAMAccountNameContext(ctx context.Context, sAMAccountName, password string) (*User, error) {
+func (l *ldaplib.LDAP) CheckPasswordForSAMAccountNameContext(ctx context.Context, sAMAccountName, password string) (*objects.User, error) {
 	// Check for context cancellation first
 	if err := l.checkContextCancellation(ctx, "CheckPasswordForSAMAccountName", sAMAccountName, "start"); err != nil {
 		return nil, ctx.Err()
@@ -126,11 +129,11 @@ func (l *LDAP) CheckPasswordForSAMAccountNameContext(ctx context.Context, sAMAcc
 	var userDN string
 
 	if userLookupErr == nil {
-		// User exists - perform real bind
+		// objects.User exists - perform real bind
 		userDN = user.DN()
 		bindErr = c.Bind(userDN, credPassword)
 	} else {
-		// User doesn't exist - perform dummy bind to maintain constant timing
+		// objects.User doesn't exist - perform dummy bind to maintain constant timing
 		// Use a predictable dummy DN that won't exist to ensure bind fails
 		dummyDN := fmt.Sprintf("CN=nonexistent-%s,CN=Users,%s", sAMAccountName, l.config.BaseDN)
 		_ = c.Bind(dummyDN, credPassword) // Dummy bind for timing, ignore result
@@ -189,11 +192,11 @@ func (l *LDAP) CheckPasswordForSAMAccountNameContext(ctx context.Context, sAMAcc
 //   - password: The password to validate
 //
 // Returns:
-//   - *User: The user object if authentication succeeds
+//   - *objects.User: The user object if authentication succeeds
 //   - error: ErrUserNotFound if the user doesn't exist, or authentication error if credentials are invalid
 //
 // This method is useful when you already have the user's DN and want to validate their password.
-func (l *LDAP) CheckPasswordForDN(dn, password string) (*User, error) {
+func (l *ldaplib.LDAP) CheckPasswordForDN(dn, password string) (*objects.User, error) {
 	return l.CheckPasswordForDNContext(context.Background(), dn, password)
 }
 
@@ -206,12 +209,12 @@ func (l *LDAP) CheckPasswordForDN(dn, password string) (*User, error) {
 //   - password: The password to validate
 //
 // Returns:
-//   - *User: The user object if authentication succeeds
+//   - *objects.User: The user object if authentication succeeds
 //   - error: ErrUserNotFound if the user doesn't exist, authentication error if credentials are invalid,
 //     or context cancellation error
 //
 // This method is useful when you already have the user's DN and want to validate their password.
-func (l *LDAP) CheckPasswordForDNContext(ctx context.Context, dn, password string) (*User, error) {
+func (l *ldaplib.LDAP) CheckPasswordForDNContext(ctx context.Context, dn, password string) (*objects.User, error) {
 	start := time.Now()
 
 	// Create secure credential for password handling
@@ -352,12 +355,12 @@ func encodePassword(password string) (string, error) {
 //
 // Requirements:
 //   - For Active Directory servers, LDAPS (SSL/TLS) connection is mandatory
-//   - User must provide their current password for verification
+//   - objects.User must provide their current password for verification
 //   - New password must meet the domain's password policy requirements
 //
 // The password change uses the Microsoft-specific unicodePwd attribute with proper UTF-16LE encoding.
 // Reference: https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-adts/6e803168-f140-4d23-b2d3-c3a8ab5917d2
-func (l *LDAP) ChangePasswordForSAMAccountName(sAMAccountName, oldPassword, newPassword string) (err error) {
+func (l *ldaplib.LDAP) ChangePasswordForSAMAccountName(sAMAccountName, oldPassword, newPassword string) (err error) {
 	return l.ChangePasswordForSAMAccountNameContext(context.Background(), sAMAccountName, oldPassword, newPassword)
 }
 
@@ -377,12 +380,12 @@ func (l *LDAP) ChangePasswordForSAMAccountName(sAMAccountName, oldPassword, newP
 //
 // Requirements:
 //   - For Active Directory servers, LDAPS (SSL/TLS) connection is mandatory
-//   - User must provide their current password for verification
+//   - objects.User must provide their current password for verification
 //   - New password must meet the domain's password policy requirements
 //
 // The password change uses the Microsoft-specific unicodePwd attribute with proper UTF-16LE encoding.
 // Reference: https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-adts/6e803168-f140-4d23-b2d3-c3a8ab5917d2
-func (l *LDAP) ChangePasswordForSAMAccountNameContext(ctx context.Context, sAMAccountName, oldPassword, newPassword string) (err error) {
+func (l *ldaplib.LDAP) ChangePasswordForSAMAccountNameContext(ctx context.Context, sAMAccountName, oldPassword, newPassword string) (err error) {
 	start := time.Now()
 
 	// Create secure credentials for password handling

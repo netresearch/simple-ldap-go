@@ -11,6 +11,9 @@ import (
 	"reflect"
 
 	"github.com/go-ldap/ldap/v3"
+
+	ldaplib "github.com/netresearch/simple-ldap-go"
+	"github.com/netresearch/simple-ldap-go/objects"
 )
 
 // LDAPObject defines the constraint for all LDAP objects that can be used with generic functions.
@@ -23,9 +26,9 @@ type LDAPObject interface {
 }
 
 // Ensure our types implement the LDAPObject constraint
-var _ LDAPObject = (*User)(nil)
-var _ LDAPObject = (*Group)(nil)
-var _ LDAPObject = (*Computer)(nil)
+var _ LDAPObject = (*objects.User)(nil)
+var _ LDAPObject = (*objects.Group)(nil)
+var _ LDAPObject = (*objects.Computer)(nil)
 
 // LDAPObjectPtr defines a constraint for pointers to LDAP objects.
 // This is used for generic functions that need to work with object pointers.
@@ -83,7 +86,7 @@ type Modifiable[T LDAPObject] interface {
 // Example:
 //
 //	// Search for users
-//	users, err := Search[*User](ctx, client, "(objectClass=user)", "")
+//	users, err := Search[*objects.User](ctx, client, "(objectClass=user)", "")
 //	if err != nil {
 //	    return err
 //	}
@@ -92,14 +95,14 @@ type Modifiable[T LDAPObject] interface {
 //	}
 //
 //	// Search for groups
-//	groups, err := Search[*Group](ctx, client, "(objectClass=group)", "")
+//	groups, err := Search[*objects.Group](ctx, client, "(objectClass=group)", "")
 //	if err != nil {
 //	    return err
 //	}
 //	for _, group := range groups {
 //	    fmt.Printf("Found group: %s\n", group.CN())
 //	}
-func Search[T LDAPObject](ctx context.Context, l *LDAP, filter string, baseDN string) ([]T, error) {
+func Search[T LDAPObject](ctx context.Context, l *ldaplib.LDAP, filter string, baseDN string) ([]T, error) {
 	if baseDN == "" {
 		baseDN = l.config.BaseDN
 	}
@@ -190,7 +193,7 @@ func Search[T LDAPObject](ctx context.Context, l *LDAP, filter string, baseDN st
 //	    return err
 //	}
 //	fmt.Printf("Created user with DN: %s\n", dn)
-func Create[T LDAPObject](ctx context.Context, l *LDAP, obj T) (string, error) {
+func Create[T LDAPObject](ctx context.Context, l *ldaplib.LDAP, obj T) (string, error) {
 	creatable, ok := any(obj).(interface {
 		ToAddRequest() (*ldap.AddRequest, error)
 		Validate() error
@@ -245,11 +248,11 @@ func Create[T LDAPObject](ctx context.Context, l *LDAP, obj T) (string, error) {
 //	    "mail": {"new.email@example.com"},
 //	}
 //
-//	err := Modify[*User](ctx, client, user, changes)
+//	err := Modify[*objects.User](ctx, client, user, changes)
 //	if err != nil {
 //	    return err
 //	}
-func Modify[T LDAPObject](ctx context.Context, l *LDAP, obj T, changes map[string][]string) error {
+func Modify[T LDAPObject](ctx context.Context, l *ldaplib.LDAP, obj T, changes map[string][]string) error {
 	modifiable, ok := any(obj).(interface {
 		ToModifyRequest(changes map[string][]string) (*ldap.ModifyRequest, error)
 		GetModifiableAttributes() []string
@@ -306,11 +309,11 @@ func Modify[T LDAPObject](ctx context.Context, l *LDAP, obj T, changes map[strin
 //
 // Example:
 //
-//	err := Delete[*User](ctx, client, user)
+//	err := Delete[*objects.User](ctx, client, user)
 //	if err != nil {
 //	    return err
 //	}
-func Delete[T LDAPObject](ctx context.Context, l *LDAP, obj T) error {
+func Delete[T LDAPObject](ctx context.Context, l *ldaplib.LDAP, obj T) error {
 	return DeleteByDN(ctx, l, obj.DN())
 }
 
@@ -324,7 +327,7 @@ func Delete[T LDAPObject](ctx context.Context, l *LDAP, obj T) error {
 //
 // Returns:
 //   - error: Any error encountered during the deletion operation
-func DeleteByDN(ctx context.Context, l *LDAP, dn string) error {
+func DeleteByDN(ctx context.Context, l *ldaplib.LDAP, dn string) error {
 	delReq := ldap.NewDelRequest(dn, nil)
 
 	conn, err := l.GetConnectionContext(ctx)
@@ -356,12 +359,12 @@ func DeleteByDN(ctx context.Context, l *LDAP, dn string) error {
 //
 // Example:
 //
-//	user, err := FindByDN[*User](ctx, client, "CN=John Doe,OU=Users,DC=example,DC=com")
+//	user, err := FindByDN[*objects.User](ctx, client, "CN=John Doe,OU=Users,DC=example,DC=com")
 //	if err != nil {
 //	    return err
 //	}
 //	fmt.Printf("Found user: %s\n", user.CN())
-func FindByDN[T LDAPObject](ctx context.Context, l *LDAP, dn string) (T, error) {
+func FindByDN[T LDAPObject](ctx context.Context, l *ldaplib.LDAP, dn string) (T, error) {
 	var zero T
 
 	// Get the zero value of T to access its methods
@@ -455,13 +458,13 @@ type BatchResult[T LDAPObject] struct {
 //
 // Example:
 //
-//	operations := []BatchOperation[*User]{
+//	operations := []BatchOperation[*objects.User]{
 //	    {Operation: "create", Object: newUser1},
 //	    {Operation: "modify", Object: existingUser, Changes: changes},
 //	    {Operation: "delete", Object: oldUser},
 //	}
 //
-//	results, err := BatchProcess[*User](ctx, client, operations)
+//	results, err := BatchProcess[*objects.User](ctx, client, operations)
 //	if err != nil {
 //	    return err
 //	}
@@ -471,7 +474,7 @@ type BatchResult[T LDAPObject] struct {
 //	        fmt.Printf("Operation %d failed: %v\n", i, result.Error)
 //	    }
 //	}
-func BatchProcess[T LDAPObject](ctx context.Context, l *LDAP, operations []BatchOperation[T]) ([]BatchResult[T], error) {
+func BatchProcess[T LDAPObject](ctx context.Context, l *ldaplib.LDAP, operations []BatchOperation[T]) ([]BatchResult[T], error) {
 	results := make([]BatchResult[T], len(operations))
 
 	// Process operations sequentially for now
@@ -511,13 +514,13 @@ func BatchProcess[T LDAPObject](ctx context.Context, l *LDAP, operations []Batch
 // OperationPipeline provides a fluent API for chaining LDAP operations with type safety.
 // This is different from the general-purpose Pipeline in concurrency.go
 type OperationPipeline[T LDAPObject] struct {
-	client *LDAP
+	client *ldaplib.LDAP
 	ctx    context.Context
 	errors []error
 }
 
 // NewOperationPipeline creates a new typed pipeline for LDAP operations.
-func NewOperationPipeline[T LDAPObject](ctx context.Context, l *LDAP) *OperationPipeline[T] {
+func NewOperationPipeline[T LDAPObject](ctx context.Context, l *ldaplib.LDAP) *OperationPipeline[T] {
 	return &OperationPipeline[T]{
 		client: l,
 		ctx:    ctx,

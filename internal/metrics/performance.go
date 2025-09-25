@@ -7,6 +7,9 @@ import (
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/netresearch/simple-ldap-go/internal/cache"
+	"github.com/netresearch/simple-ldap-go/internal/pool"
 )
 
 // PerformanceConfig contains configuration for performance monitoring
@@ -108,7 +111,7 @@ type PerformanceMetrics struct {
 	ResponseTimes     []time.Duration        `json:"response_times,omitempty"`
 	TimeStamps        []time.Time            `json:"timestamps,omitempty"`
 
-	// Cache statistics
+	// cache.Cache statistics
 	CacheHitRatio     float64                `json:"cache_hit_ratio"`
 
 	// Backward compatibility fields for direct pool access
@@ -127,7 +130,7 @@ type PerformanceMetrics struct {
 	TopSlowOperations    []OperationMetric      `json:"top_slow_operations,omitempty"`
 
 	// Connection pool stats (if available)
-	PoolStats         *ConnectionPoolStats   `json:"pool_stats,omitempty"`
+	PoolStats         *pool.ConnectionPoolStats   `json:"pool_stats,omitempty"`
 }
 
 // PerformanceStats is an alias for PerformanceMetrics for interface compatibility
@@ -158,8 +161,8 @@ type PerformanceMonitor struct {
 	responseTimes   []time.Duration // For percentile calculations
 
 	// Optional external components for integrated metrics
-	cache Cache
-	pool  *ConnectionPool
+	cache cache.Cache
+	pool  *pool.ConnectionPool
 }
 
 // NewPerformanceMonitor creates a new performance monitor with the given configuration
@@ -193,12 +196,12 @@ func NewPerformanceMonitor(config *PerformanceConfig, logger *slog.Logger) *Perf
 }
 
 // SetCache links a cache instance for integrated metrics collection
-func (pm *PerformanceMonitor) SetCache(cache Cache) {
+func (pm *PerformanceMonitor) SetCache(cache cache.Cache) {
 	pm.cache = cache
 }
 
 // SetConnectionPool links a connection pool instance for integrated metrics collection
-func (pm *PerformanceMonitor) SetConnectionPool(pool *ConnectionPool) {
+func (pm *PerformanceMonitor) SetConnectionPool(pool *pool.ConnectionPool) {
 	pm.pool = pool
 }
 

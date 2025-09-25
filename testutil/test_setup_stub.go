@@ -5,11 +5,13 @@ package testutil
 
 import (
 	"testing"
+
+	"github.com/netresearch/simple-ldap-go"
 )
 
 // TestContainer is a stub for non-integration builds
 type TestContainer struct {
-	Config      Config
+	Config      ldap.Config
 	AdminUser   string
 	AdminPass   string
 	BaseDN      string
@@ -75,7 +77,7 @@ func SetupTestContainer(t *testing.T) *TestContainer {
 }
 
 // GetLDAPClient is a stub method
-func (tc *TestContainer) GetLDAPClient(t *testing.T) *LDAP {
+func (tc *TestContainer) GetLDAPClient(t *testing.T) *ldap.LDAP {
 	t.Skip("GetLDAPClient requires integration build tag")
 	return nil
 }
