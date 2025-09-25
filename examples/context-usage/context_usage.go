@@ -6,7 +6,7 @@ import (
 	"log"
 	"time"
 
-	ldap "github.com/netresearch/simple-ldap-go"
+	"github.com/netresearch/simple-ldap-go"
 )
 
 func main() {

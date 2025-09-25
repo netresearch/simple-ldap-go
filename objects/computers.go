@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/go-ldap/ldap/v3"
+
+	ldaplib "github.com/netresearch/simple-ldap-go"
 )
 
 // ErrComputerNotFound is returned when a computer search operation finds no matching entries.
@@ -62,7 +64,7 @@ type FullComputer struct {
 //   - error: ErrComputerNotFound if no computer exists with the given DN,
 //     ErrDNDuplicated if multiple entries share the same DN (data integrity issue),
 //     or any LDAP operation error
-func (l *LDAP) FindComputerByDN(dn string) (computer *Computer, err error) {
+func (l *ldaplib.LDAP) FindComputerByDN(dn string) (computer *Computer, err error) {
 	return l.FindComputerByDNContext(context.Background(), dn)
 }
 
@@ -77,7 +79,7 @@ func (l *LDAP) FindComputerByDN(dn string) (computer *Computer, err error) {
 //   - error: ErrComputerNotFound if no computer exists with the given DN,
 //     ErrDNDuplicated if multiple entries share the same DN (data integrity issue),
 //     context cancellation error, or any LDAP operation error
-func (l *LDAP) FindComputerByDNContext(ctx context.Context, dn string) (computer *Computer, err error) {
+func (l *ldaplib.LDAP) FindComputerByDNContext(ctx context.Context, dn string) (computer *Computer, err error) {
 	start := time.Now()
 	l.logger.Debug("computer_search_by_dn_started",
 		slog.String("operation", "FindComputerByDN"),
@@ -210,7 +212,7 @@ func (l *LDAP) FindComputerByDNContext(ctx context.Context, dn string) (computer
 //
 // This method performs a subtree search starting from the configured BaseDN.
 // Computer sAMAccountNames typically end with a dollar sign ($).
-func (l *LDAP) FindComputerBySAMAccountName(sAMAccountName string) (computer *Computer, err error) {
+func (l *ldaplib.LDAP) FindComputerBySAMAccountName(sAMAccountName string) (computer *Computer, err error) {
 	return l.FindComputerBySAMAccountNameContext(context.Background(), sAMAccountName)
 }
 
@@ -228,7 +230,7 @@ func (l *LDAP) FindComputerBySAMAccountName(sAMAccountName string) (computer *Co
 //
 // This method performs a subtree search starting from the configured BaseDN.
 // Computer sAMAccountNames typically end with a dollar sign ($).
-func (l *LDAP) FindComputerBySAMAccountNameContext(ctx context.Context, sAMAccountName string) (computer *Computer, err error) {
+func (l *ldaplib.LDAP) FindComputerBySAMAccountNameContext(ctx context.Context, sAMAccountName string) (computer *Computer, err error) {
 	start := time.Now()
 	l.logger.Debug("computer_search_by_sam_account_started",
 		slog.String("operation", "FindComputerBySAMAccountName"),
@@ -348,7 +350,7 @@ func (l *LDAP) FindComputerBySAMAccountNameContext(ctx context.Context, sAMAccou
 //
 // This method performs a subtree search starting from the configured BaseDN.
 // Computers that cannot be parsed (due to missing required attributes) are skipped.
-func (l *LDAP) FindComputers() (computers []Computer, err error) {
+func (l *ldaplib.LDAP) FindComputers() (computers []Computer, err error) {
 	return l.FindComputersContext(context.Background())
 }
 
@@ -363,7 +365,7 @@ func (l *LDAP) FindComputers() (computers []Computer, err error) {
 //
 // This method performs a subtree search starting from the configured BaseDN.
 // Computers that cannot be parsed (due to missing required attributes) are skipped.
-func (l *LDAP) FindComputersContext(ctx context.Context) (computers []Computer, err error) {
+func (l *ldaplib.LDAP) FindComputersContext(ctx context.Context) (computers []Computer, err error) {
 	// Check for context cancellation first
 	if err := l.checkContextCancellation(ctx, "FindComputers", "N/A", "start"); err != nil {
 		return nil, ctx.Err()

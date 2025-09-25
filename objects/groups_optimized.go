@@ -19,7 +19,7 @@ import (
 // Returns:
 //   - *Group: The group object if found
 //   - error: ErrGroupNotFound if no group exists with the given DN, or any LDAP operation error
-func (l *LDAP) FindGroupByDNOptimized(ctx context.Context, dn string, options *SearchOptions) (group *Group, err error) {
+func (l *ldaplib.LDAP) FindGroupByDNOptimized(ctx context.Context, dn string, options *SearchOptions) (group *Group, err error) {
 	// Use defaults if no options provided
 	if options == nil {
 		options = DefaultSearchOptions()
@@ -133,7 +133,7 @@ func (l *LDAP) FindGroupByDNOptimized(ctx context.Context, dn string, options *S
 // Returns:
 //   - []Group: A slice of all group objects found
 //   - error: Any LDAP operation error
-func (l *LDAP) FindGroupsOptimized(ctx context.Context, options *SearchOptions) (groups []Group, err error) {
+func (l *ldaplib.LDAP) FindGroupsOptimized(ctx context.Context, options *SearchOptions) (groups []Group, err error) {
 	// Use defaults if no options provided
 	if options == nil {
 		options = DefaultSearchOptions()
@@ -210,7 +210,7 @@ func (l *LDAP) FindGroupsOptimized(ctx context.Context, options *SearchOptions) 
 // Returns:
 //   - []Group: A slice of groups the user belongs to
 //   - error: Any LDAP operation error
-func (l *LDAP) GetUserGroupsOptimized(ctx context.Context, userDN string, options *SearchOptions) (groups []Group, err error) {
+func (l *ldaplib.LDAP) GetUserGroupsOptimized(ctx context.Context, userDN string, options *SearchOptions) (groups []Group, err error) {
 	// Use defaults if no options provided
 	if options == nil {
 		options = DefaultSearchOptions()
@@ -288,7 +288,7 @@ func (l *LDAP) GetUserGroupsOptimized(ctx context.Context, userDN string, option
 // Returns:
 //   - []User: A slice of users who are members of the group
 //   - error: Any LDAP operation error
-func (l *LDAP) GetGroupMembersOptimized(ctx context.Context, groupDN string, options *SearchOptions) (members []User, err error) {
+func (l *ldaplib.LDAP) GetGroupMembersOptimized(ctx context.Context, groupDN string, options *SearchOptions) (members []User, err error) {
 	// Use defaults if no options provided
 	if options == nil {
 		options = DefaultSearchOptions()
@@ -368,7 +368,7 @@ func (l *LDAP) GetGroupMembersOptimized(ctx context.Context, groupDN string, opt
 //
 // Returns:
 //   - error: Any LDAP operation error
-func (l *LDAP) AddUserToGroupOptimized(ctx context.Context, userDN, groupDN string) error {
+func (l *ldaplib.LDAP) AddUserToGroupOptimized(ctx context.Context, userDN, groupDN string) error {
 	// Start performance monitoring
 	var recordFunc func(bool, error, int)
 	if l.perfMonitor != nil {
@@ -447,7 +447,7 @@ func (l *LDAP) AddUserToGroupOptimized(ctx context.Context, userDN, groupDN stri
 //
 // Returns:
 //   - error: Any LDAP operation error
-func (l *LDAP) RemoveUserFromGroupOptimized(ctx context.Context, userDN, groupDN string) error {
+func (l *ldaplib.LDAP) RemoveUserFromGroupOptimized(ctx context.Context, userDN, groupDN string) error {
 	// Start performance monitoring
 	var recordFunc func(bool, error, int)
 	if l.perfMonitor != nil {
@@ -520,7 +520,7 @@ func (l *LDAP) RemoveUserFromGroupOptimized(ctx context.Context, userDN, groupDN
 // Helper methods for direct LDAP operations (without caching)
 
 // findGroupByDNDirect performs direct LDAP lookup without caching
-func (l *LDAP) findGroupByDNDirect(ctx context.Context, dn string, options *SearchOptions) (*Group, error) {
+func (l *ldaplib.LDAP) findGroupByDNDirect(ctx context.Context, dn string, options *SearchOptions) (*Group, error) {
 	c, err := l.GetConnectionContext(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get connection for group DN search: %w", err)
@@ -587,7 +587,7 @@ func (l *LDAP) findGroupByDNDirect(ctx context.Context, dn string, options *Sear
 }
 
 // findGroupsDirect performs direct LDAP lookup for all groups without caching
-func (l *LDAP) findGroupsDirect(ctx context.Context, options *SearchOptions) ([]Group, error) {
+func (l *ldaplib.LDAP) findGroupsDirect(ctx context.Context, options *SearchOptions) ([]Group, error) {
 	c, err := l.GetConnectionContext(ctx)
 	if err != nil {
 		return nil, err
@@ -656,7 +656,7 @@ func (l *LDAP) findGroupsDirect(ctx context.Context, options *SearchOptions) ([]
 }
 
 // getUserGroupsDirect performs direct LDAP lookup for user's groups without caching
-func (l *LDAP) getUserGroupsDirect(ctx context.Context, userDN string, options *SearchOptions) ([]Group, error) {
+func (l *ldaplib.LDAP) getUserGroupsDirect(ctx context.Context, userDN string, options *SearchOptions) ([]Group, error) {
 	c, err := l.GetConnectionContext(ctx)
 	if err != nil {
 		return nil, err
@@ -724,7 +724,7 @@ func (l *LDAP) getUserGroupsDirect(ctx context.Context, userDN string, options *
 }
 
 // getGroupMembersDirect performs direct LDAP lookup for group members without caching
-func (l *LDAP) getGroupMembersDirect(ctx context.Context, groupDN string, options *SearchOptions) ([]User, error) {
+func (l *ldaplib.LDAP) getGroupMembersDirect(ctx context.Context, groupDN string, options *SearchOptions) ([]User, error) {
 	// First get the group to retrieve member DNs
 	group, err := l.findGroupByDNDirect(ctx, groupDN, options)
 	if err != nil {
@@ -784,7 +784,7 @@ func (l *LDAP) getGroupMembersDirect(ctx context.Context, groupDN string, option
 // Helper methods for caching
 
 // cacheIndividualGroups caches individual groups from a group list in the background
-func (l *LDAP) cacheIndividualGroups(groups []Group, cacheTTL time.Duration) {
+func (l *ldaplib.LDAP) cacheIndividualGroups(groups []Group, cacheTTL time.Duration) {
 	for _, group := range groups {
 		// Cache by DN
 		dnCacheKey := GenerateCacheKey("group:dn", group.DN())
@@ -799,7 +799,7 @@ func (l *LDAP) cacheIndividualGroups(groups []Group, cacheTTL time.Duration) {
 }
 
 // cacheGroupMembers caches group membership information for faster user group lookups
-func (l *LDAP) cacheGroupMembers(group *Group, cacheTTL time.Duration) {
+func (l *ldaplib.LDAP) cacheGroupMembers(group *Group, cacheTTL time.Duration) {
 	if len(group.Members) == 0 {
 		return
 	}
@@ -816,7 +816,7 @@ func (l *LDAP) cacheGroupMembers(group *Group, cacheTTL time.Duration) {
 }
 
 // invalidateGroupCache invalidates relevant cache entries after group membership changes
-func (l *LDAP) invalidateGroupCache(userDN, groupDN string) {
+func (l *ldaplib.LDAP) invalidateGroupCache(userDN, groupDN string) {
 	// Invalidate user's groups cache
 	userGroupsKey := GenerateCacheKey("user:groups", userDN)
 	l.cache.Delete(userGroupsKey)

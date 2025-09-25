@@ -109,6 +109,18 @@ user, err := client.CheckPasswordForSAMAccountName("username", "password")
 go get github.com/netresearch/simple-ldap-go
 ```
 
+## Package Structure
+
+Simple LDAP Go is organized into focused packages:
+
+- **Main package (`github.com/netresearch/simple-ldap-go`)** - Core client and configuration
+- **`auth/`** - Authentication operations and password management
+- **`objects/`** - LDAP object types (User, Group, Computer)
+- **`search/`** - Search builders and query construction
+- **`internal/`** - Internal implementation details (not for public use)
+
+The main package provides the core functionality, while specialized packages offer domain-specific operations.
+
 ## Quick Start
 
 ```go
@@ -117,13 +129,13 @@ package main
 import (
     "fmt"
     "log"
-    
-    ldap "github.com/netresearch/simple-ldap-go"
+
+    "github.com/netresearch/simple-ldap-go"
 )
 
 func main() {
     // Configure LDAP connection
-    config := ldap.Config{
+    config := &ldap.Config{
         Server:            "ldaps://ldap.example.com:636",
         BaseDN:            "dc=example,dc=com",
         IsActiveDirectory: true, // Set to false for generic LDAP
@@ -141,7 +153,7 @@ func main() {
         log.Printf("Authentication failed: %v", err)
         return
     }
-    
+
     fmt.Printf("Welcome, %s!\n", user.CN())
 }
 ```
@@ -158,16 +170,22 @@ Comprehensive examples are available in the [examples](examples/) directory:
 
 ### Core Types
 
-- **`Config`** - LDAP server configuration
-- **`LDAP`** - Main client for LDAP operations
-- **`User`** - Represents an LDAP user with common attributes
-- **`Group`** - Represents an LDAP group with member information
-- **`Computer`** - Represents a computer object (Active Directory)
+- **`ldap.Config`** - LDAP server configuration
+- **`ldap.LDAP`** - Main client for LDAP operations
+- **`objects.User`** - Represents an LDAP user with common attributes
+- **`objects.Group`** - Represents an LDAP group with member information
+- **`objects.Computer`** - Represents a computer object (Active Directory)
 
 ### Key Operations
 
 ```go
+import (
+    "github.com/netresearch/simple-ldap-go"
+    "github.com/netresearch/simple-ldap-go/objects"
+)
+
 // Client creation
+config := &ldap.Config{...}
 client, err := ldap.New(config, username, password)
 
 // User authentication

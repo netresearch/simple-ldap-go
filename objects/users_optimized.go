@@ -16,7 +16,7 @@ import (
 // Returns:
 //   - *User: The user object if found
 //   - error: ErrUserNotFound if no user exists, or any LDAP operation error
-func (l *LDAP) FindUserByDNOptimized(ctx context.Context, dn string, options *SearchOptions) (user *User, err error) {
+func (l *ldaplib.LDAP) FindUserByDNOptimized(ctx context.Context, dn string, options *SearchOptions) (user *User, err error) {
 	// Use defaults if no options provided
 	if options == nil {
 		options = DefaultSearchOptions()
@@ -115,7 +115,7 @@ func (l *LDAP) FindUserByDNOptimized(ctx context.Context, dn string, options *Se
 // Returns:
 //   - *User: The user object if found
 //   - error: ErrUserNotFound if no user exists, or any LDAP operation error
-func (l *LDAP) FindUserBySAMAccountNameOptimized(ctx context.Context, samAccountName string, options *SearchOptions) (user *User, err error) {
+func (l *ldaplib.LDAP) FindUserBySAMAccountNameOptimized(ctx context.Context, samAccountName string, options *SearchOptions) (user *User, err error) {
 	// Use defaults if no options provided
 	if options == nil {
 		options = DefaultSearchOptions()
@@ -228,7 +228,7 @@ func (l *LDAP) FindUserBySAMAccountNameOptimized(ctx context.Context, samAccount
 // Returns:
 //   - *User: The user object if found
 //   - error: ErrUserNotFound if no user exists, or any LDAP operation error
-func (l *LDAP) FindUserByMailOptimized(ctx context.Context, mail string, options *SearchOptions) (user *User, err error) {
+func (l *ldaplib.LDAP) FindUserByMailOptimized(ctx context.Context, mail string, options *SearchOptions) (user *User, err error) {
 	// Use defaults if no options provided
 	if options == nil {
 		options = DefaultSearchOptions()
@@ -333,7 +333,7 @@ func (l *LDAP) FindUserByMailOptimized(ctx context.Context, mail string, options
 // Returns:
 //   - []User: A slice of all user objects found
 //   - error: Any LDAP operation error
-func (l *LDAP) FindUsersOptimized(ctx context.Context, options *SearchOptions) (users []User, err error) {
+func (l *ldaplib.LDAP) FindUsersOptimized(ctx context.Context, options *SearchOptions) (users []User, err error) {
 	// Use defaults if no options provided
 	if options == nil {
 		options = DefaultSearchOptions()
@@ -423,7 +423,7 @@ func (l *LDAP) FindUsersOptimized(ctx context.Context, options *SearchOptions) (
 //   - Batching uncached lookups into single LDAP operations
 //   - Cross-caching results by all available identifiers
 //   - Providing detailed performance metrics
-func (l *LDAP) FindUsersBulkOptimized(ctx context.Context, identifiers map[string][]string, options *SearchOptions) (map[string]*User, error) {
+func (l *ldaplib.LDAP) FindUsersBulkOptimized(ctx context.Context, identifiers map[string][]string, options *SearchOptions) (map[string]*User, error) {
 	if options == nil {
 		options = DefaultSearchOptions()
 	}
@@ -517,7 +517,7 @@ func (l *LDAP) FindUsersBulkOptimized(ctx context.Context, identifiers map[strin
 }
 
 // checkBulkCache checks cache for all identifiers and populates initial results
-func (l *LDAP) checkBulkCache(ctx context.Context, identifiers map[string][]string, result map[string]*User) (cacheHits, cacheMisses int) {
+func (l *ldaplib.LDAP) checkBulkCache(ctx context.Context, identifiers map[string][]string, result map[string]*User) (cacheHits, cacheMisses int) {
 	for idType, idList := range identifiers {
 		for _, id := range idList {
 			cacheKey := GenerateCacheKey("user:"+idType, id)
@@ -535,7 +535,7 @@ func (l *LDAP) checkBulkCache(ctx context.Context, identifiers map[string][]stri
 }
 
 // batchLookupByDN performs batch DN lookups
-func (l *LDAP) batchLookupByDN(ctx context.Context, dns []string, result map[string]*User, options *SearchOptions) {
+func (l *ldaplib.LDAP) batchLookupByDN(ctx context.Context, dns []string, result map[string]*User, options *SearchOptions) {
 	for _, dn := range dns {
 		user, err := l.FindUserByDNContext(ctx, dn)
 		if err == nil && user != nil {
@@ -547,7 +547,7 @@ func (l *LDAP) batchLookupByDN(ctx context.Context, dns []string, result map[str
 }
 
 // batchLookupBySAM performs batch SAM account name lookups
-func (l *LDAP) batchLookupBySAM(ctx context.Context, sams []string, result map[string]*User, options *SearchOptions) {
+func (l *ldaplib.LDAP) batchLookupBySAM(ctx context.Context, sams []string, result map[string]*User, options *SearchOptions) {
 	for _, sam := range sams {
 		user, err := l.FindUserBySAMAccountNameContext(ctx, sam)
 		if err == nil && user != nil {
@@ -559,7 +559,7 @@ func (l *LDAP) batchLookupBySAM(ctx context.Context, sams []string, result map[s
 }
 
 // batchLookupByMail performs batch email lookups
-func (l *LDAP) batchLookupByMail(ctx context.Context, mails []string, result map[string]*User, options *SearchOptions) {
+func (l *ldaplib.LDAP) batchLookupByMail(ctx context.Context, mails []string, result map[string]*User, options *SearchOptions) {
 	for _, mail := range mails {
 		user, err := l.FindUserByMailContext(ctx, mail)
 		if err == nil && user != nil {
@@ -571,7 +571,7 @@ func (l *LDAP) batchLookupByMail(ctx context.Context, mails []string, result map
 }
 
 // cacheBulkResults caches the results from bulk operations
-func (l *LDAP) cacheBulkResults(ctx context.Context, result map[string]*User, options *SearchOptions) {
+func (l *ldaplib.LDAP) cacheBulkResults(ctx context.Context, result map[string]*User, options *SearchOptions) {
 	cacheTTL := options.TTL
 	if cacheTTL == 0 {
 		cacheTTL = l.config.Cache.TTL
@@ -619,7 +619,7 @@ func (l *LDAP) cacheBulkResults(ctx context.Context, result map[string]*User, op
 }
 
 // cacheIndividualUsers caches each user individually for single-user lookups
-func (l *LDAP) cacheIndividualUsers(users []User, cacheTTL time.Duration) {
+func (l *ldaplib.LDAP) cacheIndividualUsers(users []User, cacheTTL time.Duration) {
 	for _, user := range users {
 		// Cache by DN
 		dnCacheKey := GenerateCacheKey("user:dn", user.DN())
@@ -657,7 +657,7 @@ func (l *LDAP) cacheIndividualUsers(users []User, cacheTTL time.Duration) {
 }
 
 // countFoundUsers counts non-nil users in a bulk result
-func (l *LDAP) countFoundUsers(result map[string]*User) int {
+func (l *ldaplib.LDAP) countFoundUsers(result map[string]*User) int {
 	count := 0
 	for _, user := range result {
 		if user != nil {
@@ -668,7 +668,7 @@ func (l *LDAP) countFoundUsers(result map[string]*User) int {
 }
 
 // countNotFoundUsers counts nil users in a bulk result
-func (l *LDAP) countNotFoundUsers(result map[string]*User) int {
+func (l *ldaplib.LDAP) countNotFoundUsers(result map[string]*User) int {
 	count := 0
 	for _, user := range result {
 		if user == nil {

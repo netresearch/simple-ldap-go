@@ -14,12 +14,5 @@ func connectionError(operation, context string, err error) error {
 
 // authenticationError creates a standardized authentication error
 func authenticationError(operation, identifier string, err error) error {
-	ldapErr, ok := err.(*LDAPError)
-	if !ok {
-		ldapErr = &LDAPError{
-			Op:  operation,
-			Err: err,
-		}
-	}
-	return fmt.Errorf("authentication failed for %s: %w", identifier, ldapErr)
+	return fmt.Errorf("authentication failed for %s during %s: %w", identifier, operation, err)
 }

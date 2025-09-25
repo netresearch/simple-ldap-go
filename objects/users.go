@@ -95,7 +95,7 @@ func userFromEntry(entry *ldap.Entry) (*User, error) {
 //   - error: ErrUserNotFound if no user exists with the given DN,
 //     ErrDNDuplicated if multiple entries share the same DN (data integrity issue),
 //     or any LDAP operation error
-func (l *LDAP) FindUserByDN(dn string) (user *User, err error) {
+func (l *ldaplib.LDAP) FindUserByDN(dn string) (user *User, err error) {
 	return l.FindUserByDNContext(context.Background(), dn)
 }
 
@@ -110,7 +110,7 @@ func (l *LDAP) FindUserByDN(dn string) (user *User, err error) {
 //   - error: ErrUserNotFound if no user exists with the given DN,
 //     ErrDNDuplicated if multiple entries share the same DN (data integrity issue),
 //     context cancellation error, or any LDAP operation error
-func (l *LDAP) FindUserByDNContext(ctx context.Context, dn string) (user *User, err error) {
+func (l *ldaplib.LDAP) FindUserByDNContext(ctx context.Context, dn string) (user *User, err error) {
 	start := time.Now()
 
 	// Use generic DN search function to eliminate code duplication
@@ -174,7 +174,7 @@ func (l *LDAP) FindUserByDNContext(ctx context.Context, dn string) (user *User, 
 //
 // This method performs a subtree search starting from the configured BaseDN.
 // For OpenLDAP compatibility, it also searches for uid attribute when sAMAccountName is not found.
-func (l *LDAP) FindUserBySAMAccountName(sAMAccountName string) (user *User, err error) {
+func (l *ldaplib.LDAP) FindUserBySAMAccountName(sAMAccountName string) (user *User, err error) {
 	return l.FindUserBySAMAccountNameContext(context.Background(), sAMAccountName)
 }
 
@@ -192,7 +192,7 @@ func (l *LDAP) FindUserBySAMAccountName(sAMAccountName string) (user *User, err 
 //
 // This method performs a subtree search starting from the configured BaseDN.
 // For OpenLDAP compatibility, it also searches for uid attribute when sAMAccountName is not found.
-func (l *LDAP) FindUserBySAMAccountNameContext(ctx context.Context, sAMAccountName string) (user *User, err error) {
+func (l *ldaplib.LDAP) FindUserBySAMAccountNameContext(ctx context.Context, sAMAccountName string) (user *User, err error) {
 	// Check for context cancellation first
 	if err := l.checkContextCancellation(ctx, "FindUserBySAMAccountName", sAMAccountName, "start"); err != nil {
 		return nil, ctx.Err()
@@ -322,7 +322,7 @@ func (l *LDAP) FindUserBySAMAccountNameContext(ctx context.Context, sAMAccountNa
 //     or any LDAP operation error
 //
 // This method performs a subtree search starting from the configured BaseDN.
-func (l *LDAP) FindUserByMail(mail string) (user *User, err error) {
+func (l *ldaplib.LDAP) FindUserByMail(mail string) (user *User, err error) {
 	return l.FindUserByMailContext(context.Background(), mail)
 }
 
@@ -339,7 +339,7 @@ func (l *LDAP) FindUserByMail(mail string) (user *User, err error) {
 //     context cancellation error, or any LDAP operation error
 //
 // This method performs a subtree search starting from the configured BaseDN.
-func (l *LDAP) FindUserByMailContext(ctx context.Context, mail string) (user *User, err error) {
+func (l *ldaplib.LDAP) FindUserByMailContext(ctx context.Context, mail string) (user *User, err error) {
 	start := time.Now()
 	l.logger.Debug("user_search_by_mail_started",
 		slog.String("operation", "FindUserByMail"),
@@ -433,7 +433,7 @@ func (l *LDAP) FindUserByMailContext(ctx context.Context, mail string) (user *Us
 //
 // This method performs a subtree search starting from the configured BaseDN.
 // Users that cannot be parsed (due to missing required attributes) are skipped.
-func (l *LDAP) FindUsers() (users []User, err error) {
+func (l *ldaplib.LDAP) FindUsers() (users []User, err error) {
 	return l.FindUsersContext(context.Background())
 }
 
@@ -448,7 +448,7 @@ func (l *LDAP) FindUsers() (users []User, err error) {
 //
 // This method performs a subtree search starting from the configured BaseDN.
 // Users that cannot be parsed (due to missing required attributes) are skipped.
-func (l *LDAP) FindUsersContext(ctx context.Context) (users []User, err error) {
+func (l *ldaplib.LDAP) FindUsersContext(ctx context.Context) (users []User, err error) {
 	// Check for context cancellation first
 	if err := l.checkContextCancellation(ctx, "FindUsers", "N/A", "start"); err != nil {
 		return nil, ctx.Err()
@@ -571,7 +571,7 @@ func (l *LDAP) FindUsersContext(ctx context.Context) (users []User, err error) {
 //   - error: Any LDAP operation error, including insufficient permissions or if the user is already a member
 //
 // This operation requires write permissions on the target group object.
-func (l *LDAP) AddUserToGroup(dn, groupDN string) error {
+func (l *ldaplib.LDAP) AddUserToGroup(dn, groupDN string) error {
 	return l.AddUserToGroupContext(context.Background(), dn, groupDN)
 }
 
@@ -587,7 +587,7 @@ func (l *LDAP) AddUserToGroup(dn, groupDN string) error {
 //     or context cancellation error
 //
 // This operation requires write permissions on the target group object.
-func (l *LDAP) AddUserToGroupContext(ctx context.Context, dn, groupDN string) error {
+func (l *ldaplib.LDAP) AddUserToGroupContext(ctx context.Context, dn, groupDN string) error {
 	start := time.Now()
 	l.logger.Info("user_group_add_started",
 		slog.String("operation", "AddUserToGroup"),
@@ -650,7 +650,7 @@ func (l *LDAP) AddUserToGroupContext(ctx context.Context, dn, groupDN string) er
 //   - error: Any LDAP operation error, including insufficient permissions or if the user is not a member
 //
 // This operation requires write permissions on the target group object.
-func (l *LDAP) RemoveUserFromGroup(dn, groupDN string) error {
+func (l *ldaplib.LDAP) RemoveUserFromGroup(dn, groupDN string) error {
 	return l.RemoveUserFromGroupContext(context.Background(), dn, groupDN)
 }
 
@@ -666,7 +666,7 @@ func (l *LDAP) RemoveUserFromGroup(dn, groupDN string) error {
 //     or context cancellation error
 //
 // This operation requires write permissions on the target group object.
-func (l *LDAP) RemoveUserFromGroupContext(ctx context.Context, dn, groupDN string) error {
+func (l *ldaplib.LDAP) RemoveUserFromGroupContext(ctx context.Context, dn, groupDN string) error {
 	start := time.Now()
 	l.logger.Info("user_group_remove_started",
 		slog.String("operation", "RemoveUserFromGroup"),
@@ -772,7 +772,7 @@ type FullUser struct {
 //	    UserAccountControl: UAC{NormalAccount: true},
 //	}
 //	dn, err := client.CreateUser(user, "")
-func (l *LDAP) CreateUser(user FullUser, password string) (string, error) {
+func (l *ldaplib.LDAP) CreateUser(user FullUser, password string) (string, error) {
 	return l.CreateUserContext(context.Background(), user, password)
 }
 
@@ -792,7 +792,7 @@ func (l *LDAP) CreateUser(user FullUser, password string) (string, error) {
 //   - ObjectClasses defaults to ["top", "person", "organizationalPerson", "user"] if not specified
 //   - DisplayName defaults to CN if not specified
 //   - The user is created at the specified Path relative to BaseDN, or directly under BaseDN if Path is nil
-func (l *LDAP) CreateUserContext(ctx context.Context, user FullUser, password string) (string, error) {
+func (l *ldaplib.LDAP) CreateUserContext(ctx context.Context, user FullUser, password string) (string, error) {
 	start := time.Now()
 	l.logger.Info("user_create_started",
 		slog.String("operation", "CreateUser"),
@@ -905,7 +905,7 @@ func (l *LDAP) CreateUserContext(ctx context.Context, user FullUser, password st
 //   - error: Any LDAP operation error, including user not found or insufficient permissions
 //
 // Warning: This operation is irreversible. Ensure you have proper backups and permissions before deletion.
-func (l *LDAP) DeleteUser(dn string) error {
+func (l *ldaplib.LDAP) DeleteUser(dn string) error {
 	return l.DeleteUserContext(context.Background(), dn)
 }
 
@@ -920,7 +920,7 @@ func (l *LDAP) DeleteUser(dn string) error {
 //     or context cancellation error
 //
 // Warning: This operation is irreversible. Ensure you have proper backups and permissions before deletion.
-func (l *LDAP) DeleteUserContext(ctx context.Context, dn string) error {
+func (l *ldaplib.LDAP) DeleteUserContext(ctx context.Context, dn string) error {
 	start := time.Now()
 	l.logger.Warn("user_delete_started",
 		slog.String("operation", "DeleteUser"),

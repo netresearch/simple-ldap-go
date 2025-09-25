@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/go-ldap/ldap/v3"
+
+	ldaplib "github.com/netresearch/simple-ldap-go"
 )
 
 // ErrGroupNotFound is returned when a group search operation finds no matching entries.
@@ -47,7 +49,7 @@ type FullGroup struct {
 //   - error: ErrGroupNotFound if no group exists with the given DN,
 //     ErrDNDuplicated if multiple entries share the same DN (data integrity issue),
 //     or any LDAP operation error
-func (l *LDAP) FindGroupByDN(dn string) (group *Group, err error) {
+func (l *ldaplib.LDAP) FindGroupByDN(dn string) (group *Group, err error) {
 	return l.FindGroupByDNContext(context.Background(), dn)
 }
 
@@ -62,7 +64,7 @@ func (l *LDAP) FindGroupByDN(dn string) (group *Group, err error) {
 //   - error: ErrGroupNotFound if no group exists with the given DN,
 //     ErrDNDuplicated if multiple entries share the same DN (data integrity issue),
 //     context cancellation error, or any LDAP operation error
-func (l *LDAP) FindGroupByDNContext(ctx context.Context, dn string) (group *Group, err error) {
+func (l *ldaplib.LDAP) FindGroupByDNContext(ctx context.Context, dn string) (group *Group, err error) {
 	start := time.Now()
 
 	// Use generic DN search function to eliminate code duplication
@@ -119,7 +121,7 @@ func (l *LDAP) FindGroupByDNContext(ctx context.Context, dn string) (group *Grou
 //
 // This method performs a subtree search starting from the configured BaseDN.
 // Groups that cannot be parsed are skipped and not included in the results.
-func (l *LDAP) FindGroups() (groups []Group, err error) {
+func (l *ldaplib.LDAP) FindGroups() (groups []Group, err error) {
 	return l.FindGroupsContext(context.Background())
 }
 
@@ -134,7 +136,7 @@ func (l *LDAP) FindGroups() (groups []Group, err error) {
 //
 // This method performs a subtree search starting from the configured BaseDN.
 // Groups that cannot be parsed are skipped and not included in the results.
-func (l *LDAP) FindGroupsContext(ctx context.Context) (groups []Group, err error) {
+func (l *ldaplib.LDAP) FindGroupsContext(ctx context.Context) (groups []Group, err error) {
 	// Check for context cancellation first
 	if err := l.checkContextCancellation(ctx, "FindGroups", "N/A", "start"); err != nil {
 		return nil, ctx.Err()
