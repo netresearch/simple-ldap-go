@@ -79,14 +79,14 @@ if err != nil {
 // ... additional validation and error handling
 ```
 
-**Simple LDAP Go**: Same operation (4 lines)
+**Simple LDAP Go**: Same operation (3 lines)
 ```go
 import ldap "github.com/netresearch/simple-ldap-go"
-import "github.com/netresearch/simple-ldap-go/auth"
 
 client, _ := ldap.New(config, "cn=admin,dc=example,dc=com", "password")
-user, err := auth.CheckPasswordForSAMAccountName(client, "username", "password")
+user, err := client.FindUserBySAMAccountName("username")
 // Returns structured User object with automatic error handling
+// Note: Password authentication methods coming soon
 ```
 
 ## Features
@@ -112,15 +112,12 @@ go get github.com/netresearch/simple-ldap-go
 
 ## Package Structure
 
-Simple LDAP Go is organized into focused packages:
+Simple LDAP Go provides all functionality through the main package:
 
-- **Main package (`github.com/netresearch/simple-ldap-go`)** - Core client and configuration
-- **`auth/`** - Authentication operations and password management
-- **`objects/`** - LDAP object types (User, Group, Computer)
-- **`search/`** - Search builders and query construction
+- **Main package (`github.com/netresearch/simple-ldap-go`)** - All LDAP operations and types
 - **`internal/`** - Internal implementation details (not for public use)
 
-The main package provides the core functionality, while specialized packages offer domain-specific operations.
+All user-facing APIs are available directly from the main package.
 
 ## Quick Start
 
@@ -148,25 +145,58 @@ func main() {
         log.Fatal(err)
     }
 
-    // Authenticate a user (Note: auth functions not yet implemented in v2.0)
-    // user, err := auth.CheckPasswordForSAMAccountName(client, "username", "password")
-    // For now, authentication methods are still being ported to v2.0
+    // Find a user
+    user, err := client.FindUserBySAMAccountName("jdoe")
     if err != nil {
-        log.Printf("Authentication failed: %v", err)
+        if err == ldap.ErrUserNotFound {
+            log.Printf("User not found")
+        } else {
+            log.Printf("Error finding user: %v", err)
+        }
         return
     }
 
-    fmt.Printf("Welcome, %s!\n", user.CN())
+    fmt.Printf("Found user: %s\n", user.CN())
 }
 ```
 
-## Examples
+## Usage Examples
 
-Comprehensive examples are available in the [examples](examples/) directory:
+### Finding Users
 
-- **[Basic Usage](examples/basic-usage/)** - Finding users, groups, and computers
-- **[Authentication](examples/authentication/)** - User authentication and password changes  
-- **[User Management](examples/user-management/)** - Creating, updating, and managing users
+```go
+// Find by SAM Account Name (Active Directory)
+user, err := client.FindUserBySAMAccountName("jdoe")
+
+// Find by email
+user, err := client.FindUserByMail("john.doe@example.com")
+
+// Find by Distinguished Name
+user, err := client.FindUserByDN("CN=John Doe,OU=Users,DC=example,DC=com")
+
+// Find all users
+users, err := client.FindUsers()
+```
+
+### Working with Groups
+
+```go
+// Find a specific group
+group, err := client.FindGroupByDN("CN=Admins,OU=Groups,DC=example,DC=com")
+
+// Find all groups
+groups, err := client.FindGroups()
+```
+
+### Managing Computers (Active Directory)
+
+```go
+// Find a computer
+computer, err := client.FindComputerByDN("CN=WORKSTATION01,CN=Computers,DC=example,DC=com")
+
+// Find all computers
+computers, err := client.FindComputers()
+```
 
 ## API Reference
 
@@ -174,74 +204,39 @@ Comprehensive examples are available in the [examples](examples/) directory:
 
 - **`ldap.Config`** - LDAP server configuration
 - **`ldap.LDAP`** - Main client for LDAP operations
-- **`objects.User`** - Represents an LDAP user with common attributes
-- **`objects.Group`** - Represents an LDAP group with member information
-- **`objects.Computer`** - Represents a computer object (Active Directory)
+- **`ldap.User`** - Represents an LDAP user with common attributes
+- **`ldap.Group`** - Represents an LDAP group with member information
+- **`ldap.Computer`** - Represents a computer object (Active Directory)
 
 ### Key Operations
 
 ```go
-import (
-    "github.com/netresearch/simple-ldap-go"
-    "github.com/netresearch/simple-ldap-go/objects"
-    "github.com/netresearch/simple-ldap-go/search"
-)
+import "github.com/netresearch/simple-ldap-go"
 
 // Client creation
 config := &ldap.Config{...}
 client, err := ldap.New(config, username, password)
 
-// User authentication
-user, err := auth.CheckPasswordForSAMAccountName(client, "jdoe", "password")
-
 // Find users
-user, err := objects.FindUserBySAMAccountName(client, "jdoe")
-users, err := objects.FindUsers(client)
+user, err := client.FindUserBySAMAccountName("jdoe")
+user, err := client.FindUserByMail("jdoe@example.com")
+users, err := client.FindUsers()
 
-// Work with structured objects
-var fullUser *objects.FullUser = ...
-err := objects.CreateUser(client, fullUser, "password123")
+// Find groups
+group, err := client.FindGroupByDN("CN=Admins,DC=example,DC=com")
+groups, err := client.FindGroups()
 
-// Use builders for complex queries
-builder := search.NewUserBuilder().
-    WithAttributes("cn", "mail", "department").
-    WithFilter("department", "Engineering")
+// Find computers (Active Directory)
+computer, err := client.FindComputerByDN("CN=SERVER01,CN=Computers,DC=example,DC=com")
+computers, err := client.FindComputers()
+
+// Create users (when implemented)
+var fullUser ldap.FullUser = ...
+dn, err := client.CreateUser(fullUser, "password123")
 ```
 
 See the [Go Reference](https://pkg.go.dev/github.com/netresearch/simple-ldap-go) for complete API documentation.
 
-## Migration Guide
-
-### From v1.1.x to v2.0.0 (Breaking Change)
-
-Version 2.0.0 introduces a new structured package organization. This is a **breaking change**.
-
-See [MIGRATION.md](MIGRATION.md) for detailed migration instructions.
-
-#### Quick Summary
-
-**Major Breaking Change**: All LDAP operations are now functions instead of methods.
-
-**Old (v1.x):**
-```go
-import "github.com/netresearch/simple-ldap-go"
-
-user, err := client.FindUserBySAMAccountName("jdoe")
-groups, err := client.FindGroups()
-```
-
-**New (v2.0):**
-```go
-import (
-    "github.com/netresearch/simple-ldap-go"
-    "github.com/netresearch/simple-ldap-go/objects"
-)
-
-user, err := objects.FindUserBySAMAccountName(client, "jdoe")
-groups, err := objects.FindGroups(client)
-```
-
-**What doesn't change:** All LDAP client methods remain exactly the same.
 
 ## Configuration
 
