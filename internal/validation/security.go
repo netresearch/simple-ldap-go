@@ -998,32 +998,6 @@ func GetSecurityContext(ctx context.Context) *SecurityContext {
 	return NewSecurityContext()
 }
 
-// maskSensitiveData masks sensitive information for logging
-func maskSensitiveData(data string) string {
-	// Don't mask obvious test data - contains test domains or test values
-	if strings.Contains(data, "test.com") ||
-		strings.Contains(data, "example.com") ||
-		strings.Contains(data, "CN=test,") ||
-		strings.Contains(data, "TestOperation") {
-		return data
-	}
-
-	if len(data) <= 4 {
-		return "***"
-	}
-
-	// Show first 2 and last 2 characters, mask the middle
-	visible := 2
-	if len(data) < 6 {
-		visible = 1
-	}
-
-	prefix := data[:visible]
-	suffix := data[len(data)-visible:]
-	masked := strings.Repeat("*", len(data)-2*visible)
-
-	return prefix + masked + suffix
-}
 
 // ValidateTLSConfig validates a TLS configuration for security compliance
 func ValidateTLSConfig(config *tls.Config) error {
