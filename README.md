@@ -79,12 +79,13 @@ if err != nil {
 // ... additional validation and error handling
 ```
 
-**Simple LDAP Go**: Same operation (3 lines)
+**Simple LDAP Go**: Same operation (4 lines)
 ```go
 import ldap "github.com/netresearch/simple-ldap-go"
+import "github.com/netresearch/simple-ldap-go/auth"
 
 client, _ := ldap.New(config, "cn=admin,dc=example,dc=com", "password")
-user, err := client.CheckPasswordForSAMAccountName("username", "password")
+user, err := auth.CheckPasswordForSAMAccountName(client, "username", "password")
 // Returns structured User object with automatic error handling
 ```
 
@@ -147,8 +148,9 @@ func main() {
         log.Fatal(err)
     }
 
-    // Authenticate a user
-    user, err := client.CheckPasswordForSAMAccountName("username", "password")
+    // Authenticate a user (Note: auth functions not yet implemented in v2.0)
+    // user, err := auth.CheckPasswordForSAMAccountName(client, "username", "password")
+    // For now, authentication methods are still being ported to v2.0
     if err != nil {
         log.Printf("Authentication failed: %v", err)
         return
@@ -190,15 +192,15 @@ config := &ldap.Config{...}
 client, err := ldap.New(config, username, password)
 
 // User authentication
-user, err := client.CheckPasswordForSAMAccountName("jdoe", "password")
+user, err := auth.CheckPasswordForSAMAccountName(client, "jdoe", "password")
 
 // Find users
-user, err := client.FindUserBySAMAccountName("jdoe")
-users, err := client.FindUsers()
+user, err := objects.FindUserBySAMAccountName(client, "jdoe")
+users, err := objects.FindUsers(client)
 
 // Work with structured objects
 var fullUser *objects.FullUser = ...
-err := client.CreateUser(fullUser, "ou=Users,dc=example,dc=com")
+err := objects.CreateUser(client, fullUser, "password123")
 
 // Use builders for complex queries
 builder := search.NewUserBuilder().
@@ -218,19 +220,25 @@ See [MIGRATION.md](MIGRATION.md) for detailed migration instructions.
 
 #### Quick Summary
 
-**Old imports:**
+**Major Breaking Change**: All LDAP operations are now functions instead of methods.
+
+**Old (v1.x):**
 ```go
 import "github.com/netresearch/simple-ldap-go"
-var user *ldap.User
+
+user, err := client.FindUserBySAMAccountName("jdoe")
+groups, err := client.FindGroups()
 ```
 
-**New imports:**
+**New (v2.0):**
 ```go
 import (
     "github.com/netresearch/simple-ldap-go"
     "github.com/netresearch/simple-ldap-go/objects"
 )
-var user *objects.User
+
+user, err := objects.FindUserBySAMAccountName(client, "jdoe")
+groups, err := objects.FindGroups(client)
 ```
 
 **What doesn't change:** All LDAP client methods remain exactly the same.
@@ -269,8 +277,8 @@ The library provides specific error types for common scenarios:
 
 ```go
 // Check for specific errors
-_, err := client.FindUserBySAMAccountName("username")
-if err == ldap.ErrUserNotFound {
+_, err := objects.FindUserBySAMAccountName(client, "username")
+if err == objects.ErrUserNotFound {
     // Handle user not found
 } else if err != nil {
     // Handle other errors
