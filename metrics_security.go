@@ -13,11 +13,11 @@ import (
 // SecurityMetrics provides comprehensive security monitoring and analytics
 type SecurityMetrics struct {
 	// Authentication patterns
-	AuthSuccessTotal         int64 // Total successful authentications
-	AuthFailureTotal         int64 // Total failed authentications
-	AuthAttemptsByHour       map[int]int64 // Attempts by hour of day
-	AuthFailuresByUser       map[string]int64 // Failed attempts by user
-	AuthFailuresByIP         map[string]int64 // Failed attempts by IP
+	AuthSuccessTotal   int64            // Total successful authentications
+	AuthFailureTotal   int64            // Total failed authentications
+	AuthAttemptsByHour map[int]int64    // Attempts by hour of day
+	AuthFailuresByUser map[string]int64 // Failed attempts by user
+	AuthFailuresByIP   map[string]int64 // Failed attempts by IP
 
 	// Suspicious activity detection
 	BruteForceAttempts       int64 // Detected brute force attempts
@@ -26,14 +26,14 @@ type SecurityMetrics struct {
 	AnomalousUserBehavior    int64 // Users with anomalous patterns
 
 	// Geographic and temporal analysis
-	UnusualLocationLogins    int64 // Logins from unusual locations
-	OffHourAuthentications   int64 // Authentications outside normal hours
-	WeekendActivity          int64 // Weekend authentication activity
+	UnusualLocationLogins  int64 // Logins from unusual locations
+	OffHourAuthentications int64 // Authentications outside normal hours
+	WeekendActivity        int64 // Weekend authentication activity
 
 	// Account security
-	AccountLockouts          int64 // Total account lockouts
-	PasswordChangeRequests   int64 // Password change attempts
-	PrivilegedAccountAccess  int64 // Access to privileged accounts
+	AccountLockouts         int64 // Total account lockouts
+	PasswordChangeRequests  int64 // Password change attempts
+	PrivilegedAccountAccess int64 // Access to privileged accounts
 
 	// System security
 	UnauthorizedOperations   int64 // Unauthorized operation attempts
@@ -41,98 +41,98 @@ type SecurityMetrics struct {
 	DataExfiltrationWarnings int64 // Potential data exfiltration
 
 	// Performance impact of security
-	SecurityOverheadMs       float64 // Average security check overhead
-	RateLimitingActive       bool    // Whether rate limiting is active
-	LastSecurityScan         time.Time // Last security analysis run
+	SecurityOverheadMs float64   // Average security check overhead
+	RateLimitingActive bool      // Whether rate limiting is active
+	LastSecurityScan   time.Time // Last security analysis run
 
 	// Alert statistics
-	SecurityAlertsTriggered  int64 // Total security alerts
-	HighSeverityAlerts       int64 // High severity security alerts
-	AlertResolutionTimeMs    float64 // Average alert resolution time
+	SecurityAlertsTriggered int64   // Total security alerts
+	HighSeverityAlerts      int64   // High severity security alerts
+	AlertResolutionTimeMs   float64 // Average alert resolution time
 }
 
 // SecurityAnalyzer provides advanced security analytics and threat detection
 type SecurityAnalyzer struct {
-	perfMonitor     *PerformanceMonitor
-	rateLimiter     *RateLimiter
-	logger          *slog.Logger
+	perfMonitor *PerformanceMonitor
+	rateLimiter *RateLimiter
+	logger      *slog.Logger
 
 	// Security metrics storage
-	metrics         SecurityMetrics
-	metricsMu       sync.RWMutex
+	metrics   SecurityMetrics
+	metricsMu sync.RWMutex
 
 	// Behavioral analysis
-	userPatterns    map[string]*UserBehaviorPattern
-	ipPatterns      map[string]*IPBehaviorPattern
-	patternsMu      sync.RWMutex
+	userPatterns map[string]*UserBehaviorPattern
+	ipPatterns   map[string]*IPBehaviorPattern
+	patternsMu   sync.RWMutex
 
 	// Alert configuration
 	alertThresholds *SecurityThresholds
 	alertCallbacks  []SecurityAlertCallback
 
 	// Analysis configuration
-	config          *SecurityAnalysisConfig
+	config *SecurityAnalysisConfig
 
 	// Background processing
-	stopChan        chan struct{}
-	wg              sync.WaitGroup
+	stopChan chan struct{}
+	wg       sync.WaitGroup
 }
 
 // UserBehaviorPattern tracks individual user behavior for anomaly detection
 type UserBehaviorPattern struct {
-	Username           string
-	FirstSeen          time.Time
-	LastSeen           time.Time
-	TotalLogins        int64
-	FailedLogins       int64
-	SuccessfulLogins   int64
+	Username         string
+	FirstSeen        time.Time
+	LastSeen         time.Time
+	TotalLogins      int64
+	FailedLogins     int64
+	SuccessfulLogins int64
 
 	// Temporal patterns
-	LoginHours         map[int]int64 // Hour of day login frequency
-	LoginDays          map[time.Weekday]int64 // Day of week patterns
+	LoginHours map[int]int64          // Hour of day login frequency
+	LoginDays  map[time.Weekday]int64 // Day of week patterns
 
 	// Geographic patterns
-	LoginIPs           map[string]int64 // IP addresses used
-	Countries          map[string]int64 // Countries (if geo data available)
+	LoginIPs  map[string]int64 // IP addresses used
+	Countries map[string]int64 // Countries (if geo data available)
 
 	// Security flags
 	HasSuspiciousActivity bool
-	RiskScore            float64 // 0-1 risk score
-	LastRiskUpdate       time.Time
+	RiskScore             float64 // 0-1 risk score
+	LastRiskUpdate        time.Time
 }
 
 // IPBehaviorPattern tracks IP address behavior for threat detection
 type IPBehaviorPattern struct {
-	IPAddress          string
-	FirstSeen          time.Time
-	LastSeen           time.Time
+	IPAddress string
+	FirstSeen time.Time
+	LastSeen  time.Time
 
 	// Activity metrics
-	TotalRequests      int64
-	SuccessfulAuths    int64
-	FailedAuths        int64
-	UniqueUsers        map[string]bool
+	TotalRequests   int64
+	SuccessfulAuths int64
+	FailedAuths     int64
+	UniqueUsers     map[string]bool
 
 	// Pattern analysis
-	RequestsPerHour    map[int]int64 // Hourly request distribution
-	BurstActivity      int64         // High-frequency request periods
+	RequestsPerHour map[int]int64 // Hourly request distribution
+	BurstActivity   int64         // High-frequency request periods
 
 	// Security classification
-	ThreatLevel        string // "low", "medium", "high", "critical"
-	IsWhitelisted      bool
-	IsBlacklisted      bool
-	RiskScore          float64
+	ThreatLevel   string // "low", "medium", "high", "critical"
+	IsWhitelisted bool
+	IsBlacklisted bool
+	RiskScore     float64
 }
 
 // SecurityThresholds defines thresholds for security alerts
 type SecurityThresholds struct {
-	MaxFailedLoginsPerUser   int64         `json:"max_failed_logins_per_user"`
-	MaxFailedLoginsPerIP     int64         `json:"max_failed_logins_per_ip"`
-	BruteForceWindowMinutes  int           `json:"brute_force_window_minutes"`
-	AnomalyDetectionEnabled  bool          `json:"anomaly_detection_enabled"`
-	GeographicAnomalyEnabled bool          `json:"geographic_anomaly_enabled"`
-	OffHoursThresholdPercent float64       `json:"off_hours_threshold_percent"`
-	MaxRiskScore             float64       `json:"max_risk_score"`
+	MaxFailedLoginsPerUser   int64   `json:"max_failed_logins_per_user"`
+	MaxFailedLoginsPerIP     int64   `json:"max_failed_logins_per_ip"`
+	BruteForceWindowMinutes  int     `json:"brute_force_window_minutes"`
+	AnomalyDetectionEnabled  bool    `json:"anomaly_detection_enabled"`
+	GeographicAnomalyEnabled bool    `json:"geographic_anomaly_enabled"`
+	OffHoursThresholdPercent float64 `json:"off_hours_threshold_percent"`
+	MaxRiskScore             float64 `json:"max_risk_score"`
 }
 
 // SecurityAlertCallback is called when a security alert is triggered
@@ -153,12 +153,12 @@ type SecurityAlert struct {
 
 // SecurityAnalysisConfig configures security analysis behavior
 type SecurityAnalysisConfig struct {
-	AnalysisInterval     time.Duration `json:"analysis_interval"`
-	RetentionPeriod      time.Duration `json:"retention_period"`
-	EnableBehaviorAnalysis bool        `json:"enable_behavior_analysis"`
-	EnableThreatIntel    bool          `json:"enable_threat_intel"`
-	EnableGeolocation    bool          `json:"enable_geolocation"`
-	RiskScoringEnabled   bool          `json:"risk_scoring_enabled"`
+	AnalysisInterval       time.Duration `json:"analysis_interval"`
+	RetentionPeriod        time.Duration `json:"retention_period"`
+	EnableBehaviorAnalysis bool          `json:"enable_behavior_analysis"`
+	EnableThreatIntel      bool          `json:"enable_threat_intel"`
+	EnableGeolocation      bool          `json:"enable_geolocation"`
+	RiskScoringEnabled     bool          `json:"risk_scoring_enabled"`
 }
 
 // DefaultSecurityThresholds returns secure default thresholds
@@ -278,12 +278,12 @@ func (sa *SecurityAnalyzer) updateUserPattern(username, ipAddress string, succes
 	pattern, exists := sa.userPatterns[username]
 	if !exists {
 		pattern = &UserBehaviorPattern{
-			Username:     username,
-			FirstSeen:    timestamp,
-			LoginHours:   make(map[int]int64),
-			LoginDays:    make(map[time.Weekday]int64),
-			LoginIPs:     make(map[string]int64),
-			Countries:    make(map[string]int64),
+			Username:   username,
+			FirstSeen:  timestamp,
+			LoginHours: make(map[int]int64),
+			LoginDays:  make(map[time.Weekday]int64),
+			LoginIPs:   make(map[string]int64),
+			Countries:  make(map[string]int64),
 		}
 		sa.userPatterns[username] = pattern
 	}
@@ -347,9 +347,9 @@ func (sa *SecurityAnalyzer) checkImmediateThreats(username, ipAddress string, su
 				Source:      username,
 				Timestamp:   timestamp,
 				Details: map[string]interface{}{
-					"username":       username,
+					"username":        username,
 					"failed_attempts": userFailures,
-					"source_ip":      ipAddress,
+					"source_ip":       ipAddress,
 				},
 				Actions: []string{
 					"Lock user account",
@@ -373,9 +373,9 @@ func (sa *SecurityAnalyzer) checkImmediateThreats(username, ipAddress string, su
 				Source:      ipAddress,
 				Timestamp:   timestamp,
 				Details: map[string]interface{}{
-					"source_ip":      ipAddress,
+					"source_ip":       ipAddress,
 					"failed_attempts": ipFailures,
-					"target_user":    username,
+					"target_user":     username,
 				},
 				Actions: []string{
 					"Block IP address",
@@ -435,11 +435,11 @@ func (sa *SecurityAnalyzer) AnalyzeBehaviorPatterns() {
 				Source:      username,
 				Timestamp:   now,
 				Details: map[string]interface{}{
-					"username":        username,
-					"risk_score":      riskScore,
-					"total_logins":    pattern.TotalLogins,
-					"failed_logins":   pattern.FailedLogins,
-					"unique_ips":      len(pattern.LoginIPs),
+					"username":      username,
+					"risk_score":    riskScore,
+					"total_logins":  pattern.TotalLogins,
+					"failed_logins": pattern.FailedLogins,
+					"unique_ips":    len(pattern.LoginIPs),
 				},
 				Actions: []string{
 					"Review user activity",

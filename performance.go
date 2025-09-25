@@ -11,40 +11,40 @@ import (
 
 // PerformanceConfig contains configuration for performance monitoring
 type PerformanceConfig struct {
-	Enabled              bool          `json:"enabled"`               // Enable performance monitoring
-	SlowQueryThreshold   time.Duration `json:"slow_query_threshold"`  // Threshold for slow query detection
-	MetricsRetention     time.Duration `json:"metrics_retention"`     // How long to keep metrics data
-	SampleRate           float64       `json:"sample_rate"`           // Sample rate for detailed metrics (0.0-1.0)
-	DetailedMetrics      bool          `json:"detailed_metrics"`      // Enable detailed per-operation metrics
-	BufferSize           int           `json:"buffer_size"`           // Size of metrics buffer
-	FlushInterval        time.Duration `json:"flush_interval"`        // How often to flush metrics
-	ExportPrometheus     bool          `json:"export_prometheus"`     // Enable Prometheus metrics export
-	PrometheusNamespace  string        `json:"prometheus_namespace"`  // Namespace for Prometheus metrics
-	MemoryStatsInterval  time.Duration `json:"memory_stats_interval"` // How often to collect memory stats
-	HistogramBuckets     []float64     `json:"histogram_buckets"`     // Custom histogram buckets for response times
+	Enabled             bool          `json:"enabled"`               // Enable performance monitoring
+	SlowQueryThreshold  time.Duration `json:"slow_query_threshold"`  // Threshold for slow query detection
+	MetricsRetention    time.Duration `json:"metrics_retention"`     // How long to keep metrics data
+	SampleRate          float64       `json:"sample_rate"`           // Sample rate for detailed metrics (0.0-1.0)
+	DetailedMetrics     bool          `json:"detailed_metrics"`      // Enable detailed per-operation metrics
+	BufferSize          int           `json:"buffer_size"`           // Size of metrics buffer
+	FlushInterval       time.Duration `json:"flush_interval"`        // How often to flush metrics
+	ExportPrometheus    bool          `json:"export_prometheus"`     // Enable Prometheus metrics export
+	PrometheusNamespace string        `json:"prometheus_namespace"`  // Namespace for Prometheus metrics
+	MemoryStatsInterval time.Duration `json:"memory_stats_interval"` // How often to collect memory stats
+	HistogramBuckets    []float64     `json:"histogram_buckets"`     // Custom histogram buckets for response times
 
 	// Additional fields for compatibility with examples
 	MetricsRetentionPeriod time.Duration `json:"metrics_retention_period"` // Alias for MetricsRetention
-	MaxSearchResults       int           `json:"max_search_results"`        // Maximum number of search results
-	SearchTimeout          time.Duration `json:"search_timeout"`            // Timeout for search operations
-	EnablePrefetch         bool          `json:"enable_prefetch"`           // Enable prefetching optimizations
-	EnableBulkOperations   bool          `json:"enable_bulk_operations"`    // Enable bulk operation optimizations
+	MaxSearchResults       int           `json:"max_search_results"`       // Maximum number of search results
+	SearchTimeout          time.Duration `json:"search_timeout"`           // Timeout for search operations
+	EnablePrefetch         bool          `json:"enable_prefetch"`          // Enable prefetching optimizations
+	EnableBulkOperations   bool          `json:"enable_bulk_operations"`   // Enable bulk operation optimizations
 }
 
 // DefaultPerformanceConfig returns a PerformanceConfig with sensible defaults
 func DefaultPerformanceConfig() *PerformanceConfig {
 	return &PerformanceConfig{
-		Enabled:              true,
-		SlowQueryThreshold:   100 * time.Millisecond,
-		MetricsRetention:     24 * time.Hour,
-		SampleRate:           0.1, // Sample 10% for detailed metrics
-		DetailedMetrics:      true,
-		BufferSize:           1000,
-		FlushInterval:        1 * time.Minute,
-		ExportPrometheus:     false,
-		PrometheusNamespace:  "ldap",
-		MemoryStatsInterval:  30 * time.Second,
-		HistogramBuckets:     []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10},
+		Enabled:             true,
+		SlowQueryThreshold:  100 * time.Millisecond,
+		MetricsRetention:    24 * time.Hour,
+		SampleRate:          0.1, // Sample 10% for detailed metrics
+		DetailedMetrics:     true,
+		BufferSize:          1000,
+		FlushInterval:       1 * time.Minute,
+		ExportPrometheus:    false,
+		PrometheusNamespace: "ldap",
+		MemoryStatsInterval: 30 * time.Second,
+		HistogramBuckets:    []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10},
 
 		// Default values for additional fields
 		MetricsRetentionPeriod: 24 * time.Hour,
@@ -64,13 +64,13 @@ type ConnectionPoolStats struct {
 	IdleConnections   int `json:"idle_connections"`
 
 	// Performance metrics
-	TotalRequests     int64 `json:"total_requests"`
-	PoolHits          int64 `json:"pool_hits"`
-	PoolMisses        int64 `json:"pool_misses"`
+	TotalRequests int64 `json:"total_requests"`
+	PoolHits      int64 `json:"pool_hits"`
+	PoolMisses    int64 `json:"pool_misses"`
 
 	// Timing statistics
-	AvgWaitTime       time.Duration `json:"avg_wait_time"`
-	MaxWaitTime       time.Duration `json:"max_wait_time"`
+	AvgWaitTime time.Duration `json:"avg_wait_time"`
+	MaxWaitTime time.Duration `json:"max_wait_time"`
 
 	// Health metrics
 	FailedConnections int64 `json:"failed_connections"`
@@ -80,54 +80,54 @@ type ConnectionPoolStats struct {
 // PerformanceMetrics represents aggregated performance statistics
 type PerformanceMetrics struct {
 	// Basic counters
-	OperationsTotal   int64                  `json:"operations_total"`
-	ErrorCount        int64                  `json:"error_count"`
-	TimeoutCount      int64                  `json:"timeout_count"`
-	SlowQueries       int64                  `json:"slow_queries"`
-	CacheHits         int64                  `json:"cache_hits"`
-	CacheMisses       int64                  `json:"cache_misses"`
+	OperationsTotal int64 `json:"operations_total"`
+	ErrorCount      int64 `json:"error_count"`
+	TimeoutCount    int64 `json:"timeout_count"`
+	SlowQueries     int64 `json:"slow_queries"`
+	CacheHits       int64 `json:"cache_hits"`
+	CacheMisses     int64 `json:"cache_misses"`
 
 	// Timing statistics
-	AvgResponseTime   time.Duration          `json:"avg_response_time"`
-	MinResponseTime   time.Duration          `json:"min_response_time"`
-	MaxResponseTime   time.Duration          `json:"max_response_time"`
-	P50ResponseTime   time.Duration          `json:"p50_response_time"`
-	P95ResponseTime   time.Duration          `json:"p95_response_time"`
-	P99ResponseTime   time.Duration          `json:"p99_response_time"`
+	AvgResponseTime time.Duration `json:"avg_response_time"`
+	MinResponseTime time.Duration `json:"min_response_time"`
+	MaxResponseTime time.Duration `json:"max_response_time"`
+	P50ResponseTime time.Duration `json:"p50_response_time"`
+	P95ResponseTime time.Duration `json:"p95_response_time"`
+	P99ResponseTime time.Duration `json:"p99_response_time"`
 
 	// Resource usage
-	MemoryUsageMB     float64                `json:"memory_usage_mb"`
-	GoroutineCount    int                    `json:"goroutine_count"`
+	MemoryUsageMB  float64 `json:"memory_usage_mb"`
+	GoroutineCount int     `json:"goroutine_count"`
 
 	// Operation breakdown
-	OperationsByType    map[string]int64       `json:"operations_by_type"`
-	ErrorsByType        map[string]int64       `json:"errors_by_type"`
-	SlowQueriesByType   map[string]int64       `json:"slow_queries_by_type"`
+	OperationsByType  map[string]int64 `json:"operations_by_type"`
+	ErrorsByType      map[string]int64 `json:"errors_by_type"`
+	SlowQueriesByType map[string]int64 `json:"slow_queries_by_type"`
 
 	// Time series data (recent samples)
-	ResponseTimes     []time.Duration        `json:"response_times,omitempty"`
-	TimeStamps        []time.Time            `json:"timestamps,omitempty"`
+	ResponseTimes []time.Duration `json:"response_times,omitempty"`
+	TimeStamps    []time.Time     `json:"timestamps,omitempty"`
 
 	// Cache statistics
-	CacheHitRatio     float64                `json:"cache_hit_ratio"`
+	CacheHitRatio float64 `json:"cache_hit_ratio"`
 
 	// Backward compatibility fields for direct pool access
-	PoolHits          int64                  `json:"pool_hits"`
-	PoolMisses        int64                  `json:"pool_misses"`
-	TotalConnections  int                    `json:"total_connections"`
-	ConnectionsCreated int64                 `json:"connections_created"`
+	PoolHits           int64 `json:"pool_hits"`
+	PoolMisses         int64 `json:"pool_misses"`
+	TotalConnections   int   `json:"total_connections"`
+	ConnectionsCreated int64 `json:"connections_created"`
 
 	// Additional fields for example compatibility
-	ActiveConnections    int                    `json:"active_connections"`
-	IdleConnections      int                    `json:"idle_connections"`
-	HealthChecksPassed   int64                  `json:"health_checks_passed"`
-	HealthChecksFailed   int64                  `json:"health_checks_failed"`
-	ConnectionsClosed    int64                  `json:"connections_closed"`
-	ConnectionPoolRatio  float64                `json:"connection_pool_ratio"`
-	TopSlowOperations    []OperationMetric      `json:"top_slow_operations,omitempty"`
+	ActiveConnections   int               `json:"active_connections"`
+	IdleConnections     int               `json:"idle_connections"`
+	HealthChecksPassed  int64             `json:"health_checks_passed"`
+	HealthChecksFailed  int64             `json:"health_checks_failed"`
+	ConnectionsClosed   int64             `json:"connections_closed"`
+	ConnectionPoolRatio float64           `json:"connection_pool_ratio"`
+	TopSlowOperations   []OperationMetric `json:"top_slow_operations,omitempty"`
 
 	// Connection pool stats (if available)
-	PoolStats         *ConnectionPoolStats   `json:"pool_stats,omitempty"`
+	PoolStats *ConnectionPoolStats `json:"pool_stats,omitempty"`
 }
 
 // PerformanceStats is an alias for PerformanceMetrics for interface compatibility
@@ -135,27 +135,27 @@ type PerformanceStats = PerformanceMetrics
 
 // OperationMetric represents metrics for a single operation
 type OperationMetric struct {
-	Operation     string        `json:"operation"`
-	StartTime     time.Time     `json:"start_time"`
-	Duration      time.Duration `json:"duration"`
-	Success       bool          `json:"success"`
-	ErrorMessage  string        `json:"error_message,omitempty"`
-	CacheHit      bool          `json:"cache_hit"`
-	ResultCount   int           `json:"result_count"`
-	UserAgent     string        `json:"user_agent,omitempty"`
-	ClientIP      string        `json:"client_ip,omitempty"`
+	Operation    string        `json:"operation"`
+	StartTime    time.Time     `json:"start_time"`
+	Duration     time.Duration `json:"duration"`
+	Success      bool          `json:"success"`
+	ErrorMessage string        `json:"error_message,omitempty"`
+	CacheHit     bool          `json:"cache_hit"`
+	ResultCount  int           `json:"result_count"`
+	UserAgent    string        `json:"user_agent,omitempty"`
+	ClientIP     string        `json:"client_ip,omitempty"`
 }
 
 // PerformanceMonitor provides comprehensive performance monitoring and metrics collection
 type PerformanceMonitor struct {
-	config          *PerformanceConfig
-	logger          *slog.Logger
-	metrics         *PerformanceMetrics
-	operations      []OperationMetric
-	mutex           sync.RWMutex
-	started         time.Time
-	lastFlush       time.Time
-	responseTimes   []time.Duration // For percentile calculations
+	config        *PerformanceConfig
+	logger        *slog.Logger
+	metrics       *PerformanceMetrics
+	operations    []OperationMetric
+	mutex         sync.RWMutex
+	started       time.Time
+	lastFlush     time.Time
+	responseTimes []time.Duration // For percentile calculations
 
 	// Optional external components for integrated metrics
 	cache Cache
@@ -172,11 +172,11 @@ func NewPerformanceMonitor(config *PerformanceConfig, logger *slog.Logger) *Perf
 	}
 
 	pm := &PerformanceMonitor{
-		config:        config,
-		logger:        logger,
-		started:       time.Now(),
-		lastFlush:     time.Now(),
-		metrics:       &PerformanceMetrics{
+		config:    config,
+		logger:    logger,
+		started:   time.Now(),
+		lastFlush: time.Now(),
+		metrics: &PerformanceMetrics{
 			OperationsByType: make(map[string]int64),
 			ErrorsByType:     make(map[string]int64),
 			MinResponseTime:  time.Duration(^uint64(0) >> 1), // Max duration
@@ -302,22 +302,22 @@ func (pm *PerformanceMonitor) GetStats() *PerformanceMetrics {
 
 	// Create a copy of metrics
 	stats := &PerformanceMetrics{
-		OperationsTotal:   pm.metrics.OperationsTotal,
-		ErrorCount:        pm.metrics.ErrorCount,
-		SlowQueries:       pm.metrics.SlowQueries,
-		CacheHits:         pm.metrics.CacheHits,
-		CacheMisses:       pm.metrics.CacheMisses,
-		AvgResponseTime:   pm.metrics.AvgResponseTime,
-		MinResponseTime:   pm.metrics.MinResponseTime,
-		MaxResponseTime:   pm.metrics.MaxResponseTime,
-		P50ResponseTime:   pm.metrics.P50ResponseTime,
-		P95ResponseTime:   pm.metrics.P95ResponseTime,
-		P99ResponseTime:   pm.metrics.P99ResponseTime,
-		MemoryUsageMB:     pm.metrics.MemoryUsageMB,
-		GoroutineCount:    pm.metrics.GoroutineCount,
-		CacheHitRatio:     pm.metrics.CacheHitRatio,
-		OperationsByType:  make(map[string]int64),
-		ErrorsByType:      make(map[string]int64),
+		OperationsTotal:  pm.metrics.OperationsTotal,
+		ErrorCount:       pm.metrics.ErrorCount,
+		SlowQueries:      pm.metrics.SlowQueries,
+		CacheHits:        pm.metrics.CacheHits,
+		CacheMisses:      pm.metrics.CacheMisses,
+		AvgResponseTime:  pm.metrics.AvgResponseTime,
+		MinResponseTime:  pm.metrics.MinResponseTime,
+		MaxResponseTime:  pm.metrics.MaxResponseTime,
+		P50ResponseTime:  pm.metrics.P50ResponseTime,
+		P95ResponseTime:  pm.metrics.P95ResponseTime,
+		P99ResponseTime:  pm.metrics.P99ResponseTime,
+		MemoryUsageMB:    pm.metrics.MemoryUsageMB,
+		GoroutineCount:   pm.metrics.GoroutineCount,
+		CacheHitRatio:    pm.metrics.CacheHitRatio,
+		OperationsByType: make(map[string]int64),
+		ErrorsByType:     make(map[string]int64),
 	}
 
 	// Copy maps

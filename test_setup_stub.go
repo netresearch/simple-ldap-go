@@ -25,11 +25,11 @@ type TestData struct {
 	Computers []TestComputer
 
 	// Authentication test data
-	ValidUserDN       string
-	ValidUserCN       string
-	ValidUserUID      string
-	ValidUserMail     string
-	ValidUserPassword string
+	ValidUserDN          string
+	ValidUserCN          string
+	ValidUserUID         string
+	ValidUserMail        string
+	ValidUserPassword    string
 	InvalidUserUID       string
 	InvalidPassword      string
 	DisabledUserUID      string
@@ -83,20 +83,20 @@ func (tc *TestContainer) GetLDAPClient(t *testing.T) *LDAP {
 // GetTestData is a stub method
 func (tc *TestContainer) GetTestData() *TestData {
 	return &TestData{
-		ValidUserDN:       "uid=testuser,ou=users,dc=example,dc=org",
-		ValidUserCN:       "Test User",
-		ValidUserUID:      "testuser",
-		ValidUserMail:     "test@example.com",
-		ValidUserPassword: "testpass",
+		ValidUserDN:          "uid=testuser,ou=users,dc=example,dc=org",
+		ValidUserCN:          "Test User",
+		ValidUserUID:         "testuser",
+		ValidUserMail:        "test@example.com",
+		ValidUserPassword:    "testpass",
 		InvalidUserUID:       "nonexistent",
 		InvalidPassword:      "wrongpass",
 		DisabledUserUID:      "disabled",
 		DisabledUserDN:       "uid=disabled,ou=users,dc=example,dc=org",
 		DisabledUserPassword: "disabledpass",
-		ValidComputerDN: "cn=TESTPC,ou=computers,dc=example,dc=org",
-		ValidComputerCN: "TESTPC",
-		ValidGroupDN: "cn=testgroup,ou=groups,dc=example,dc=org",
-		ValidGroupCN: "testgroup",
+		ValidComputerDN:      "cn=TESTPC,ou=computers,dc=example,dc=org",
+		ValidComputerCN:      "TESTPC",
+		ValidGroupDN:         "cn=testgroup,ou=groups,dc=example,dc=org",
+		ValidGroupCN:         "testgroup",
 	}
 }
 

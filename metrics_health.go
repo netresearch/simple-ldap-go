@@ -41,47 +41,47 @@ type HealthReport struct {
 
 // HealthMonitor provides health checking and scoring capabilities
 type HealthMonitor struct {
-	ldapClient      *LDAP
-	perfMonitor     *PerformanceMonitor
-	rateLimiter     *RateLimiter
-	cache           Cache
-	pool            *ConnectionPool
-	prometheusExp   *PrometheusExporter
-	startTime       time.Time
-	version         string
-	thresholds      *HealthThresholds
+	ldapClient    *LDAP
+	perfMonitor   *PerformanceMonitor
+	rateLimiter   *RateLimiter
+	cache         Cache
+	pool          *ConnectionPool
+	prometheusExp *PrometheusExporter
+	startTime     time.Time
+	version       string
+	thresholds    *HealthThresholds
 }
 
 // HealthThresholds defines thresholds for health scoring
 type HealthThresholds struct {
 	// Performance thresholds
-	MaxAvgResponseTime    time.Duration `json:"max_avg_response_time"`
-	MaxErrorRate          float64       `json:"max_error_rate"`          // Percentage
-	MaxSlowQueryRate      float64       `json:"max_slow_query_rate"`     // Percentage
-	MinCacheHitRate       float64       `json:"min_cache_hit_rate"`      // Percentage
+	MaxAvgResponseTime time.Duration `json:"max_avg_response_time"`
+	MaxErrorRate       float64       `json:"max_error_rate"`      // Percentage
+	MaxSlowQueryRate   float64       `json:"max_slow_query_rate"` // Percentage
+	MinCacheHitRate    float64       `json:"min_cache_hit_rate"`  // Percentage
 
 	// Rate limiter thresholds
-	MaxBlockedRate        float64       `json:"max_blocked_rate"`        // Percentage
-	MaxActiveLockouts     int64         `json:"max_active_lockouts"`
-	MaxSuspiciousPatterns int64         `json:"max_suspicious_patterns"`
+	MaxBlockedRate        float64 `json:"max_blocked_rate"` // Percentage
+	MaxActiveLockouts     int64   `json:"max_active_lockouts"`
+	MaxSuspiciousPatterns int64   `json:"max_suspicious_patterns"`
 
 	// Resource thresholds
-	MaxMemoryUsageMB      float64       `json:"max_memory_usage_mb"`
-	MaxGoroutines         int           `json:"max_goroutines"`
-	MinPoolConnections    int32         `json:"min_pool_connections"`
+	MaxMemoryUsageMB   float64 `json:"max_memory_usage_mb"`
+	MaxGoroutines      int     `json:"max_goroutines"`
+	MinPoolConnections int32   `json:"min_pool_connections"`
 
 	// Connection thresholds
-	ConnectionTimeoutSec  int           `json:"connection_timeout_sec"`
+	ConnectionTimeoutSec int `json:"connection_timeout_sec"`
 }
 
 // DefaultHealthThresholds returns sensible health check thresholds
 func DefaultHealthThresholds() *HealthThresholds {
 	return &HealthThresholds{
 		MaxAvgResponseTime:    2 * time.Second,
-		MaxErrorRate:          5.0,   // 5%
-		MaxSlowQueryRate:      10.0,  // 10%
-		MinCacheHitRate:       80.0,  // 80%
-		MaxBlockedRate:        15.0,  // 15%
+		MaxErrorRate:          5.0,  // 5%
+		MaxSlowQueryRate:      10.0, // 10%
+		MinCacheHitRate:       80.0, // 80%
+		MaxBlockedRate:        15.0, // 15%
 		MaxActiveLockouts:     50,
 		MaxSuspiciousPatterns: 10,
 		MaxMemoryUsageMB:      500.0,

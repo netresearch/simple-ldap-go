@@ -194,15 +194,15 @@ func (cb *CircuitBreaker) GetStats() map[string]interface{} {
 	defer cb.mu.RUnlock()
 
 	return map[string]interface{}{
-		"name":              cb.name,
-		"state":             cb.state.String(),
-		"failures":          atomic.LoadInt64(&cb.failures),
-		"requests":          atomic.LoadInt64(&cb.requests),
-		"successes":         atomic.LoadInt64(&cb.successes),
-		"last_failure":      cb.lastFailure,
-		"next_retry":        cb.nextRetry,
-		"half_open_reqs":    atomic.LoadInt64(&cb.halfOpenReqs),
-		"success_rate":      cb.getSuccessRate(),
+		"name":           cb.name,
+		"state":          cb.state.String(),
+		"failures":       atomic.LoadInt64(&cb.failures),
+		"requests":       atomic.LoadInt64(&cb.requests),
+		"successes":      atomic.LoadInt64(&cb.successes),
+		"last_failure":   cb.lastFailure,
+		"next_retry":     cb.nextRetry,
+		"half_open_reqs": atomic.LoadInt64(&cb.halfOpenReqs),
+		"success_rate":   cb.getSuccessRate(),
 	}
 }
 
@@ -484,11 +484,11 @@ func (tm *TimeoutManager) GetTimeoutStats() map[string]interface{} {
 	stats := make(map[string]interface{})
 	for operation, opStats := range tm.operationStats {
 		stats[operation] = map[string]interface{}{
-			"avg_duration":     opStats.avgDuration,
-			"max_duration":     opStats.maxDuration,
-			"timeouts":         atomic.LoadInt64(&opStats.timeouts),
-			"successes":        atomic.LoadInt64(&opStats.successes),
-			"adaptive_offset":  opStats.adaptiveOffset,
+			"avg_duration":    opStats.avgDuration,
+			"max_duration":    opStats.maxDuration,
+			"timeouts":        atomic.LoadInt64(&opStats.timeouts),
+			"successes":       atomic.LoadInt64(&opStats.successes),
+			"adaptive_offset": opStats.adaptiveOffset,
 		}
 	}
 

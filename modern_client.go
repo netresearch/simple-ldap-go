@@ -315,9 +315,9 @@ func NewPooledClient(config Config, username, password string, maxConnections in
 	return NewWithOptions(config, username, password,
 		WithConnectionPool(poolConfig),
 		WithPerformanceMonitoring(&PerformanceConfig{
-			Enabled:                true,
-			SlowQueryThreshold:     500 * time.Millisecond,
-			MetricsRetention: 1 * time.Minute,
+			Enabled:            true,
+			SlowQueryThreshold: 500 * time.Millisecond,
+			MetricsRetention:   1 * time.Minute,
 		}),
 	)
 }
@@ -335,9 +335,9 @@ func NewCachedClient(config Config, username, password string, cacheSize int, ca
 	return NewWithOptions(config, username, password,
 		WithCache(cacheConfig),
 		WithPerformanceMonitoring(&PerformanceConfig{
-			Enabled:                true,
-			SlowQueryThreshold:     200 * time.Millisecond,
-			MetricsRetention: 30 * time.Second,
+			Enabled:            true,
+			SlowQueryThreshold: 200 * time.Millisecond,
+			MetricsRetention:   30 * time.Second,
 		}),
 	)
 }
@@ -360,10 +360,10 @@ func NewHighPerformanceClient(config Config, username, password string) (*LDAP, 
 	}
 
 	perfConfig := &PerformanceConfig{
-		Enabled:                true,
-		SlowQueryThreshold:     300 * time.Millisecond,
-		MetricsRetention: 30 * time.Minute,
-		SampleRate:             1.0,
+		Enabled:            true,
+		SlowQueryThreshold: 300 * time.Millisecond,
+		MetricsRetention:   30 * time.Minute,
+		SampleRate:         1.0,
 	}
 
 	return NewWithOptions(config, username, password,
@@ -388,9 +388,9 @@ func NewSecureClient(config Config, username, password string) (*LDAP, error) {
 	return NewWithOptions(config, username, password,
 		WithConnectionOptions(connOptions),
 		WithPerformanceMonitoring(&PerformanceConfig{
-			Enabled:                true,
-			SlowQueryThreshold:     1 * time.Second,
-			MetricsRetention: 1 * time.Minute,
+			Enabled:            true,
+			SlowQueryThreshold: 1 * time.Second,
+			MetricsRetention:   1 * time.Minute,
 		}),
 	)
 }
@@ -418,9 +418,9 @@ func NewReadOnlyClient(config Config, username, password string) (*LDAP, error) 
 		WithConnectionPool(poolConfig),
 		WithCache(cacheConfig),
 		WithPerformanceMonitoring(&PerformanceConfig{
-			Enabled:                true,
-			SlowQueryThreshold:     200 * time.Millisecond,
-			MetricsRetention: 30 * time.Second,
+			Enabled:            true,
+			SlowQueryThreshold: 200 * time.Millisecond,
+			MetricsRetention:   30 * time.Second,
 		}),
 	)
 }

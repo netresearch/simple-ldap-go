@@ -451,7 +451,7 @@ func (am *AlertManager) addDefaultHealthRules() {
 			// Check for critical component failures
 			for _, check := range report.Checks {
 				if check.Status == HealthStatusUnhealthy &&
-				   (check.Name == "ldap_connection" || check.Name == "authentication") {
+					(check.Name == "ldap_connection" || check.Name == "authentication") {
 					return true, fmt.Sprintf("Critical component '%s' is unhealthy: %s",
 						check.Name, check.Error)
 				}
@@ -726,4 +726,3 @@ func (am *AlertManager) addDefaultSecurityAnalysisRules() {
 			"error", err.Error())
 	}
 }
-
