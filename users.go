@@ -101,4 +101,3 @@ func (l *LDAP) RemoveUserFromGroupContext(ctx context.Context, userDN, groupDN s
 	// TODO: Implement actual LDAP modify operation
 	return fmt.Errorf("RemoveUserFromGroup not yet implemented")
 }
-

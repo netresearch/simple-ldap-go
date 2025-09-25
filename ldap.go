@@ -15,7 +15,6 @@ import (
 	"github.com/netresearch/simple-ldap-go/internal/validation"
 )
 
-
 // LDAP represents the main LDAP client with connection management and security features
 type LDAP struct {
 	config      *Config

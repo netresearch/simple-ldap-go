@@ -60,8 +60,7 @@ type BulkSearchOptions struct {
 }
 
 // Common errors temporarily placed in main package for v2.0.0
-var (
-)
+var ()
 
 // maskSensitiveData masks sensitive information for logging
 // Temporarily placed in main package for v2.0.0
