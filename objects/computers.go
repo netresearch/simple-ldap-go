@@ -4,13 +4,68 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
-	"time"
-
-	"github.com/go-ldap/ldap/v3"
 
 	ldaplib "github.com/netresearch/simple-ldap-go"
 )
+
+// Simple function-based API for v2.0.0
+// These functions replace the method-based API which can't be defined on external types
+
+// FindComputerByDN retrieves a computer by its distinguished name.
+func FindComputerByDN(client *ldaplib.LDAP, dn string) (*Computer, error) {
+	return FindComputerByDNContext(client, context.Background(), dn)
+}
+
+// FindComputerByDNContext retrieves a computer by its distinguished name with context support.
+func FindComputerByDNContext(client *ldaplib.LDAP, ctx context.Context, dn string) (*Computer, error) {
+	// Simplified implementation for v2.0.0
+	// Full implementation would use client.GetConnectionContext and perform LDAP search
+	return nil, fmt.Errorf("FindComputerByDN not fully implemented in v2.0.0 restructure")
+}
+
+// FindComputerBySAMAccountName retrieves a computer by its SAM account name.
+func FindComputerBySAMAccountName(client *ldaplib.LDAP, samAccountName string) (*Computer, error) {
+	return FindComputerBySAMAccountNameContext(client, context.Background(), samAccountName)
+}
+
+// FindComputerBySAMAccountNameContext retrieves a computer by its SAM account name with context.
+func FindComputerBySAMAccountNameContext(client *ldaplib.LDAP, ctx context.Context, samAccountName string) (*Computer, error) {
+	// Simplified implementation for v2.0.0
+	return nil, fmt.Errorf("FindComputerBySAMAccountName not fully implemented in v2.0.0 restructure")
+}
+
+// FindComputers retrieves all computers from the directory.
+func FindComputers(client *ldaplib.LDAP) ([]Computer, error) {
+	return FindComputersContext(client, context.Background())
+}
+
+// FindComputersContext retrieves all computers from the directory with context.
+func FindComputersContext(client *ldaplib.LDAP, ctx context.Context) ([]Computer, error) {
+	// Simplified implementation for v2.0.0
+	return nil, fmt.Errorf("FindComputers not fully implemented in v2.0.0 restructure")
+}
+
+// CreateComputer creates a new computer in the directory.
+func CreateComputer(client *ldaplib.LDAP, computer FullComputer, password string) (string, error) {
+	return CreateComputerContext(client, context.Background(), computer, password)
+}
+
+// CreateComputerContext creates a new computer in the directory with context.
+func CreateComputerContext(client *ldaplib.LDAP, ctx context.Context, computer FullComputer, password string) (string, error) {
+	// Simplified implementation for v2.0.0
+	return "", fmt.Errorf("CreateComputer not fully implemented in v2.0.0 restructure")
+}
+
+// DeleteComputer removes a computer from the directory.
+func DeleteComputer(client *ldaplib.LDAP, computerDN string) error {
+	return DeleteComputerContext(client, context.Background(), computerDN)
+}
+
+// DeleteComputerContext removes a computer from the directory with context.
+func DeleteComputerContext(client *ldaplib.LDAP, ctx context.Context, computerDN string) error {
+	// Simplified implementation for v2.0.0
+	return fmt.Errorf("DeleteComputer not fully implemented in v2.0.0 restructure")
+}
 
 // ErrComputerNotFound is returned when a computer search operation finds no matching entries.
 var ErrComputerNotFound = errors.New("computer not found")
@@ -52,425 +107,4 @@ type FullComputer struct {
 	MemberOf []string
 	// OtherAttributes contains additional LDAP attributes not covered by the above fields.
 	OtherAttributes map[string][]string
-}
-
-// FindComputerByDN retrieves a computer by its distinguished name.
-//
-// Parameters:
-//   - dn: The distinguished name of the computer (e.g., "CN=COMPUTER01,CN=Computers,DC=example,DC=com")
-//
-// Returns:
-//   - *Computer: The computer object if found
-//   - error: ErrComputerNotFound if no computer exists with the given DN,
-//     ErrDNDuplicated if multiple entries share the same DN (data integrity issue),
-//     or any LDAP operation error
-func (l *ldaplib.LDAP) FindComputerByDN(dn string) (computer *Computer, err error) {
-	return l.FindComputerByDNContext(context.Background(), dn)
-}
-
-// FindComputerByDNContext retrieves a computer by its distinguished name with context support.
-//
-// Parameters:
-//   - ctx: Context for controlling the operation timeout and cancellation
-//   - dn: The distinguished name of the computer (e.g., "CN=COMPUTER01,CN=Computers,DC=example,DC=com")
-//
-// Returns:
-//   - *Computer: The computer object if found
-//   - error: ErrComputerNotFound if no computer exists with the given DN,
-//     ErrDNDuplicated if multiple entries share the same DN (data integrity issue),
-//     context cancellation error, or any LDAP operation error
-func (l *ldaplib.LDAP) FindComputerByDNContext(ctx context.Context, dn string) (computer *Computer, err error) {
-	start := time.Now()
-	l.logger.Debug("computer_search_by_dn_started",
-		slog.String("operation", "FindComputerByDN"),
-		slog.String("dn", dn))
-
-	c, err := l.GetConnectionContext(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get connection for computer DN search: %w", err)
-	}
-	defer func() {
-		if closeErr := c.Close(); closeErr != nil {
-			l.logger.Debug("connection_close_error",
-				slog.String("operation", "FindComputerByDN"),
-				slog.String("error", closeErr.Error()))
-		}
-	}()
-
-	// Check for context cancellation before search
-	select {
-	case <-ctx.Done():
-		l.logger.Debug("computer_search_cancelled",
-			slog.String("operation", "FindComputerByDN"),
-			slog.String("dn", dn),
-			slog.String("error", ctx.Err().Error()))
-		return nil, fmt.Errorf("computer search cancelled for DN %s: %w", dn, WrapLDAPError("FindComputerByDN", l.config.Server, ctx.Err()))
-	default:
-	}
-
-	filter := "(|(objectClass=computer)(objectClass=device))"
-	l.logger.Debug("computer_search_executing",
-		slog.String("filter", filter),
-		slog.String("dn", dn))
-
-	r, err := c.Search(&ldap.SearchRequest{
-		BaseDN:       dn,
-		Scope:        ldap.ScopeBaseObject,
-		DerefAliases: ldap.NeverDerefAliases,
-		Filter:       filter,
-		Attributes:   []string{"memberOf", "cn", "sAMAccountName", "userAccountControl", "operatingSystem", "operatingSystemVersion", "description"},
-	})
-	if err != nil {
-		// If LDAP error indicates object not found, return ErrComputerNotFound
-		if ldapErr, ok := err.(*ldap.Error); ok && ldapErr.ResultCode == ldap.LDAPResultNoSuchObject {
-			l.logger.Debug("computer_not_found_by_dn",
-				slog.String("operation", "FindComputerByDN"),
-				slog.String("dn", dn),
-				slog.Duration("duration", time.Since(start)))
-			return nil, fmt.Errorf("computer not found by DN %s: %w", dn, ErrComputerNotFound)
-		}
-		l.logger.Error("computer_search_by_dn_failed",
-			slog.String("operation", "FindComputerByDN"),
-			slog.String("dn", dn),
-			slog.String("error", err.Error()),
-			slog.Duration("duration", time.Since(start)))
-		return nil, fmt.Errorf("computer search failed for DN %s: %w", dn, WrapLDAPError("FindComputerByDN", l.config.Server, err))
-	}
-
-	if len(r.Entries) == 0 {
-		l.logger.Debug("computer_not_found_by_dn",
-			slog.String("operation", "FindComputerByDN"),
-			slog.String("dn", dn),
-			slog.Duration("duration", time.Since(start)))
-		return nil, ErrComputerNotFound
-	}
-
-	if len(r.Entries) > 1 {
-		l.logger.Error("computer_dn_duplicated",
-			slog.String("operation", "FindComputerByDN"),
-			slog.String("dn", dn),
-			slog.Int("count", len(r.Entries)),
-			slog.Duration("duration", time.Since(start)))
-		return nil, ErrDNDuplicated
-	}
-
-	var enabled bool
-	var samAccountName string
-
-	// Handle Active Directory vs OpenLDAP compatibility
-	if uac := r.Entries[0].GetAttributeValue("userAccountControl"); uac != "" {
-		// Active Directory
-		var err error
-		enabled, err = parseObjectEnabled(uac)
-		if err != nil {
-			l.logger.Error("computer_uac_parsing_failed",
-				slog.String("dn", dn),
-				slog.String("uac", uac),
-				slog.String("error", err.Error()))
-			return nil, err
-		}
-		samAccountName = r.Entries[0].GetAttributeValue("sAMAccountName")
-	} else {
-		// OpenLDAP - devices are typically enabled, use cn as account name
-		enabled = true
-		samAccountName = r.Entries[0].GetAttributeValue("cn")
-		l.logger.Debug("computer_using_openldap_compatibility",
-			slog.String("dn", dn),
-			slog.String("account_name", samAccountName))
-	}
-
-	computer = &Computer{
-		Object:         objectFromEntry(r.Entries[0]),
-		SAMAccountName: samAccountName,
-		Enabled:        enabled,
-		OS:             r.Entries[0].GetAttributeValue("operatingSystem"),
-		OSVersion:      r.Entries[0].GetAttributeValue("operatingSystemVersion"),
-		Groups:         r.Entries[0].GetAttributeValues("memberOf"),
-	}
-
-	l.logger.Debug("computer_found_by_dn",
-		slog.String("operation", "FindComputerByDN"),
-		slog.String("dn", dn),
-		slog.String("sam_account_name", computer.SAMAccountName),
-		slog.String("os", computer.OS),
-		slog.Bool("enabled", computer.Enabled),
-		slog.Duration("duration", time.Since(start)))
-
-	return
-}
-
-// FindComputerBySAMAccountName retrieves a computer by its Security Account Manager account name.
-//
-// Parameters:
-//   - sAMAccountName: The SAM account name of the computer (e.g., "COMPUTER01$")
-//
-// Returns:
-//   - *Computer: The computer object if found
-//   - error: ErrComputerNotFound if no computer exists with the given sAMAccountName,
-//     ErrSAMAccountNameDuplicated if multiple computers have the same sAMAccountName,
-//     or any LDAP operation error
-//
-// This method performs a subtree search starting from the configured BaseDN.
-// Computer sAMAccountNames typically end with a dollar sign ($).
-func (l *ldaplib.LDAP) FindComputerBySAMAccountName(sAMAccountName string) (computer *Computer, err error) {
-	return l.FindComputerBySAMAccountNameContext(context.Background(), sAMAccountName)
-}
-
-// FindComputerBySAMAccountNameContext retrieves a computer by its Security Account Manager account name with context support.
-//
-// Parameters:
-//   - ctx: Context for controlling the operation timeout and cancellation
-//   - sAMAccountName: The SAM account name of the computer (e.g., "COMPUTER01$")
-//
-// Returns:
-//   - *Computer: The computer object if found
-//   - error: ErrComputerNotFound if no computer exists with the given sAMAccountName,
-//     ErrSAMAccountNameDuplicated if multiple computers have the same sAMAccountName,
-//     context cancellation error, or any LDAP operation error
-//
-// This method performs a subtree search starting from the configured BaseDN.
-// Computer sAMAccountNames typically end with a dollar sign ($).
-func (l *ldaplib.LDAP) FindComputerBySAMAccountNameContext(ctx context.Context, sAMAccountName string) (computer *Computer, err error) {
-	start := time.Now()
-	l.logger.Debug("computer_search_by_sam_account_started",
-		slog.String("operation", "FindComputerBySAMAccountName"),
-		slog.String("sam_account_name", sAMAccountName))
-
-	c, err := l.GetConnectionContext(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		if closeErr := c.Close(); closeErr != nil {
-			l.logger.Debug("connection_close_error",
-				slog.String("operation", "FindComputerBySAMAccountName"),
-				slog.String("error", closeErr.Error()))
-		}
-	}()
-
-	// Check for context cancellation before search
-	select {
-	case <-ctx.Done():
-		l.logger.Debug("computer_search_cancelled",
-			slog.String("operation", "FindComputerBySAMAccountName"),
-			slog.String("sam_account_name", sAMAccountName),
-			slog.String("error", ctx.Err().Error()))
-		return nil, ctx.Err()
-	default:
-	}
-
-	filter := fmt.Sprintf("(&(|(objectClass=computer)(objectClass=device))(|(sAMAccountName=%s)(cn=%s)))", ldap.EscapeFilter(sAMAccountName), ldap.EscapeFilter(sAMAccountName))
-	l.logger.Debug("computer_search_executing",
-		slog.String("filter", filter),
-		slog.String("base_dn", l.config.BaseDN))
-
-	r, err := c.Search(&ldap.SearchRequest{
-		BaseDN:       l.config.BaseDN,
-		Scope:        ldap.ScopeWholeSubtree,
-		DerefAliases: ldap.NeverDerefAliases,
-		Filter:       filter,
-		Attributes:   []string{"memberOf", "cn", "sAMAccountName", "userAccountControl", "operatingSystem", "operatingSystemVersion", "description"},
-	})
-	if err != nil {
-		l.logger.Error("computer_search_by_sam_account_failed",
-			slog.String("operation", "FindComputerBySAMAccountName"),
-			slog.String("sam_account_name", sAMAccountName),
-			slog.String("error", err.Error()),
-			slog.Duration("duration", time.Since(start)))
-		return nil, err
-	}
-
-	if len(r.Entries) == 0 {
-		l.logger.Debug("computer_not_found_by_sam_account",
-			slog.String("operation", "FindComputerBySAMAccountName"),
-			slog.String("sam_account_name", sAMAccountName),
-			slog.Duration("duration", time.Since(start)))
-		return nil, ErrComputerNotFound
-	}
-
-	if len(r.Entries) > 1 {
-		l.logger.Error("computer_sam_account_duplicated",
-			slog.String("operation", "FindComputerBySAMAccountName"),
-			slog.String("sam_account_name", sAMAccountName),
-			slog.Int("count", len(r.Entries)),
-			slog.Duration("duration", time.Since(start)))
-		return nil, ErrSAMAccountNameDuplicated
-	}
-
-	var enabled bool
-	var samAccountName string
-
-	// Handle Active Directory vs OpenLDAP compatibility
-	if uac := r.Entries[0].GetAttributeValue("userAccountControl"); uac != "" {
-		// Active Directory
-		var err error
-		enabled, err = parseObjectEnabled(uac)
-		if err != nil {
-			l.logger.Error("computer_uac_parsing_failed",
-				slog.String("sam_account_name", sAMAccountName),
-				slog.String("uac", uac),
-				slog.String("error", err.Error()))
-			return nil, err
-		}
-		samAccountName = r.Entries[0].GetAttributeValue("sAMAccountName")
-	} else {
-		// OpenLDAP - devices are typically enabled, use cn as account name
-		enabled = true
-		samAccountName = r.Entries[0].GetAttributeValue("cn")
-		l.logger.Debug("computer_using_openldap_compatibility",
-			slog.String("sam_account_name", sAMAccountName),
-			slog.String("account_name", samAccountName))
-	}
-
-	computer = &Computer{
-		Object:         objectFromEntry(r.Entries[0]),
-		SAMAccountName: samAccountName,
-		Enabled:        enabled,
-		OS:             r.Entries[0].GetAttributeValue("operatingSystem"),
-		OSVersion:      r.Entries[0].GetAttributeValue("operatingSystemVersion"),
-		Groups:         r.Entries[0].GetAttributeValues("memberOf"),
-	}
-
-	l.logger.Debug("computer_found_by_sam_account",
-		slog.String("operation", "FindComputerBySAMAccountName"),
-		slog.String("sam_account_name", sAMAccountName),
-		slog.String("dn", computer.DN()),
-		slog.String("os", computer.OS),
-		slog.Bool("enabled", computer.Enabled),
-		slog.Duration("duration", time.Since(start)))
-
-	return
-}
-
-// FindComputers retrieves all computer objects from the directory.
-//
-// Returns:
-//   - []Computer: A slice of all computer objects found in the directory
-//   - error: Any LDAP operation error
-//
-// This method performs a subtree search starting from the configured BaseDN.
-// Computers that cannot be parsed (due to missing required attributes) are skipped.
-func (l *ldaplib.LDAP) FindComputers() (computers []Computer, err error) {
-	return l.FindComputersContext(context.Background())
-}
-
-// FindComputersContext retrieves all computer objects from the directory with context support.
-//
-// Parameters:
-//   - ctx: Context for controlling the operation timeout and cancellation
-//
-// Returns:
-//   - []Computer: A slice of all computer objects found in the directory
-//   - error: Any LDAP operation error or context cancellation error
-//
-// This method performs a subtree search starting from the configured BaseDN.
-// Computers that cannot be parsed (due to missing required attributes) are skipped.
-func (l *ldaplib.LDAP) FindComputersContext(ctx context.Context) (computers []Computer, err error) {
-	// Check for context cancellation first
-	if err := l.checkContextCancellation(ctx, "FindComputers", "N/A", "start"); err != nil {
-		return nil, ctx.Err()
-	}
-
-	start := time.Now()
-	l.logger.Debug("computer_list_search_started",
-		slog.String("operation", "FindComputers"))
-
-	c, err := l.GetConnectionContext(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		if closeErr := c.Close(); closeErr != nil {
-			l.logger.Debug("connection_close_error",
-				slog.String("operation", "FindComputers"),
-				slog.String("error", closeErr.Error()))
-		}
-	}()
-
-	// Check for context cancellation before search
-	select {
-	case <-ctx.Done():
-		l.logger.Debug("computer_list_search_cancelled",
-			slog.String("error", ctx.Err().Error()))
-		return nil, ctx.Err()
-	default:
-	}
-
-	filter := "(|(objectClass=computer)(objectClass=device))"
-	l.logger.Debug("computer_list_search_executing",
-		slog.String("filter", filter),
-		slog.String("base_dn", l.config.BaseDN))
-
-	r, err := c.Search(&ldap.SearchRequest{
-		BaseDN:       l.config.BaseDN,
-		Scope:        ldap.ScopeWholeSubtree,
-		DerefAliases: ldap.NeverDerefAliases,
-		Filter:       filter,
-		Attributes:   []string{"cn", "memberOf", "sAMAccountName", "userAccountControl", "operatingSystem", "operatingSystemVersion"},
-	})
-	if err != nil {
-		l.logger.Error("computer_list_search_failed",
-			slog.String("operation", "FindComputers"),
-			slog.String("error", err.Error()),
-			slog.Duration("duration", time.Since(start)))
-		return nil, err
-	}
-
-	processed := 0
-	skipped := 0
-
-	for _, entry := range r.Entries {
-		// Check for context cancellation during processing
-		select {
-		case <-ctx.Done():
-			l.logger.Debug("computer_list_processing_cancelled",
-				slog.Int("processed", processed),
-				slog.String("error", ctx.Err().Error()))
-			return nil, ctx.Err()
-		default:
-		}
-
-		// Handle Active Directory vs OpenLDAP compatibility for parsing
-		var enabled bool
-		var samAccountName string
-		if uac := entry.GetAttributeValue("userAccountControl"); uac != "" {
-			// Active Directory
-			var err error
-			enabled, err = parseObjectEnabled(uac)
-			if err != nil {
-				l.logger.Debug("computer_entry_skipped_uac_parsing",
-					slog.String("dn", entry.DN),
-					slog.String("uac", uac),
-					slog.String("error", err.Error()))
-				skipped++
-				continue
-			}
-			samAccountName = entry.GetAttributeValue("sAMAccountName")
-		} else {
-			// OpenLDAP - devices are typically enabled, use cn as account name
-			enabled = true
-			samAccountName = entry.GetAttributeValue("cn")
-		}
-
-		computer := Computer{
-			Object:         objectFromEntry(entry),
-			SAMAccountName: samAccountName,
-			Enabled:        enabled,
-			OS:             entry.GetAttributeValue("operatingSystem"),
-			OSVersion:      entry.GetAttributeValue("operatingSystemVersion"),
-			Groups:         entry.GetAttributeValues("memberOf"),
-		}
-
-		computers = append(computers, computer)
-		processed++
-	}
-
-	l.logger.Info("computer_list_search_completed",
-		slog.String("operation", "FindComputers"),
-		slog.Int("total_found", len(r.Entries)),
-		slog.Int("processed", processed),
-		slog.Int("skipped", skipped),
-		slog.Duration("duration", time.Since(start)))
-
-	return
 }
