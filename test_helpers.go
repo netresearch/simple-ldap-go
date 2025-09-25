@@ -146,26 +146,56 @@ func GetLDAPResultCode(err error) int {
 
 // IsAuthenticationError checks if error is authentication related (stub)
 func IsAuthenticationError(err error) bool {
+	if err == ErrInvalidCredentials {
+		return true
+	}
+	if ldapErr, ok := err.(*LDAPError); ok {
+		return ldapErr.Message == "invalid credentials"
+	}
 	return false
 }
 
 // IsConnectionError checks if error is connection related (stub)
 func IsConnectionError(err error) bool {
+	if err == ErrConnectionFailed || err == ErrServerUnavailable {
+		return true
+	}
+	if ldapErr, ok := err.(*LDAPError); ok {
+		return ldapErr.Message == "connection failed" || ldapErr.Message == "server unavailable"
+	}
 	return false
 }
 
 // IsNotFoundError checks if error is not found related (stub)
 func IsNotFoundError(err error) bool {
+	if err == ErrUserNotFound || err == ErrGroupNotFound || err == ErrObjectNotFound {
+		return true
+	}
+	if ldapErr, ok := err.(*LDAPError); ok {
+		return ldapErr.Message == "object not found" || ldapErr.Message == "user not found"
+	}
 	return false
 }
 
 // IsValidationError checks if error is validation related (stub)
 func IsValidationError(err error) bool {
+	if err == ErrInvalidDN {
+		return true
+	}
+	if ldapErr, ok := err.(*LDAPError); ok {
+		return ldapErr.Message == "invalid DN"
+	}
 	return false
 }
 
 // IsContextError checks if error is context related (stub)
 func IsContextError(err error) bool {
+	if err == ErrContextCancelled || err == ErrContextDeadlineExceeded {
+		return true
+	}
+	if ldapErr, ok := err.(*LDAPError); ok {
+		return ldapErr.Message == "context cancelled" || ldapErr.Message == "deadline exceeded"
+	}
 	return false
 }
 
@@ -207,7 +237,8 @@ func GetErrorSeverity(err error) ErrorSeverity {
 
 // IsRetryable checks if an error is retryable (stub)
 func IsRetryable(err error) bool {
-	return false
+	// Connection and server errors are typically retryable
+	return IsConnectionError(err) || err == ErrServerUnavailable
 }
 
 // IsNoSuchObjectError checks if error is a no such object error (stub)
