@@ -149,6 +149,27 @@ func New(config *Config, username, password string, opts ...Option) (*LDAP, erro
 			slog.Duration("timeout", config.Resilience.CircuitBreaker.Timeout))
 	}
 
+	// Initialize connection pool if configured
+	if config.Pool != nil && !isExampleServer {
+		pool, err := NewConnectionPool(config.Pool, *config, username, password, logger)
+		if err != nil {
+			logger.Error("connection_pool_initialization_failed",
+				slog.String("server", config.Server),
+				slog.String("error", err.Error()),
+				slog.Duration("duration", time.Since(start)))
+			// Log error but continue without pool - fallback to direct connections
+			logger.Warn("continuing_without_connection_pool",
+				slog.String("server", config.Server),
+				slog.String("reason", "pool initialization failed"))
+		} else {
+			client.connPool = pool
+			logger.Info("connection_pool_initialized",
+				slog.String("server", config.Server),
+				slog.Int("max_connections", config.Pool.MaxConnections),
+				slog.Int("min_connections", config.Pool.MinConnections))
+		}
+	}
+
 	// Test connection (skip for example servers)
 	if !isExampleServer {
 		_, err := client.GetConnection()
@@ -195,19 +216,26 @@ func (l *LDAP) GetConnectionContext(ctx context.Context) (*ldap.Conn, error) {
 		return nil, ctx.Err()
 	}
 
-	// Log connection establishment attempt
-	l.logger.Debug("ldap_connection_establishing",
-		slog.String("server", l.config.Server),
-		slog.String("base_dn", l.config.BaseDN))
+	// Use connection pool if available
+	if l.connPool != nil {
+		conn, err := l.connPool.Get(ctx)
+		if err != nil {
+			l.logger.Error("pool_connection_failed",
+				slog.String("server", l.config.Server),
+				slog.String("error", err.Error()),
+				slog.Duration("duration", time.Since(start)))
+			return nil, fmt.Errorf("failed to get connection from pool: %w", err)
+		}
 
-	// For now, simulate connection failure with proper logging
-	err := fmt.Errorf("connection not implemented")
-	l.logger.Error("ldap_connection_dial_failed",
-		slog.String("server", l.config.Server),
-		slog.String("error", err.Error()),
-		slog.Duration("duration", time.Since(start)))
+		l.logger.Debug("connection_retrieved_from_pool",
+			slog.String("server", l.config.Server),
+			slog.Duration("duration", time.Since(start)))
 
-	return nil, err
+		return conn, nil
+	}
+
+	// Create direct connection without pool
+	return l.createDirectConnection(ctx)
 }
 
 // GetConnectionProtected returns a new LDAP connection with circuit breaker protection.
@@ -438,4 +466,68 @@ func (l *LDAP) BulkFindUsersBySAMAccountName(ctx context.Context, samAccountName
 	}
 
 	return result, nil
+}
+
+// createDirectConnection creates a new LDAP connection without using the pool
+func (l *LDAP) createDirectConnection(ctx context.Context) (*ldap.Conn, error) {
+	start := time.Now()
+
+	// Log connection establishment attempt
+	l.logger.Debug("ldap_connection_establishing",
+		slog.String("server", l.config.Server),
+		slog.String("base_dn", l.config.BaseDN))
+
+	// For example/test servers, return a stub error to avoid actual network calls
+	if l.isExampleServer() {
+		return nil, fmt.Errorf("connection to example server not available")
+	}
+
+	// Prepare dial options
+	dialOpts := make([]ldap.DialOpt, 0)
+	if l.config.DialOptions != nil {
+		dialOpts = l.config.DialOptions
+	}
+
+	// Check for context cancellation before dialing
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+
+	// Dial the LDAP server
+	conn, err := ldap.DialURL(l.config.Server, dialOpts...)
+	if err != nil {
+		l.logger.Error("ldap_connection_dial_failed",
+			slog.String("server", l.config.Server),
+			slog.String("error", err.Error()),
+			slog.Duration("duration", time.Since(start)))
+		return nil, fmt.Errorf("failed to dial LDAP server: %w", err)
+	}
+
+	// Check for context cancellation before binding
+	select {
+	case <-ctx.Done():
+		conn.Close()
+		return nil, ctx.Err()
+	default:
+	}
+
+	// Bind with credentials
+	if err := conn.Bind(l.user, l.password); err != nil {
+		conn.Close()
+		l.logger.Error("ldap_bind_failed",
+			slog.String("server", l.config.Server),
+			slog.String("user", l.user),
+			slog.String("error", err.Error()),
+			slog.Duration("duration", time.Since(start)))
+		return nil, fmt.Errorf("failed to bind: %w", err)
+	}
+
+	l.logger.Debug("ldap_connection_established",
+		slog.String("server", l.config.Server),
+		slog.String("user", l.user),
+		slog.Duration("duration", time.Since(start)))
+
+	return conn, nil
 }
