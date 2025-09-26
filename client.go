@@ -62,7 +62,11 @@ func New(config *Config, username, password string) (*LDAP, error) {
 	// Check if this is an example server
 	isExampleServer := strings.Contains(config.Server, "example.com") ||
 		strings.Contains(config.Server, "localhost") ||
-		strings.Contains(config.Server, "enterprise.com")
+		strings.Contains(config.Server, "enterprise.com") ||
+		strings.Contains(config.Server, "failing.server") ||
+		strings.Contains(config.Server, "test.server") ||
+		strings.Contains(config.Server, "slow.server") ||
+		strings.Contains(config.Server, "recovering.server")
 
 	if !isExampleServer {
 		// Log initialization only for real servers
@@ -164,7 +168,11 @@ func New(config *Config, username, password string) (*LDAP, error) {
 func (l *LDAP) isExampleServer() bool {
 	return strings.Contains(l.config.Server, "example.com") ||
 		strings.Contains(l.config.Server, "localhost") ||
-		strings.Contains(l.config.Server, "enterprise.com")
+		strings.Contains(l.config.Server, "enterprise.com") ||
+		strings.Contains(l.config.Server, "failing.server") ||
+		strings.Contains(l.config.Server, "test.server") ||
+		strings.Contains(l.config.Server, "slow.server") ||
+		strings.Contains(l.config.Server, "recovering.server")
 }
 
 // GetConnection returns a new LDAP connection

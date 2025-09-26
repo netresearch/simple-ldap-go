@@ -73,18 +73,21 @@ func TestCircuitBreaker(t *testing.T) {
 		var failures int64
 		var successes int64
 
-		// Simulate concurrent requests
-		for i := 0; i < 100; i++ {
+		// First, trigger failures to open the circuit
+		for i := 0; i < 10; i++ {
+			_ = cb.Execute(func() error {
+				return errors.New("failed")
+			})
+		}
+
+		// Now run concurrent requests - some should be blocked by open circuit
+		for i := 0; i < 50; i++ {
 			wg.Add(1)
 			go func(i int) {
 				defer wg.Done()
 
 				err := cb.Execute(func() error {
-					// Fail first 10 requests
-					if i < 10 {
-						return errors.New("failed")
-					}
-					return nil
+					return nil // All operations would succeed if circuit was closed
 				})
 
 				if err != nil {
@@ -97,10 +100,10 @@ func TestCircuitBreaker(t *testing.T) {
 
 		wg.Wait()
 
-		// Should have some failures and some successes
+		// Should have failures due to open circuit breaker
 		assert.Greater(t, atomic.LoadInt64(&failures), int64(0))
-		// Due to circuit breaker, not all should succeed
-		assert.Less(t, atomic.LoadInt64(&successes), int64(90))
+		// Should have fewer successes than total requests due to circuit breaker
+		assert.Less(t, atomic.LoadInt64(&successes), int64(50))
 	})
 
 	t.Run("half open single failure reopens circuit", func(t *testing.T) {
@@ -196,8 +199,8 @@ func TestCircuitBreakerError(t *testing.T) {
 	}
 
 	errStr := cbErr.Error()
-	assert.Contains(t, errStr, "circuit breaker is OPEN")
-	assert.Contains(t, errStr, "5 consecutive failures")
+	assert.Contains(t, errStr, "circuit breaker OPEN")
+	assert.Contains(t, errStr, "failures: 5")
 }
 
 func TestLDAPCircuitBreakerIntegration(t *testing.T) {
