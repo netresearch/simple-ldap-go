@@ -16,3 +16,4 @@ enhanced_errors
 # OS files
 .DS_Store
 Thumbs.db
+*.test
