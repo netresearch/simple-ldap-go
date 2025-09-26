@@ -200,3 +200,42 @@ func DefaultConnectionOptions() *ConnectionOptions {
 		ValidateCertificates: true,
 	}
 }
+
+// ResilienceConfig holds resilience-related configuration options.
+type ResilienceConfig struct {
+	// EnableCircuitBreaker enables circuit breaker protection for LDAP connections
+	EnableCircuitBreaker bool
+	// CircuitBreaker is the circuit breaker configuration
+	CircuitBreaker *CircuitBreakerConfig
+}
+
+// DefaultResilienceConfig returns a ResilienceConfig with sensible defaults.
+// Circuit breaker is disabled by default for backward compatibility.
+func DefaultResilienceConfig() *ResilienceConfig {
+	return &ResilienceConfig{
+		EnableCircuitBreaker: false,
+		CircuitBreaker:       DefaultCircuitBreakerConfig(),
+	}
+}
+
+// WithCircuitBreaker enables circuit breaker protection with the given configuration.
+// If config is nil, default configuration will be used.
+//
+// Example:
+//
+//	client, err := New(&config, username, password,
+//	    WithCircuitBreaker(&CircuitBreakerConfig{
+//	        MaxFailures: 5,
+//	        Timeout: 30 * time.Second,
+//	    }))
+func WithCircuitBreaker(config *CircuitBreakerConfig) Option {
+	return func(l *LDAP) {
+		if l.config.Resilience == nil {
+			l.config.Resilience = DefaultResilienceConfig()
+		}
+		l.config.Resilience.EnableCircuitBreaker = true
+		if config != nil {
+			l.config.Resilience.CircuitBreaker = config
+		}
+	}
+}
