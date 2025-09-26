@@ -18,14 +18,15 @@ var ErrDNDuplicated = errors.New("DN is not unique")
 
 // LDAP represents the main LDAP client with connection management and security features
 type LDAP struct {
-	config      *Config
-	user        string
-	password    string
-	logger      *slog.Logger
-	cache       Cache
-	rateLimiter *RateLimiter
-	perfMonitor *PerformanceMonitor
-	connPool    *ConnectionPool
+	config         *Config
+	user           string
+	password       string
+	logger         *slog.Logger
+	cache          Cache
+	rateLimiter    *RateLimiter
+	perfMonitor    *PerformanceMonitor
+	connPool       *ConnectionPool
+	circuitBreaker *CircuitBreaker
 }
 
 // Config contains the configuration for LDAP connections
@@ -43,6 +44,7 @@ type Config struct {
 	Pool        *PoolConfig
 	Cache       *CacheConfig
 	Performance *PerformanceConfig
+	Resilience  *ResilienceConfig
 	Logger      *slog.Logger
 	DialOptions []ldap.DialOpt
 }
@@ -124,6 +126,19 @@ func New(config *Config, username, password string) (*LDAP, error) {
 		logger:   logger,
 	}
 
+	// Initialize circuit breaker if configured
+	if config.Resilience != nil && config.Resilience.EnableCircuitBreaker {
+		client.circuitBreaker = NewCircuitBreaker(
+			"ldap_connection",
+			config.Resilience.CircuitBreaker,
+			logger,
+		)
+		logger.Info("circuit_breaker_enabled",
+			slog.String("name", "ldap_connection"),
+			slog.Int64("max_failures", config.Resilience.CircuitBreaker.MaxFailures),
+			slog.Duration("timeout", config.Resilience.CircuitBreaker.Timeout))
+	}
+
 	// Test connection (skip for example servers)
 	if !isExampleServer {
 		_, err := client.GetConnection()
@@ -179,6 +194,55 @@ func (l *LDAP) GetConnectionContext(ctx context.Context) (*ldap.Conn, error) {
 		slog.Duration("duration", time.Since(start)))
 
 	return nil, err
+}
+
+// GetConnectionProtected returns a new LDAP connection with circuit breaker protection.
+// If a circuit breaker is configured and the circuit is OPEN, it will return immediately
+// with a CircuitBreakerError instead of attempting to connect.
+// This provides fast failure and prevents connection storms when the LDAP server is down.
+func (l *LDAP) GetConnectionProtected() (*ldap.Conn, error) {
+	return l.GetConnectionProtectedContext(context.Background())
+}
+
+// GetConnectionProtectedContext returns a new LDAP connection with context and circuit breaker protection.
+// If circuit breaker is not configured, it falls back to regular GetConnectionContext.
+func (l *LDAP) GetConnectionProtectedContext(ctx context.Context) (*ldap.Conn, error) {
+	// If no circuit breaker configured, use regular connection
+	if l.circuitBreaker == nil {
+		return l.GetConnectionContext(ctx)
+	}
+
+	// Use circuit breaker protection
+	var conn *ldap.Conn
+	var connErr error
+
+	err := l.circuitBreaker.Execute(func() error {
+		conn, connErr = l.GetConnectionContext(ctx)
+		return connErr
+	})
+
+	if err != nil {
+		// Check if it's a circuit breaker error
+		if cbErr, ok := err.(*CircuitBreakerError); ok {
+			l.logger.Warn("ldap_connection_circuit_breaker_open",
+				slog.String("state", cbErr.State),
+				slog.Int("failures", cbErr.Failures),
+				slog.Time("next_retry", cbErr.NextRetry))
+			return nil, fmt.Errorf("LDAP service temporarily unavailable (circuit breaker %s): %w", cbErr.State, err)
+		}
+		return nil, err
+	}
+
+	return conn, nil
+}
+
+// GetCircuitBreakerStats returns circuit breaker statistics if configured.
+// Returns nil if circuit breaker is not enabled.
+func (l *LDAP) GetCircuitBreakerStats() map[string]interface{} {
+	if l.circuitBreaker == nil {
+		return nil
+	}
+	return l.circuitBreaker.GetStats()
 }
 
 // GetPerformanceStats returns detailed performance statistics for LDAP operations.
