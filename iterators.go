@@ -15,7 +15,7 @@ import (
 func (l *LDAP) SearchIter(ctx context.Context, searchRequest *ldap.SearchRequest) iter.Seq2[*ldap.Entry, error] {
 	return func(yield func(*ldap.Entry, error) bool) {
 		// Get connection with circuit breaker protection
-		conn, err := l.GetConnectionProtected()
+		conn, err := l.GetConnectionProtectedContext(ctx)
 		if err != nil {
 			yield(nil, err)
 			return
@@ -60,7 +60,7 @@ func (l *LDAP) SearchIter(ctx context.Context, searchRequest *ldap.SearchRequest
 func (l *LDAP) SearchPagedIter(ctx context.Context, searchRequest *ldap.SearchRequest, pageSize uint32) iter.Seq2[*ldap.Entry, error] {
 	return func(yield func(*ldap.Entry, error) bool) {
 		// Get connection with circuit breaker protection
-		conn, err := l.GetConnectionProtected()
+		conn, err := l.GetConnectionProtectedContext(ctx)
 		if err != nil {
 			yield(nil, err)
 			return

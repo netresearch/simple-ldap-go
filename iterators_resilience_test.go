@@ -334,4 +334,96 @@ func TestIteratorsWithCircuitBreaker(t *testing.T) {
 		assert.Equal(t, "OPEN", stats["state"])
 		assert.Greater(t, stats["failures"].(int64), int64(0))
 	})
+
+	t.Run("context cancellation at connection level", func(t *testing.T) {
+		config := &Config{
+			Server: "ldap://test.server",
+			Port:   389,
+			BaseDN: "dc=example,dc=com",
+			Resilience: &ResilienceConfig{
+				EnableCircuitBreaker: true,
+				CircuitBreaker: &CircuitBreakerConfig{
+					MaxFailures: 1,
+					Timeout:     50 * time.Millisecond,
+				},
+			},
+		}
+
+		client, err := New(config, "user", "pass")
+		require.NoError(t, err)
+
+		// Create a context that will be cancelled
+		ctx, cancel := context.WithCancel(context.Background())
+		searchRequest := ldap.NewSearchRequest(
+			config.BaseDN,
+			ldap.ScopeWholeSubtree,
+			ldap.NeverDerefAliases, 0, 0, false,
+			"(objectClass=person)",
+			[]string{"cn"},
+			nil,
+		)
+
+		// Cancel the context immediately to test cancellation handling
+		cancel()
+
+		// SearchIter should handle context cancellation properly
+		var iterErr error
+		for _, err := range client.SearchIter(ctx, searchRequest) {
+			if err != nil {
+				iterErr = err
+				break
+			}
+		}
+
+		// Should get context cancelled error
+		assert.Error(t, iterErr)
+		assert.Contains(t, iterErr.Error(), "context canceled")
+	})
+
+	t.Run("context timeout at connection level", func(t *testing.T) {
+		config := &Config{
+			Server: "ldap://test.server",
+			Port:   389,
+			BaseDN: "dc=example,dc=com",
+			Resilience: &ResilienceConfig{
+				EnableCircuitBreaker: true,
+				CircuitBreaker: &CircuitBreakerConfig{
+					MaxFailures: 5,
+					Timeout:     1 * time.Minute,
+				},
+			},
+		}
+
+		client, err := New(config, "user", "pass")
+		require.NoError(t, err)
+
+		// Create a context with very short timeout
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
+		defer cancel()
+
+		// Give it a moment to timeout
+		time.Sleep(10 * time.Millisecond)
+
+		searchRequest := ldap.NewSearchRequest(
+			config.BaseDN,
+			ldap.ScopeWholeSubtree,
+			ldap.NeverDerefAliases, 0, 0, false,
+			"(objectClass=person)",
+			[]string{"cn"},
+			nil,
+		)
+
+		// SearchPagedIter should handle context timeout properly
+		var iterErr error
+		for _, err := range client.SearchPagedIter(ctx, searchRequest, 10) {
+			if err != nil {
+				iterErr = err
+				break
+			}
+		}
+
+		// Should get context deadline exceeded error
+		assert.Error(t, iterErr)
+		assert.Contains(t, iterErr.Error(), "deadline exceeded")
+	})
 }
