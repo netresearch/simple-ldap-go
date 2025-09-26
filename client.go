@@ -49,8 +49,8 @@ type Config struct {
 	DialOptions []ldap.DialOpt
 }
 
-// New creates a new LDAP client with the given configuration
-func New(config *Config, username, password string) (*LDAP, error) {
+// New creates a new LDAP client with the given configuration and optional functional options
+func New(config *Config, username, password string, opts ...Option) (*LDAP, error) {
 	start := time.Now()
 
 	// Use provided logger or default
@@ -128,6 +128,11 @@ func New(config *Config, username, password string) (*LDAP, error) {
 		user:     username,
 		password: password,
 		logger:   logger,
+	}
+
+	// Apply functional options before initialization
+	for _, opt := range opts {
+		opt(client)
 	}
 
 	// Initialize circuit breaker if configured
