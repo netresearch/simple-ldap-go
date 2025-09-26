@@ -439,20 +439,3 @@ func (l *LDAP) BulkFindUsersBySAMAccountName(ctx context.Context, samAccountName
 
 	return result, nil
 }
-
-// createContextWithTimeout creates a context with the configured operation timeout.
-// If no operation timeout is configured, it returns the original context unchanged.
-// This method is used internally by LDAP operations to ensure they respect
-// the timeout configuration set via WithTimeout option.
-//
-// Example usage:
-//
-//	ctx := l.createContextWithTimeout(context.Background())
-//	// ctx will have a timeout if one was configured via WithTimeout
-func (l *LDAP) createContextWithTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
-	if l.operationTimeout > 0 {
-		return context.WithTimeout(ctx, l.operationTimeout)
-	}
-	// Return a no-op cancel function if no timeout is set
-	return ctx, func() {}
-}
