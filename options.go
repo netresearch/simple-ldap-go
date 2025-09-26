@@ -154,6 +154,10 @@ func WithDialOptions(dialOpts ...ldap.DialOpt) Option {
 // WithTimeout sets operation timeouts for LDAP operations.
 // This is a convenience option for common timeout scenarios.
 //
+// The connectionTimeout is used for establishing LDAP connections.
+// The operationTimeout is stored in the LDAP client and can be used
+// to create contexts with timeouts for individual LDAP operations.
+//
 // Example:
 //
 //	client, err := New(&config, username, password,
@@ -167,7 +171,9 @@ func WithTimeout(connectionTimeout, operationTimeout time.Duration) Option {
 				}))
 		}
 		// Store operation timeout for use in contexts
-		// This could be added to a new field in LDAP struct if needed
+		if operationTimeout > 0 {
+			l.operationTimeout = operationTimeout
+		}
 	}
 }
 
