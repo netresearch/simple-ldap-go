@@ -23,7 +23,7 @@ func TestCircuitBreaker(t *testing.T) {
 		cb := NewCircuitBreaker("test", config, slog.Default())
 
 		// Initial state should be CLOSED
-		assert.Equal(t, StateCircuitClosed, cb.state)
+		assert.Equal(t, StateCircuitClosed, CircuitBreakerState(cb.state.Load()))
 
 		// Simulate failures to trigger OPEN state
 		for i := 0; i < 3; i++ {
@@ -34,7 +34,7 @@ func TestCircuitBreaker(t *testing.T) {
 		}
 
 		// Circuit should now be OPEN
-		assert.Equal(t, StateCircuitOpen, cb.state)
+		assert.Equal(t, StateCircuitOpen, CircuitBreakerState(cb.state.Load()))
 
 		// Further attempts should fail immediately with CircuitBreakerError
 		err := cb.Execute(func() error {
@@ -58,7 +58,7 @@ func TestCircuitBreaker(t *testing.T) {
 		}
 
 		// After successful requests in HALF_OPEN, should transition back to CLOSED
-		assert.Equal(t, StateCircuitClosed, cb.state)
+		assert.Equal(t, StateCircuitClosed, CircuitBreakerState(cb.state.Load()))
 	})
 
 	t.Run("concurrent access", func(t *testing.T) {
@@ -120,7 +120,7 @@ func TestCircuitBreaker(t *testing.T) {
 				return errors.New("failed")
 			})
 		}
-		assert.Equal(t, StateCircuitOpen, cb.state)
+		assert.Equal(t, StateCircuitOpen, CircuitBreakerState(cb.state.Load()))
 
 		// Wait for transition to HALF_OPEN
 		time.Sleep(60 * time.Millisecond)
@@ -132,7 +132,7 @@ func TestCircuitBreaker(t *testing.T) {
 		assert.Error(t, err)
 
 		// Should immediately go back to OPEN
-		assert.Equal(t, StateCircuitOpen, cb.state)
+		assert.Equal(t, StateCircuitOpen, CircuitBreakerState(cb.state.Load()))
 	})
 
 	t.Run("statistics tracking", func(t *testing.T) {
@@ -175,11 +175,11 @@ func TestCircuitBreaker(t *testing.T) {
 		_ = cb.Execute(func() error {
 			return errors.New("failed")
 		})
-		assert.Equal(t, StateCircuitOpen, cb.state)
+		assert.Equal(t, StateCircuitOpen, CircuitBreakerState(cb.state.Load()))
 
 		// Reset the circuit breaker
 		cb.Reset()
-		assert.Equal(t, StateCircuitClosed, cb.state)
+		assert.Equal(t, StateCircuitClosed, CircuitBreakerState(cb.state.Load()))
 		assert.Equal(t, int64(0), cb.failures)
 
 		// Should work normally after reset

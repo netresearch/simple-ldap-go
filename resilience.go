@@ -9,7 +9,7 @@ import (
 )
 
 // CircuitBreakerState represents the state of a circuit breaker
-type CircuitBreakerState int
+type CircuitBreakerState int32
 
 const (
 	StateCircuitClosed CircuitBreakerState = iota
@@ -55,7 +55,7 @@ type CircuitBreaker struct {
 	logger       *slog.Logger
 	name         string
 	mu           sync.RWMutex
-	state        CircuitBreakerState
+	state        atomic.Int32 // Use atomic for thread-safe state transitions
 	failures     int64
 	lastFailure  time.Time
 	nextRetry    time.Time
@@ -73,24 +73,26 @@ func NewCircuitBreaker(name string, config *CircuitBreakerConfig, logger *slog.L
 		logger = slog.Default()
 	}
 
-	return &CircuitBreaker{
+	cb := &CircuitBreaker{
 		config: config,
 		logger: logger,
 		name:   name,
-		state:  StateCircuitClosed,
 	}
+	cb.state.Store(int32(StateCircuitClosed))
+	return cb
 }
 
 // Execute executes a function with circuit breaker protection
 func (cb *CircuitBreaker) Execute(fn func() error) error {
 	// Check if we can execute
 	if !cb.canExecute() {
+		currentState := CircuitBreakerState(cb.state.Load())
 		cb.logger.Debug("circuit_breaker_blocked",
 			slog.String("name", cb.name),
-			slog.String("state", cb.state.String()),
+			slog.String("state", currentState.String()),
 			slog.Int64("failures", cb.failures))
 		return &CircuitBreakerError{
-			State:       cb.state.String(),
+			State:       currentState.String(),
 			Failures:    int(cb.failures),
 			LastFailure: cb.lastFailure,
 			NextRetry:   cb.nextRetry,
@@ -106,31 +108,35 @@ func (cb *CircuitBreaker) Execute(fn func() error) error {
 
 // canExecute determines if the circuit allows execution
 func (cb *CircuitBreaker) canExecute() bool {
-	cb.mu.RLock()
-	defer cb.mu.RUnlock()
-
 	atomic.AddInt64(&cb.requests, 1)
 
-	switch cb.state {
+	currentState := CircuitBreakerState(cb.state.Load())
+
+	switch currentState {
 	case StateCircuitClosed:
 		return true
 	case StateCircuitOpen:
 		// Check if timeout has passed
-		if time.Now().After(cb.nextRetry) {
-			// Transition to half-open
-			cb.mu.RUnlock()
-			cb.mu.Lock()
-			if cb.state == StateCircuitOpen && time.Now().After(cb.nextRetry) {
-				cb.state = StateCircuitHalfOpen
+		cb.mu.RLock()
+		nextRetry := cb.nextRetry
+		cb.mu.RUnlock()
+
+		if time.Now().After(nextRetry) {
+			// Try to transition from OPEN to HALF_OPEN using atomic compare-and-swap
+			if cb.state.CompareAndSwap(int32(StateCircuitOpen), int32(StateCircuitHalfOpen)) {
+				// Successfully transitioned to half-open
+				cb.mu.Lock()
 				cb.halfOpenReqs = 0
+				cb.mu.Unlock()
+
 				cb.logger.Info("circuit_breaker_transition",
 					slog.String("name", cb.name),
 					slog.String("from", "OPEN"),
 					slog.String("to", "HALF_OPEN"))
+				return true
 			}
-			cb.mu.Unlock()
-			cb.mu.RLock()
-			return cb.state == StateCircuitHalfOpen
+			// Another goroutine already transitioned it, check the new state
+			return CircuitBreakerState(cb.state.Load()) == StateCircuitHalfOpen
 		}
 		return false
 	case StateCircuitHalfOpen:
@@ -143,32 +149,40 @@ func (cb *CircuitBreaker) canExecute() bool {
 
 // recordResult records the result of an execution
 func (cb *CircuitBreaker) recordResult(err error) {
-	cb.mu.Lock()
-	defer cb.mu.Unlock()
+	currentState := CircuitBreakerState(cb.state.Load())
 
 	if err == nil {
 		// Success
 		atomic.AddInt64(&cb.successes, 1)
 
-		switch cb.state {
-		case StateCircuitHalfOpen:
-			// If we have enough successful requests in half-open, close the circuit
-			if atomic.AddInt64(&cb.halfOpenReqs, 1) >= cb.config.HalfOpenMaxRequests {
-				cb.state = StateCircuitClosed
-				cb.failures = 0
-				cb.logger.Info("circuit_breaker_closed",
-					slog.String("name", cb.name),
-					slog.String("reason", "successful_requests"))
+		if currentState == StateCircuitHalfOpen {
+			// If we have enough successful requests in half-open, try to close the circuit
+			halfOpenCount := atomic.AddInt64(&cb.halfOpenReqs, 1)
+			if halfOpenCount >= cb.config.HalfOpenMaxRequests {
+				// Try to transition from HALF_OPEN to CLOSED
+				if cb.state.CompareAndSwap(int32(StateCircuitHalfOpen), int32(StateCircuitClosed)) {
+					// Successfully closed the circuit
+					cb.mu.Lock()
+					cb.failures = 0
+					cb.mu.Unlock()
+
+					cb.logger.Info("circuit_breaker_closed",
+						slog.String("name", cb.name),
+						slog.String("reason", "successful_requests"))
+				}
 			}
 		}
 	} else {
 		// Failure
-		atomic.AddInt64(&cb.failures, 1)
-		cb.lastFailure = time.Now()
+		failureCount := atomic.AddInt64(&cb.failures, 1)
 
-		switch cb.state {
+		cb.mu.Lock()
+		cb.lastFailure = time.Now()
+		cb.mu.Unlock()
+
+		switch currentState {
 		case StateCircuitClosed:
-			if cb.failures >= cb.config.MaxFailures {
+			if failureCount >= cb.config.MaxFailures {
 				cb.openCircuit()
 			}
 		case StateCircuitHalfOpen:
@@ -180,12 +194,19 @@ func (cb *CircuitBreaker) recordResult(err error) {
 
 // openCircuit transitions the circuit to open state
 func (cb *CircuitBreaker) openCircuit() {
-	cb.state = StateCircuitOpen
+	// Use atomic store for thread-safe state change
+	cb.state.Store(int32(StateCircuitOpen))
+
+	cb.mu.Lock()
 	cb.nextRetry = time.Now().Add(cb.config.Timeout)
+	nextRetry := cb.nextRetry
+	failures := cb.failures
+	cb.mu.Unlock()
+
 	cb.logger.Warn("circuit_breaker_opened",
 		slog.String("name", cb.name),
-		slog.Int64("failures", cb.failures),
-		slog.Time("next_retry", cb.nextRetry))
+		slog.Int64("failures", failures),
+		slog.Time("next_retry", nextRetry))
 }
 
 // GetStats returns circuit breaker statistics
@@ -193,9 +214,10 @@ func (cb *CircuitBreaker) GetStats() map[string]interface{} {
 	cb.mu.RLock()
 	defer cb.mu.RUnlock()
 
+	currentState := CircuitBreakerState(cb.state.Load())
 	return map[string]interface{}{
 		"name":           cb.name,
-		"state":          cb.state.String(),
+		"state":          currentState.String(),
 		"failures":       atomic.LoadInt64(&cb.failures),
 		"requests":       atomic.LoadInt64(&cb.requests),
 		"successes":      atomic.LoadInt64(&cb.successes),
@@ -218,12 +240,14 @@ func (cb *CircuitBreaker) getSuccessRate() float64 {
 
 // Reset resets the circuit breaker to closed state
 func (cb *CircuitBreaker) Reset() {
-	cb.mu.Lock()
-	defer cb.mu.Unlock()
+	// Use atomic store for thread-safe state change
+	cb.state.Store(int32(StateCircuitClosed))
 
-	cb.state = StateCircuitClosed
+	cb.mu.Lock()
 	cb.failures = 0
 	cb.halfOpenReqs = 0
+	cb.mu.Unlock()
+
 	cb.logger.Info("circuit_breaker_reset", slog.String("name", cb.name))
 }
 
