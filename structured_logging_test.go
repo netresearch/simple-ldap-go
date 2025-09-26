@@ -60,7 +60,7 @@ func TestStructuredLoggingConfiguration(t *testing.T) {
 	testBuf := NewTestLogBuffer(slog.LevelDebug)
 
 	config := Config{
-		Server:            "ldap://test:389",
+		Server:            "ldap://realserver.invalid:389",
 		BaseDN:            "DC=test,DC=com",
 		IsActiveDirectory: false,
 		Logger:            testBuf.logger,
@@ -76,7 +76,7 @@ func TestStructuredLoggingConfiguration(t *testing.T) {
 	// Check initialization log
 	initLog := entries[0]
 	assert.Equal(t, "ldap_client_initializing", initLog["msg"])
-	assert.Equal(t, "ldap://test:389", initLog["server"])
+	assert.Equal(t, "ldap://realserver.invalid:389", initLog["server"])
 	assert.Equal(t, "DC=test,DC=com", initLog["base_dn"])
 	assert.Equal(t, false, initLog["is_active_directory"])
 
@@ -85,7 +85,7 @@ func TestStructuredLoggingConfiguration(t *testing.T) {
 	for _, entry := range entries {
 		if entry["msg"] == "ldap_client_initialization_failed" {
 			found = true
-			assert.Equal(t, "ldap://test:389", entry["server"])
+			assert.Equal(t, "ldap://realserver.invalid:389", entry["server"])
 			assert.Contains(t, entry, "error")
 			assert.Contains(t, entry, "duration")
 			break
@@ -97,7 +97,7 @@ func TestStructuredLoggingConfiguration(t *testing.T) {
 func TestNoOpLogger(t *testing.T) {
 	// Test with no logger configured (should use no-op)
 	config := Config{
-		Server:            "ldap://test:389",
+		Server:            "ldap://realserver.invalid:389",
 		BaseDN:            "DC=test,DC=com",
 		IsActiveDirectory: false,
 		// Logger is nil
@@ -239,7 +239,7 @@ func TestLogSecurity(t *testing.T) {
 	testBuf := NewTestLogBuffer(slog.LevelDebug)
 
 	config := Config{
-		Server:            "ldap://test:389",
+		Server:            "ldap://realserver.invalid:389",
 		BaseDN:            "DC=test,DC=com",
 		IsActiveDirectory: false,
 		Logger:            testBuf.logger,
