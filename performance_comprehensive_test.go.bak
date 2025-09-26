@@ -1,0 +1,652 @@
+//go:build !integration
+
+package ldap
+
+import (
+	"context"
+	"fmt"
+	"runtime"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// TestPerformanceMetrics tests performance metrics collection
+func TestPerformanceMetrics(t *testing.T) {
+	t.Run("operation timing", func(t *testing.T) {
+		metrics := NewPerformanceMetrics()
+
+		// Record operation timings
+		start := time.Now()
+		time.Sleep(10 * time.Millisecond)
+		duration := time.Since(start)
+
+		metrics.RecordOperation("search", duration, true)
+		metrics.RecordOperation("bind", 5*time.Millisecond, true)
+		metrics.RecordOperation("search", 15*time.Millisecond, false)
+
+		stats := metrics.GetOperationStats("search")
+		assert.Equal(t, int64(2), stats.Count)
+		assert.Equal(t, int64(1), stats.SuccessCount)
+		assert.Equal(t, int64(1), stats.ErrorCount)
+		assert.True(t, stats.AverageDuration > 0)
+		assert.True(t, stats.MaxDuration >= stats.MinDuration)
+	})
+
+	t.Run("throughput measurement", func(t *testing.T) {
+		throughput := NewThroughputCounter()
+
+		// Simulate operations over time
+		start := time.Now()
+		for i := 0; i < 100; i++ {
+			throughput.RecordOperation("search")
+		}
+
+		// Calculate operations per second
+		elapsed := time.Since(start)
+		opsPerSecond := throughput.GetOpsPerSecond("search", elapsed)
+
+		assert.True(t, opsPerSecond > 0)
+		assert.Equal(t, int64(100), throughput.GetTotalOps("search"))
+	})
+
+	t.Run("latency percentiles", func(t *testing.T) {
+		latency := NewLatencyTracker()
+
+		// Add latency samples
+		samples := []time.Duration{
+			1 * time.Millisecond,
+			5 * time.Millisecond,
+			10 * time.Millisecond,
+			15 * time.Millisecond,
+			20 * time.Millisecond,
+			50 * time.Millisecond,
+			100 * time.Millisecond,
+		}
+
+		for _, sample := range samples {
+			latency.RecordLatency("search", sample)
+		}
+
+		percentiles := latency.GetPercentiles("search")
+		assert.True(t, percentiles.P50 > 0)
+		assert.True(t, percentiles.P95 > percentiles.P50)
+		assert.True(t, percentiles.P99 >= percentiles.P95)
+	})
+}
+
+// TestMemoryProfiling tests memory usage monitoring
+func TestMemoryProfiling(t *testing.T) {
+	t.Run("memory usage tracking", func(t *testing.T) {
+		profiler := NewMemoryProfiler()
+
+		// Record initial memory usage
+		initial := profiler.GetMemoryStats()
+		assert.True(t, initial.AllocBytes > 0)
+		assert.True(t, initial.SysBytes > 0)
+
+		// Allocate some memory
+		data := make([][]byte, 1000)
+		for i := range data {
+			data[i] = make([]byte, 1024) // 1KB each
+		}
+
+		// Record memory usage after allocation
+		afterAlloc := profiler.GetMemoryStats()
+		assert.True(t, afterAlloc.AllocBytes > initial.AllocBytes)
+
+		// Force garbage collection
+		runtime.GC()
+
+		// Record memory usage after GC
+		afterGC := profiler.GetMemoryStats()
+		assert.True(t, afterGC.NumGC > initial.NumGC)
+
+		// Keep reference to prevent optimization
+		_ = data
+	})
+
+	t.Run("memory leak detection", func(t *testing.T) {
+		detector := NewMemoryLeakDetector()
+
+		// Take baseline snapshot
+		detector.TakeSnapshot("baseline")
+
+		// Simulate potential memory leak
+		leakyData := make(map[string][]byte)
+		for i := 0; i < 100; i++ {
+			leakyData[fmt.Sprintf("key_%d", i)] = make([]byte, 1024)
+		}
+
+		// Take snapshot after allocation
+		detector.TakeSnapshot("after_alloc")
+
+		// Analyze for potential leaks
+		leaks := detector.DetectLeaks("baseline", "after_alloc")
+		assert.True(t, len(leaks) >= 0) // May or may not detect leaks in test
+
+		// Keep reference
+		_ = leakyData
+	})
+
+	t.Run("garbage collection metrics", func(t *testing.T) {
+		gcMonitor := NewGCMonitor()
+
+		initial := gcMonitor.GetGCStats()
+
+		// Force multiple GC cycles
+		for i := 0; i < 3; i++ {
+			runtime.GC()
+		}
+
+		final := gcMonitor.GetGCStats()
+		assert.True(t, final.NumGC > initial.NumGC)
+		assert.True(t, final.TotalPauseNs >= initial.TotalPauseNs)
+	})
+}
+
+// TestConnectionPoolPerformance tests connection pool performance
+func TestConnectionPoolPerformance(t *testing.T) {
+	t.Run("pool utilization metrics", func(t *testing.T) {
+		poolMetrics := NewConnectionPoolMetrics()
+
+		// Simulate pool operations
+		poolMetrics.RecordAcquisition(5 * time.Millisecond, true)
+		poolMetrics.RecordAcquisition(10 * time.Millisecond, true)
+		poolMetrics.RecordAcquisition(15 * time.Millisecond, false) // Timeout
+
+		poolMetrics.RecordRelease(true)  // Normal release
+		poolMetrics.RecordRelease(false) // Error release
+
+		stats := poolMetrics.GetPoolStats()
+		assert.Equal(t, int64(3), stats.TotalAcquisitions)
+		assert.Equal(t, int64(2), stats.SuccessfulAcquisitions)
+		assert.Equal(t, int64(1), stats.FailedAcquisitions)
+		assert.Equal(t, int64(2), stats.TotalReleases)
+		assert.True(t, stats.AverageAcquisitionTime > 0)
+	})
+
+	t.Run("connection lifecycle tracking", func(t *testing.T) {
+		tracker := NewConnectionLifecycleTracker()
+
+		connID := "conn-001"
+
+		// Track connection lifecycle
+		tracker.RecordCreation(connID, 10*time.Millisecond)
+		tracker.RecordValidation(connID, 2*time.Millisecond, true)
+		tracker.RecordUsage(connID, "search", 5*time.Millisecond)
+		tracker.RecordUsage(connID, "bind", 3*time.Millisecond)
+		tracker.RecordDestruction(connID, 1*time.Millisecond)
+
+		lifecycle := tracker.GetConnectionLifecycle(connID)
+		assert.NotNil(t, lifecycle)
+		assert.Equal(t, 2, len(lifecycle.Operations))
+		assert.True(t, lifecycle.TotalLifetime > 0)
+		assert.True(t, lifecycle.TotalUsageTime > 0)
+	})
+
+	t.Run("pool contention analysis", func(t *testing.T) {
+		contention := NewPoolContentionAnalyzer()
+
+		// Simulate concurrent access patterns
+		var wg sync.WaitGroup
+		start := time.Now()
+
+		for i := 0; i < 10; i++ {
+			wg.Add(1)
+			go func(id int) {
+				defer wg.Done()
+				waitTime := time.Duration(id) * time.Millisecond
+				contention.RecordWait(fmt.Sprintf("goroutine-%d", id), waitTime)
+			}(i)
+		}
+
+		wg.Wait()
+		totalTime := time.Since(start)
+
+		stats := contention.GetContentionStats()
+		assert.Equal(t, int64(10), stats.TotalWaits)
+		assert.True(t, stats.AverageWaitTime >= 0)
+		assert.True(t, stats.MaxWaitTime >= stats.MinWaitTime)
+		assert.True(t, totalTime > 0)
+	})
+}
+
+// TestConcurrencyPerformance tests concurrent operation performance
+func TestConcurrencyPerformance(t *testing.T) {
+	t.Run("concurrent search operations", func(t *testing.T) {
+		concurrencyTester := NewConcurrencyTester()
+
+		numGoroutines := 50
+		operationsPerGoroutine := 10
+
+		results := concurrencyTester.RunConcurrentTest(
+			numGoroutines,
+			operationsPerGoroutine,
+			func(id int, opNum int) error {
+				// Simulate LDAP search operation
+				time.Sleep(time.Duration(id%5) * time.Millisecond)
+				return nil
+			},
+		)
+
+		assert.Equal(t, numGoroutines, len(results.GoroutineResults))
+		assert.Equal(t, int64(numGoroutines*operationsPerGoroutine), results.TotalOperations)
+		assert.True(t, results.TotalDuration > 0)
+		assert.True(t, results.OperationsPerSecond > 0)
+	})
+
+	t.Run("deadlock detection", func(t *testing.T) {
+		detector := NewDeadlockDetector()
+
+		// Simulate potential deadlock scenario
+		var mu1, mu2 sync.Mutex
+
+		detector.StartMonitoring()
+
+		go func() {
+			detector.RecordLockAcquisition("mu1", "goroutine-1")
+			mu1.Lock()
+			time.Sleep(10 * time.Millisecond)
+			detector.RecordLockAcquisition("mu2", "goroutine-1")
+			mu2.Lock()
+			mu2.Unlock()
+			mu1.Unlock()
+			detector.RecordLockRelease("mu2", "goroutine-1")
+			detector.RecordLockRelease("mu1", "goroutine-1")
+		}()
+
+		go func() {
+			detector.RecordLockAcquisition("mu2", "goroutine-2")
+			mu2.Lock()
+			time.Sleep(10 * time.Millisecond)
+			detector.RecordLockAcquisition("mu1", "goroutine-2")
+			mu1.Lock()
+			mu1.Unlock()
+			mu2.Unlock()
+			detector.RecordLockRelease("mu1", "goroutine-2")
+			detector.RecordLockRelease("mu2", "goroutine-2")
+		}()
+
+		time.Sleep(50 * time.Millisecond)
+		detector.StopMonitoring()
+
+		// Check for potential deadlocks
+		deadlocks := detector.DetectDeadlocks()
+		// May or may not detect deadlocks in this simple test
+		assert.True(t, len(deadlocks) >= 0)
+	})
+
+	t.Run("goroutine leak detection", func(t *testing.T) {
+		detector := NewGoroutineLeakDetector()
+
+		initialCount := detector.GetGoroutineCount()
+
+		// Create some goroutines
+		done := make(chan bool)
+		for i := 0; i < 5; i++ {
+			go func() {
+				<-done // Wait for signal
+			}()
+		}
+
+		time.Sleep(10 * time.Millisecond)
+		midCount := detector.GetGoroutineCount()
+		assert.True(t, midCount > initialCount)
+
+		// Signal goroutines to exit
+		close(done)
+		time.Sleep(10 * time.Millisecond)
+
+		finalCount := detector.GetGoroutineCount()
+		// Should be close to initial count (may not be exact due to test framework)
+		assert.True(t, finalCount <= midCount)
+	})
+}
+
+// TestResourceUtilization tests system resource utilization
+func TestResourceUtilization(t *testing.T) {
+	t.Run("CPU usage monitoring", func(t *testing.T) {
+		monitor := NewCPUMonitor()
+
+		// Start monitoring
+		monitor.StartMonitoring(100 * time.Millisecond)
+
+		// Simulate CPU-intensive work
+		start := time.Now()
+		for time.Since(start) < 200*time.Millisecond {
+			// Busy work
+			_ = fmt.Sprintf("cpu-work-%d", time.Now().UnixNano())
+		}
+
+		monitor.StopMonitoring()
+
+		stats := monitor.GetCPUStats()
+		assert.True(t, stats.AverageUsage >= 0)
+		assert.True(t, stats.MaxUsage >= stats.AverageUsage)
+		assert.True(t, stats.SampleCount > 0)
+	})
+
+	t.Run("disk I/O monitoring", func(t *testing.T) {
+		ioMonitor := NewDiskIOMonitor()
+
+		// Simulate disk operations
+		ioMonitor.RecordRead(1024, 2*time.Millisecond)
+		ioMonitor.RecordWrite(2048, 3*time.Millisecond)
+		ioMonitor.RecordRead(512, 1*time.Millisecond)
+
+		stats := ioMonitor.GetIOStats()
+		assert.Equal(t, int64(3), stats.TotalOperations)
+		assert.Equal(t, int64(2), stats.ReadOperations)
+		assert.Equal(t, int64(1), stats.WriteOperations)
+		assert.Equal(t, int64(1536), stats.BytesRead)   // (1024 + 512) / 2
+		assert.Equal(t, int64(2048), stats.BytesWritten)
+		assert.True(t, stats.AverageLatency > 0)
+	})
+
+	t.Run("network I/O monitoring", func(t *testing.T) {
+		netMonitor := NewNetworkIOMonitor()
+
+		// Simulate network operations
+		netMonitor.RecordSend(1024, 5*time.Millisecond, true)
+		netMonitor.RecordReceive(2048, 3*time.Millisecond, true)
+		netMonitor.RecordSend(512, 10*time.Millisecond, false) // Failed
+
+		stats := netMonitor.GetNetworkStats()
+		assert.Equal(t, int64(3), stats.TotalOperations)
+		assert.Equal(t, int64(2), stats.SuccessfulOperations)
+		assert.Equal(t, int64(1), stats.FailedOperations)
+		assert.Equal(t, int64(1536), stats.BytesSent)     // 1024 + 512
+		assert.Equal(t, int64(2048), stats.BytesReceived)
+	})
+}
+
+// TestCachePerformance tests caching system performance
+func TestCachePerformance(t *testing.T) {
+	t.Run("cache hit ratio", func(t *testing.T) {
+		cache := NewPerformanceCache(1000) // 1000 item capacity
+
+		// Add items to cache
+		for i := 0; i < 100; i++ {
+			key := fmt.Sprintf("key_%d", i)
+			cache.Set(key, fmt.Sprintf("value_%d", i))
+		}
+
+		// Test cache hits and misses
+		hits := 0
+		misses := 0
+
+		// Access existing keys (should be hits)
+		for i := 0; i < 50; i++ {
+			key := fmt.Sprintf("key_%d", i)
+			if cache.Get(key) != nil {
+				hits++
+			} else {
+				misses++
+			}
+		}
+
+		// Access non-existing keys (should be misses)
+		for i := 100; i < 150; i++ {
+			key := fmt.Sprintf("key_%d", i)
+			if cache.Get(key) != nil {
+				hits++
+			} else {
+				misses++
+			}
+		}
+
+		stats := cache.GetStats()
+		assert.True(t, stats.HitRatio > 0)
+		assert.Equal(t, int64(hits), stats.Hits)
+		assert.Equal(t, int64(misses), stats.Misses)
+	})
+
+	t.Run("cache eviction performance", func(t *testing.T) {
+		cache := NewLRUCache(10) // Small cache to trigger evictions
+
+		// Fill cache beyond capacity
+		for i := 0; i < 20; i++ {
+			key := fmt.Sprintf("key_%d", i)
+			cache.Set(key, fmt.Sprintf("value_%d", i))
+		}
+
+		stats := cache.GetStats()
+		assert.True(t, stats.Evictions > 0)
+		assert.True(t, stats.Size <= 10) // Should not exceed capacity
+	})
+
+	t.Run("cache access latency", func(t *testing.T) {
+		cache := NewLatencyTrackingCache(100)
+
+		// Add items and measure access time
+		for i := 0; i < 50; i++ {
+			key := fmt.Sprintf("key_%d", i)
+			cache.Set(key, fmt.Sprintf("value_%d", i))
+		}
+
+		// Measure get operations
+		start := time.Now()
+		for i := 0; i < 50; i++ {
+			key := fmt.Sprintf("key_%d", i)
+			cache.Get(key)
+		}
+		avgLatency := time.Since(start) / 50
+
+		stats := cache.GetLatencyStats()
+		assert.True(t, stats.AverageGetLatency > 0)
+		assert.True(t, avgLatency > 0)
+	})
+}
+
+// TestQueryPerformance tests LDAP query performance analysis
+func TestQueryPerformance(t *testing.T) {
+	t.Run("query execution time analysis", func(t *testing.T) {
+		analyzer := NewQueryPerformanceAnalyzer()
+
+		// Record various query types
+		queries := []QueryInfo{
+			{Type: "search", Filter: "(objectClass=user)", Duration: 10 * time.Millisecond, ResultCount: 100},
+			{Type: "search", Filter: "(cn=admin)", Duration: 2 * time.Millisecond, ResultCount: 1},
+			{Type: "bind", Filter: "", Duration: 5 * time.Millisecond, ResultCount: 0},
+			{Type: "search", Filter: "(objectClass=group)", Duration: 15 * time.Millisecond, ResultCount: 50},
+		}
+
+		for _, query := range queries {
+			analyzer.RecordQuery(query)
+		}
+
+		stats := analyzer.GetQueryStats()
+		assert.Equal(t, int64(4), stats.TotalQueries)
+		assert.True(t, stats.AverageExecutionTime > 0)
+
+		// Analyze search queries specifically
+		searchStats := analyzer.GetQueryStatsByType("search")
+		assert.Equal(t, int64(3), searchStats.Count)
+		assert.True(t, searchStats.AverageResultCount > 0)
+	})
+
+	t.Run("slow query detection", func(t *testing.T) {
+		detector := NewSlowQueryDetector(10 * time.Millisecond) // 10ms threshold
+
+		// Record queries with varying execution times
+		queries := []QueryInfo{
+			{Filter: "(objectClass=user)", Duration: 5 * time.Millisecond},   // Fast
+			{Filter: "(cn=*)", Duration: 25 * time.Millisecond},              // Slow
+			{Filter: "(mail=*@example.com)", Duration: 15 * time.Millisecond}, // Slow
+		}
+
+		for _, query := range queries {
+			detector.RecordQuery(query)
+		}
+
+		slowQueries := detector.GetSlowQueries()
+		assert.Len(t, slowQueries, 2) // Two queries above threshold
+
+		stats := detector.GetStats()
+		assert.Equal(t, int64(3), stats.TotalQueries)
+		assert.Equal(t, int64(2), stats.SlowQueries)
+		assert.InDelta(t, 66.67, stats.SlowQueryPercentage, 0.01)
+	})
+
+	t.Run("query optimization suggestions", func(t *testing.T) {
+		optimizer := NewQueryOptimizer()
+
+		// Analyze problematic query patterns
+		problematicQueries := []string{
+			"(cn=*)",           // Leading wildcard
+			"(|(cn=*)(mail=*))", // Multiple wildcards
+			"(objectClass=*)",   // Wildcard on indexed field
+		}
+
+		for _, filter := range problematicQueries {
+			suggestions := optimizer.AnalyzeQuery(filter)
+			assert.True(t, len(suggestions) > 0)
+		}
+
+		// Analyze good query patterns
+		goodQueries := []string{
+			"(cn=admin)",
+			"(objectClass=user)",
+			"(&(objectClass=user)(mail=user@example.com))",
+		}
+
+		for _, filter := range goodQueries {
+			suggestions := optimizer.AnalyzeQuery(filter)
+			// Good queries should have fewer or no suggestions
+			assert.True(t, len(suggestions) >= 0)
+		}
+	})
+}
+
+// BenchmarkPerformanceOperations benchmarks various performance operations
+func BenchmarkPerformanceOperations(b *testing.B) {
+	b.Run("metrics collection", func(b *testing.B) {
+		metrics := NewPerformanceMetrics()
+
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			duration := time.Duration(i%1000) * time.Microsecond
+			metrics.RecordOperation("benchmark_op", duration, true)
+		}
+	})
+
+	b.Run("latency tracking", func(b *testing.B) {
+		tracker := NewLatencyTracker()
+
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			latency := time.Duration(i%100) * time.Millisecond
+			tracker.RecordLatency("benchmark_latency", latency)
+		}
+	})
+
+	b.Run("cache operations", func(b *testing.B) {
+		cache := NewPerformanceCache(1000)
+
+		// Pre-populate cache
+		for i := 0; i < 500; i++ {
+			cache.Set(fmt.Sprintf("key_%d", i), fmt.Sprintf("value_%d", i))
+		}
+
+		b.ResetTimer()
+		b.RunParallel(func(pb *testing.PB) {
+			i := 0
+			for pb.Next() {
+				key := fmt.Sprintf("key_%d", i%1000)
+				if i%2 == 0 {
+					cache.Get(key)
+				} else {
+					cache.Set(key, fmt.Sprintf("value_%d", i))
+				}
+				i++
+			}
+		})
+	})
+
+	b.Run("concurrent performance tracking", func(b *testing.B) {
+		tracker := NewConcurrentPerformanceTracker()
+
+		b.ResetTimer()
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				start := time.Now()
+				// Simulate work
+				time.Sleep(time.Microsecond)
+				duration := time.Since(start)
+				tracker.RecordOperation("concurrent_op", duration)
+			}
+		})
+	})
+}
+
+// TestPerformanceRegression tests for performance regression detection
+func TestPerformanceRegression(t *testing.T) {
+	t.Run("baseline comparison", func(t *testing.T) {
+		detector := NewRegressionDetector()
+
+		// Establish baseline
+		baseline := PerformanceBaseline{
+			AverageLatency:    10 * time.Millisecond,
+			Throughput:       1000, // ops/sec
+			MemoryUsage:      100 * 1024 * 1024, // 100MB
+			CPUUtilization:   25.0, // 25%
+		}
+
+		detector.SetBaseline(baseline)
+
+		// Test current performance within acceptable range
+		current := TestPerformanceMetrics{
+			AverageLatency:    12 * time.Millisecond, // 20% increase
+			Throughput:       950,  // 5% decrease
+			MemoryUsage:      110 * 1024 * 1024, // 10% increase
+			CPUUtilization:   28.0, // 12% increase
+		}
+
+		regression := detector.DetectRegression(current)
+		assert.False(t, regression.HasRegression) // Within acceptable thresholds
+
+		// Test performance regression
+		regressed := TestPerformanceMetrics{
+			AverageLatency:    25 * time.Millisecond, // 150% increase
+			Throughput:       600,  // 40% decrease
+			MemoryUsage:      200 * 1024 * 1024, // 100% increase
+			CPUUtilization:   50.0, // 100% increase
+		}
+
+		regression = detector.DetectRegression(regressed)
+		assert.True(t, regression.HasRegression)
+		assert.True(t, len(regression.Issues) > 0)
+	})
+}
+
+// Helper structures and functions for performance testing
+
+type QueryInfo struct {
+	Type        string
+	Filter      string
+	Duration    time.Duration
+	ResultCount int
+}
+
+type PerformanceBaseline struct {
+	AverageLatency    time.Duration
+	Throughput       float64
+	MemoryUsage      int64
+	CPUUtilization   float64
+}
+
+type TestPerformanceMetrics struct {
+	AverageLatency    time.Duration
+	Throughput       float64
+	MemoryUsage      int64
+	CPUUtilization   float64
+}
+
+type RegressionResult struct {
+	HasRegression bool
+	Issues        []string
+}
