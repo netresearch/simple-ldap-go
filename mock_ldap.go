@@ -15,21 +15,21 @@ type MockLDAPConn struct {
 	mu sync.Mutex
 
 	// Configuration
-	BindFunc           func(username, password string) error
-	SearchFunc         func(req *ldap.SearchRequest) (*ldap.SearchResult, error)
+	BindFunc             func(username, password string) error
+	SearchFunc           func(req *ldap.SearchRequest) (*ldap.SearchResult, error)
 	SearchWithPagingFunc func(req *ldap.SearchRequest, pageSize uint32) (*ldap.SearchResult, error)
-	ModifyFunc         func(req *ldap.ModifyRequest) error
-	AddFunc            func(req *ldap.AddRequest) error
-	DelFunc            func(req *ldap.DelRequest) error
-	CloseFunc          func() error
+	ModifyFunc           func(req *ldap.ModifyRequest) error
+	AddFunc              func(req *ldap.AddRequest) error
+	DelFunc              func(req *ldap.DelRequest) error
+	CloseFunc            func() error
 
 	// State tracking
-	BindCalls          []BindCall
-	SearchCalls        []SearchCall
-	ModifyCalls        []ModifyCall
-	AddCalls           []AddCall
-	DelCalls           []DelCall
-	Closed             bool
+	BindCalls   []BindCall
+	SearchCalls []SearchCall
+	ModifyCalls []ModifyCall
+	AddCalls    []AddCall
+	DelCalls    []DelCall
+	Closed      bool
 
 	// Default data
 	Users              map[string]*MockUser
@@ -637,6 +637,58 @@ func (m *MockLDAPConn) SetBindError(err error) {
 	m.BindFunc = func(username, password string) error {
 		return err
 	}
+}
+
+// Compare performs an LDAP compare operation (mock implementation)
+func (m *MockLDAPConn) Compare(dn, attribute, value string) (bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Check if user exists and attribute matches
+	if user, exists := m.Users[dn]; exists {
+		switch attribute {
+		case "cn":
+			return user.CN == value, nil
+		case "sAMAccountName":
+			return user.SAMAccountName == value, nil
+		case "mail":
+			return user.Mail == value, nil
+		case "description":
+			return user.Description == value, nil
+		default:
+			return false, nil
+		}
+	}
+
+	// Check groups
+	if group, exists := m.Groups[dn]; exists {
+		switch attribute {
+		case "cn":
+			return group.CN == value, nil
+		case "description":
+			return group.Description == value, nil
+		default:
+			return false, nil
+		}
+	}
+
+	return false, ldap.NewError(ldap.LDAPResultNoSuchObject, fmt.Errorf("DN not found: %s", dn))
+}
+
+// DirSync performs a directory synchronization search (not implemented in mock)
+func (m *MockLDAPConn) DirSync(searchRequest *ldap.SearchRequest, flags, maxAttrCount int64, cookie []byte) (*ldap.SearchResult, error) {
+	// For mock purposes, just return a regular search result
+	// Real DirSync would track changes and return only modified entries
+	return m.Search(searchRequest)
+}
+
+// DirSyncAsync performs an asynchronous directory synchronization search (not implemented in mock)
+func (m *MockLDAPConn) DirSyncAsync(ctx context.Context, searchRequest *ldap.SearchRequest, bufferSize int, flags, maxAttrCount int64, cookie []byte) ldap.Response {
+	// For mock purposes, just call the synchronous version
+	// Real implementation would handle async operations
+	_, _ = m.Search(searchRequest)
+	// Return nil as we don't have proper async support in mock
+	return nil
 }
 
 // SetSearchError sets a specific error for search operations
