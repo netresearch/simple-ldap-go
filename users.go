@@ -71,7 +71,7 @@ func userFromEntry(entry *ldap.Entry) (*User, error) {
 	}
 
 	var mail *string
-	if mails := entry.GetAttributeValues("mail"); len(mails) > 0 {
+	if mails := entry.GetAttributeValues("mail"); len(mails) > 0 && mails[0] != "" {
 		mail = &mails[0]
 	}
 

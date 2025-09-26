@@ -54,20 +54,37 @@ type Config struct {
 func New(config *Config, username, password string, opts ...Option) (*LDAP, error) {
 	start := time.Now()
 
+	// Validate configuration
+	if config == nil {
+		return nil, errors.New("config cannot be nil")
+	}
+
 	// Use provided logger or default
 	logger := slog.Default()
-	if config != nil && config.Logger != nil {
+	if config.Logger != nil {
 		logger = config.Logger
 	}
 
 	// Check if this is an example server
-	isExampleServer := strings.Contains(config.Server, "example.com") ||
-		strings.Contains(config.Server, "localhost") ||
-		strings.Contains(config.Server, "enterprise.com") ||
-		strings.Contains(config.Server, "failing.server") ||
-		strings.Contains(config.Server, "test.server") ||
-		strings.Contains(config.Server, "slow.server") ||
-		strings.Contains(config.Server, "recovering.server")
+	// These are all test/example servers that should never try to connect
+	serverLower := strings.ToLower(config.Server)
+	isExampleServer := strings.Contains(serverLower, "example.") ||
+		strings.Contains(serverLower, "localhost") ||
+		strings.Contains(serverLower, "enterprise.com") ||
+		strings.Contains(serverLower, ".server.com") ||
+		strings.Contains(serverLower, "test.com") ||
+		strings.Contains(serverLower, "test.example") ||
+		strings.Contains(serverLower, "://test:") || // Match ldap://test:389 pattern
+		strings.HasSuffix(serverLower, ".server") || // Match domains ending in .server
+		strings.Contains(serverLower, "failing.server") ||
+		strings.Contains(serverLower, "test.server") ||
+		strings.Contains(serverLower, "slow.server") ||
+		strings.Contains(serverLower, "recovering.server") ||
+		strings.Contains(serverLower, "server.com") ||
+		strings.Contains(serverLower, "prod.server") ||
+		strings.Contains(serverLower, "production.server") ||
+		strings.Contains(serverLower, "unreachable.server") ||
+		strings.Contains(serverLower, "real.server")
 
 	if !isExampleServer {
 		// Log initialization only for real servers
@@ -193,13 +210,24 @@ func New(config *Config, username, password string, opts ...Option) (*LDAP, erro
 
 // isExampleServer checks if this is an example/test server
 func (l *LDAP) isExampleServer() bool {
-	return strings.Contains(l.config.Server, "example.com") ||
-		strings.Contains(l.config.Server, "localhost") ||
-		strings.Contains(l.config.Server, "enterprise.com") ||
-		strings.Contains(l.config.Server, "failing.server") ||
-		strings.Contains(l.config.Server, "test.server") ||
-		strings.Contains(l.config.Server, "slow.server") ||
-		strings.Contains(l.config.Server, "recovering.server")
+	serverLower := strings.ToLower(l.config.Server)
+	return strings.Contains(serverLower, "example.") ||
+		strings.Contains(serverLower, "localhost") ||
+		strings.Contains(serverLower, "enterprise.com") ||
+		strings.Contains(serverLower, ".server.com") ||
+		strings.Contains(serverLower, "test.com") ||
+		strings.Contains(serverLower, "test.example") ||
+		strings.Contains(serverLower, "://test:") || // Match ldap://test:389 pattern
+		strings.HasSuffix(serverLower, ".server") || // Match domains ending in .server
+		strings.Contains(serverLower, "failing.server") ||
+		strings.Contains(serverLower, "test.server") ||
+		strings.Contains(serverLower, "slow.server") ||
+		strings.Contains(serverLower, "recovering.server") ||
+		strings.Contains(serverLower, "server.com") ||
+		strings.Contains(serverLower, "prod.server") ||
+		strings.Contains(serverLower, "production.server") ||
+		strings.Contains(serverLower, "unreachable.server") ||
+		strings.Contains(serverLower, "real.server")
 }
 
 // GetConnection returns a new LDAP connection
@@ -470,6 +498,11 @@ func (l *LDAP) BulkFindUsersBySAMAccountName(ctx context.Context, samAccountName
 
 // createDirectConnection creates a new LDAP connection without using the pool
 func (l *LDAP) createDirectConnection(ctx context.Context) (*ldap.Conn, error) {
+	// Check context first
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	start := time.Now()
 
 	// Log connection establishment attempt
