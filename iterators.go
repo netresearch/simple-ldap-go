@@ -11,10 +11,11 @@ import (
 // SearchIter performs an LDAP search and returns an iterator over the results.
 // This allows for memory-efficient processing of large result sets.
 // The iterator supports early termination by the caller.
+// If circuit breaker is configured, it provides fast failure when LDAP is down.
 func (l *LDAP) SearchIter(ctx context.Context, searchRequest *ldap.SearchRequest) iter.Seq2[*ldap.Entry, error] {
 	return func(yield func(*ldap.Entry, error) bool) {
-		// Get connection
-		conn, err := l.GetConnection()
+		// Get connection with circuit breaker protection
+		conn, err := l.GetConnectionProtected()
 		if err != nil {
 			yield(nil, err)
 			return
@@ -55,9 +56,11 @@ func (l *LDAP) SearchIter(ctx context.Context, searchRequest *ldap.SearchRequest
 // SearchPagedIter performs a paged LDAP search and returns an iterator.
 // This is more memory-efficient for very large result sets as it fetches
 // results in chunks from the server.
+// If circuit breaker is configured, it provides fast failure when LDAP is down.
 func (l *LDAP) SearchPagedIter(ctx context.Context, searchRequest *ldap.SearchRequest, pageSize uint32) iter.Seq2[*ldap.Entry, error] {
 	return func(yield func(*ldap.Entry, error) bool) {
-		conn, err := l.GetConnection()
+		// Get connection with circuit breaker protection
+		conn, err := l.GetConnectionProtected()
 		if err != nil {
 			yield(nil, err)
 			return
