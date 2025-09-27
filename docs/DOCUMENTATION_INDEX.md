@@ -63,13 +63,12 @@
 | Method | Description | File |
 |--------|-------------|------|
 | `New(config, user, password)` | Create standard LDAP client | [client.go:108](client.go#L108) |
-| `NewWithOptions(config, user, pass, opts...)` | Create client with options | [modern_client.go:67](modern_client.go#L67) |
-| `NewBasicClient(config, user, pass)` | Create basic client | [modern_client.go:301](modern_client.go#L301) |
-| `NewPooledClient(config, user, pass, max)` | Create pooled client | [modern_client.go:307](modern_client.go#L307) |
-| `NewCachedClient(config, user, pass, size, ttl)` | Create cached client | [modern_client.go:327](modern_client.go#L327) |
-| `NewHighPerformanceClient(config, user, pass)` | Create optimized client | [modern_client.go:347](modern_client.go#L347) |
-| `NewSecureClient(config, user, pass)` | Create security-focused client | [modern_client.go:378](modern_client.go#L378) |
-| `NewReadOnlyClient(config, user, pass)` | Create read-only client | [modern_client.go:400](modern_client.go#L400) |
+| `NewBasicClient(config, user, pass)` | Create basic client | [client.go:301](client.go#L301) |
+| `NewPooledClient(config, user, pass, max)` | Create pooled client | [client.go:307](client.go#L307) |
+| `NewCachedClient(config, user, pass, size, ttl)` | Create cached client | [client.go:327](client.go#L327) |
+| `NewHighPerformanceClient(config, user, pass)` | Create optimized client | [client.go:347](client.go#L347) |
+| `NewSecureClient(config, user, pass)` | Create security-focused client | [client.go:378](client.go#L378) |
+| `NewReadOnlyClient(config, user, pass)` | Create read-only client | [client.go:400](client.go#L400) |
 
 #### Connection Management
 | Method | Description | Context Support |

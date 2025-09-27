@@ -23,21 +23,10 @@ func New(config Config, user, password string) (*LDAP, error)
 ```
 Creates a standard LDAP client with the provided configuration and credentials.
 
-#### `NewWithOptions`
-```go
-func NewWithOptions(config Config, username, password string, opts ...Option) (*LDAP, error)
-```
-Creates an LDAP client with custom options for advanced configuration.
-
-#### Specialized Constructors
-```go
-func NewBasicClient(config Config, username, password string) (*LDAP, error)
-func NewPooledClient(config Config, username, password string, maxConnections int) (*LDAP, error)
-func NewCachedClient(config Config, username, password string, cacheSize int, cacheTTL time.Duration) (*LDAP, error)
-func NewHighPerformanceClient(config Config, username, password string) (*LDAP, error)
-func NewSecureClient(config Config, username, password string) (*LDAP, error)
-func NewReadOnlyClient(config Config, username, password string) (*LDAP, error)
-```
+The LDAP client automatically enables optimizations based on the configuration:
+- Connection pooling when `config.PoolSize > 1`
+- Caching when `config.EnableCache = true`
+- Circuit breaker when `config.Resilience.EnableCircuitBreaker = true`
 
 ### Connection Methods
 
@@ -137,29 +126,6 @@ func (l *LDAP) FindUsersContext(ctx context.Context) ([]User, error)
 ```
 Retrieves all users from the directory.
 
-### Optimized Search Operations
-
-#### `FindUserByDNOptimized`
-```go
-func (l *LDAP) FindUserByDNOptimized(ctx context.Context, dn string, options *SearchOptions) (*User, error)
-```
-Optimized user search with caching and performance monitoring.
-
-#### `FindUserBySAMAccountNameOptimized`
-```go
-func (l *LDAP) FindUserBySAMAccountNameOptimized(ctx context.Context, samAccountName string, options *SearchOptions) (*User, error)
-```
-
-#### `FindUserByMailOptimized`
-```go
-func (l *LDAP) FindUserByMailOptimized(ctx context.Context, mail string, options *SearchOptions) (*User, error)
-```
-
-#### `FindUsersOptimized`
-```go
-func (l *LDAP) FindUsersOptimized(ctx context.Context, options *SearchOptions) ([]User, error)
-```
-
 #### `BulkFindUsersBySAMAccountName`
 ```go
 func (l *LDAP) BulkFindUsersBySAMAccountName(ctx context.Context, samAccountNames []string, options *BulkSearchOptions) (map[string]*User, error)
@@ -217,40 +183,7 @@ func (l *LDAP) FindGroups() ([]Group, error)
 func (l *LDAP) FindGroupsContext(ctx context.Context) ([]Group, error)
 ```
 Retrieves all groups from the directory.
-
-### Optimized Group Operations
-
-#### `FindGroupByDNOptimized`
-```go
-func (l *LDAP) FindGroupByDNOptimized(ctx context.Context, dn string, options *SearchOptions) (*Group, error)
-```
-
-#### `FindGroupsOptimized`
-```go
-func (l *LDAP) FindGroupsOptimized(ctx context.Context, options *SearchOptions) ([]Group, error)
-```
-
-#### `GetUserGroupsOptimized`
-```go
-func (l *LDAP) GetUserGroupsOptimized(ctx context.Context, userDN string, options *SearchOptions) ([]Group, error)
-```
 Gets all groups a user belongs to.
-
-#### `GetGroupMembersOptimized`
-```go
-func (l *LDAP) GetGroupMembersOptimized(ctx context.Context, groupDN string, options *SearchOptions) ([]User, error)
-```
-Gets all members of a group.
-
-#### `AddUserToGroupOptimized`
-```go
-func (l *LDAP) AddUserToGroupOptimized(ctx context.Context, userDN, groupDN string) error
-```
-
-#### `RemoveUserFromGroupOptimized`
-```go
-func (l *LDAP) RemoveUserFromGroupOptimized(ctx context.Context, userDN, groupDN string) error
-```
 
 ---
 
