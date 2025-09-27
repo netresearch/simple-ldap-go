@@ -1,6 +1,6 @@
 //go:build !integration
 
-// Package ldap provides modern testing patterns for the LDAP client library.
+// Package ldap provides testing for client options and factory methods.
 package ldap
 
 import (
@@ -14,8 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestModernClientCreation demonstrates modern table-driven testing patterns.
-func TestModernClientCreation(t *testing.T) {
+// TestClientOptionsCreation tests client creation with various options.
+func TestClientOptionsCreation(t *testing.T) {
 	tests := []struct {
 		name        string
 		config      Config
@@ -261,200 +261,7 @@ func TestFactoryMethods(t *testing.T) {
 	})
 }
 
-// TestBuilderPatterns tests the builder patterns with table-driven tests.
-func TestBuilderPatterns(t *testing.T) {
-	t.Run("UserBuilder", func(t *testing.T) {
-		tests := []struct {
-			name        string
-			buildFunc   func() *UserBuilder
-			expectError bool
-			errorMsg    string
-		}{
-			{
-				name: "valid_user",
-				buildFunc: func() *UserBuilder {
-					return NewUserBuilder().
-						WithCN("John Doe").
-						WithSAMAccountName("jdoe").
-						WithMail("john.doe@example.com").
-						WithDescription("Software Engineer").
-						WithEnabled(true)
-				},
-				expectError: false,
-			},
-			{
-				name: "missing_cn",
-				buildFunc: func() *UserBuilder {
-					return NewUserBuilder().
-						WithSAMAccountName("jdoe").
-						WithMail("john.doe@example.com")
-				},
-				expectError: true,
-				errorMsg:    "CN is required",
-			},
-			{
-				name: "missing_sam_account_name",
-				buildFunc: func() *UserBuilder {
-					return NewUserBuilder().
-						WithCN("John Doe").
-						WithMail("john.doe@example.com")
-				},
-				expectError: true,
-				errorMsg:    "SAMAccountName is required",
-			},
-			{
-				name: "invalid_email",
-				buildFunc: func() *UserBuilder {
-					return NewUserBuilder().
-						WithCN("John Doe").
-						WithSAMAccountName("jdoe").
-						WithMail("invalid-email")
-				},
-				expectError: true,
-				errorMsg:    "invalid email format",
-			},
-			{
-				name: "invalid_sam_account_name_too_long",
-				buildFunc: func() *UserBuilder {
-					return NewUserBuilder().
-						WithCN("John Doe").
-						WithSAMAccountName("this_is_way_too_long_for_sam_account_name")
-				},
-				expectError: true,
-				errorMsg:    "cannot exceed 20 characters",
-			},
-			{
-				name: "invalid_sam_account_name_invalid_chars",
-				buildFunc: func() *UserBuilder {
-					return NewUserBuilder().
-						WithCN("John Doe").
-						WithSAMAccountName("invalid/chars")
-				},
-				expectError: true,
-				errorMsg:    "invalid characters",
-			},
-		}
-
-		for _, tt := range tests {
-			t.Run(tt.name, func(t *testing.T) {
-				builder := tt.buildFunc()
-				user, err := builder.Build()
-
-				if tt.expectError {
-					assert.Error(t, err)
-					if tt.errorMsg != "" {
-						assert.Contains(t, err.Error(), tt.errorMsg)
-					}
-					assert.Nil(t, user)
-				} else {
-					assert.NoError(t, err)
-					require.NotNil(t, user)
-					assert.NotEmpty(t, user.CN)
-					assert.NotEmpty(t, user.SAMAccountName)
-				}
-			})
-		}
-	})
-
-	t.Run("GroupBuilder", func(t *testing.T) {
-		tests := []struct {
-			name        string
-			buildFunc   func() *GroupBuilder
-			expectError bool
-			errorMsg    string
-		}{
-			{
-				name: "valid_group",
-				buildFunc: func() *GroupBuilder {
-					return NewGroupBuilder().
-						WithCN("Developers").
-						WithDescription("Software Development Team").
-						WithGroupType(0x80000002) // Global Security Group
-				},
-				expectError: false,
-			},
-			{
-				name: "missing_cn",
-				buildFunc: func() *GroupBuilder {
-					return NewGroupBuilder().
-						WithDescription("Test Group")
-				},
-				expectError: true,
-				errorMsg:    "CN is required",
-			},
-		}
-
-		for _, tt := range tests {
-			t.Run(tt.name, func(t *testing.T) {
-				builder := tt.buildFunc()
-				group, err := builder.Build()
-
-				if tt.expectError {
-					assert.Error(t, err)
-					if tt.errorMsg != "" {
-						assert.Contains(t, err.Error(), tt.errorMsg)
-					}
-					assert.Nil(t, group)
-				} else {
-					assert.NoError(t, err)
-					require.NotNil(t, group)
-					assert.NotEmpty(t, group.CN)
-				}
-			})
-		}
-	})
-
-	t.Run("ComputerBuilder", func(t *testing.T) {
-		tests := []struct {
-			name        string
-			buildFunc   func() *ComputerBuilder
-			expectError bool
-			errorMsg    string
-		}{
-			{
-				name: "valid_computer",
-				buildFunc: func() *ComputerBuilder {
-					return NewComputerBuilder().
-						WithCN("WORKSTATION01").
-						WithSAMAccountName("WORKSTATION01$").
-						WithDescription("Development Workstation").
-						WithEnabled(true)
-				},
-				expectError: false,
-			},
-			{
-				name: "missing_dollar_sign",
-				buildFunc: func() *ComputerBuilder {
-					return NewComputerBuilder().
-						WithCN("WORKSTATION01").
-						WithSAMAccountName("WORKSTATION01") // Missing $
-				},
-				expectError: true,
-				errorMsg:    "should end with '$'",
-			},
-		}
-
-		for _, tt := range tests {
-			t.Run(tt.name, func(t *testing.T) {
-				builder := tt.buildFunc()
-				computer, err := builder.Build()
-
-				if tt.expectError {
-					assert.Error(t, err)
-					if tt.errorMsg != "" {
-						assert.Contains(t, err.Error(), tt.errorMsg)
-					}
-					assert.Nil(t, computer)
-				} else {
-					assert.NoError(t, err)
-					require.NotNil(t, computer)
-					assert.NotEmpty(t, computer.CN)
-					assert.True(t, computer.SAMAccountName[len(computer.SAMAccountName)-1] == '$')
-				}
-			})
-		}
-	})
-}
+// NOTE: Builder pattern tests are in builders_test.go
 
 // TestConnectionOptions tests connection options configuration.
 func TestConnectionOptions(t *testing.T) {
@@ -545,53 +352,7 @@ func BenchmarkClientCreation(b *testing.B) {
 	})
 }
 
-// BenchmarkBuilderPatterns benchmarks the builder patterns.
-func BenchmarkBuilderPatterns(b *testing.B) {
-	b.Run("UserBuilder", func(b *testing.B) {
-		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
-			user, err := NewUserBuilder().
-				WithCN("John Doe").
-				WithSAMAccountName("jdoe").
-				WithMail("john.doe@example.com").
-				WithDescription("Software Engineer").
-				Build()
-			if err != nil {
-				b.Fatal(err)
-			}
-			_ = user
-		}
-	})
-
-	b.Run("GroupBuilder", func(b *testing.B) {
-		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
-			group, err := NewGroupBuilder().
-				WithCN("Developers").
-				WithDescription("Software Development Team").
-				Build()
-			if err != nil {
-				b.Fatal(err)
-			}
-			_ = group
-		}
-	})
-
-	b.Run("ComputerBuilder", func(b *testing.B) {
-		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
-			computer, err := NewComputerBuilder().
-				WithCN("WORKSTATION01").
-				WithSAMAccountName("WORKSTATION01$").
-				WithDescription("Development Workstation").
-				Build()
-			if err != nil {
-				b.Fatal(err)
-			}
-			_ = computer
-		}
-	})
-}
+// NOTE: Builder pattern benchmarks are in builders_test.go
 
 // FuzzUserBuilder provides fuzz testing for the UserBuilder.
 func FuzzUserBuilder(f *testing.F) {
