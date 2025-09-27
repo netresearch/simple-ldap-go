@@ -122,9 +122,10 @@ Core business logic for LDAP operations, organized by entity type.
 
 #### Features:
 - Entity-specific logic encapsulation
-- Standard and optimized operation variants
+- Unified operations with conditional optimizations
 - Active Directory specific handling
 - Comprehensive error handling
+- Feature flags for selective optimization enablement
 
 ### 3. Infrastructure Layer
 
@@ -164,19 +165,20 @@ Foundational components that support core operations.
 
 ### 4. Optimization Layer
 
-Performance-critical enhancements for high-volume operations.
+Performance-critical enhancements for high-volume operations, integrated into unified operations.
 
 #### Components:
-- **Optimized Operations** (`users_optimized.go`, `groups_optimized.go`)
+- **Enhanced Operations** (`users_extended.go`, `groups_extended.go`): Unified methods with optional optimizations
 - **Bulk Operations**: Batch processing with concurrency control
 - **Pipeline Processing**: Stream-based data handling
 - **Caching Integration**: Automatic cache utilization
 
-#### Optimizations:
-- Reduced round trips to LDAP server
-- Intelligent query batching
-- Parallel execution where safe
-- Memory-efficient processing
+#### Optimization Features:
+- **WithOptions Methods**: Enable caching and performance monitoring per-operation
+- **Feature Flags**: Enable optimizations at client or config level
+- **Reduced Round Trips**: Intelligent query batching to LDAP server
+- **Parallel Execution**: Safe concurrent operations where appropriate
+- **Memory Efficiency**: Optimized data structures and processing
 
 ### 5. Cross-Cutting Concerns
 
