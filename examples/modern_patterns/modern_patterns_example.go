@@ -83,7 +83,7 @@ func demonstrateModernClientCreation(logger *slog.Logger) error {
 
 	// Example 1: Basic client with custom logger
 	fmt.Println("Creating basic client with custom logger...")
-	client1, err := ldap.NewWithOptions(config, "CN=admin,CN=Users,DC=example,DC=com", "password",
+	client1, err := ldap.New(config, "CN=admin,CN=Users,DC=example,DC=com", "password",
 		ldap.WithLogger(logger),
 	)
 	if err != nil {
@@ -97,7 +97,7 @@ func demonstrateModernClientCreation(logger *slog.Logger) error {
 
 	// Example 2: High-performance client with all modern features
 	fmt.Println("Creating high-performance client...")
-	client2, err := ldap.NewWithOptions(config, "CN=admin,CN=Users,DC=example,DC=com", "password",
+	client2, err := ldap.New(config, "CN=admin,CN=Users,DC=example,DC=com", "password",
 		ldap.WithLogger(logger),
 		ldap.WithConnectionPool(&ldap.PoolConfig{
 			MaxConnections:      20,
@@ -272,7 +272,7 @@ func demonstrateGenerics(logger *slog.Logger) error {
 	}
 
 	// Create client (will fail in demo, but shows the pattern)
-	client, err := ldap.NewWithOptions(config, "CN=admin,CN=Users,DC=example,DC=com", "password",
+	client, err := ldap.New(config, "CN=admin,CN=Users,DC=example,DC=com", "password",
 		ldap.WithLogger(logger),
 	)
 	if err != nil {
@@ -531,7 +531,7 @@ func demonstrateResourceManagement() error {
 		IsActiveDirectory: true,
 	}
 
-	client, err := ldap.NewWithOptions(config, "CN=admin,CN=Users,DC=example,DC=com", "password")
+	client, err := ldap.New(config, "CN=admin,CN=Users,DC=example,DC=com", "password")
 	if err != nil {
 		fmt.Printf("Expected connection error in demo: %v\n", err)
 		return nil
@@ -590,7 +590,7 @@ func demonstrateErrorHandling() {
 		BaseDN: "DC=example,DC=com",
 	}
 
-	_, err := ldap.NewWithOptions(config, "user", "password")
+	_, err := ldap.New(config, "user", "password")
 	if err != nil {
 		fmt.Printf("✓ Enhanced error with context: %v\n", err)
 

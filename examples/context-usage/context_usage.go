@@ -22,7 +22,7 @@ func main() {
 	adminPassword := "admin-password"
 
 	// Create LDAP client
-	client, err := ldap.New(&config, adminDN, adminPassword)
+	client, err := ldap.New(config, adminDN, adminPassword)
 	if err != nil {
 		log.Fatalf("Failed to create LDAP client: %v", err)
 	}

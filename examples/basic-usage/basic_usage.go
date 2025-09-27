@@ -17,7 +17,7 @@ func main() {
 	}
 
 	// Create LDAP client with read-only credentials
-	client, err := ldap.New(&config, "cn=admin,dc=example,dc=com", "password")
+	client, err := ldap.New(config, "cn=admin,dc=example,dc=com", "password")
 	if err != nil {
 		log.Fatalf("Failed to create LDAP client: %v", err)
 	}

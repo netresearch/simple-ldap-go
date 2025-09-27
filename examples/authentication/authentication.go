@@ -17,7 +17,7 @@ func main() {
 	}
 
 	// Create LDAP client with service account credentials
-	client, err := ldap.New(&config, "cn=service-account,ou=Service Accounts,dc=example,dc=com", "servicePassword")
+	client, err := ldap.New(config, "cn=service-account,ou=Service Accounts,dc=example,dc=com", "servicePassword")
 	if err != nil {
 		log.Fatalf("Failed to create LDAP client: %v", err)
 	}
