@@ -173,7 +173,7 @@ func (l *LDAP) FindUserByDNContext(ctx context.Context, dn string) (user *User, 
 		if l.config.Cache != nil && l.config.Cache.TTL > 0 {
 			ttl = l.config.Cache.TTL
 		}
-		l.cache.Set(cacheKey, user, ttl)
+		_ = l.cache.Set(cacheKey, user, ttl)
 	}
 
 	l.logger.Debug("user_found_by_dn",

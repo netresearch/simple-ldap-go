@@ -802,14 +802,14 @@ func (l *LDAP) createDirectConnection(ctx context.Context) (*ldap.Conn, error) {
 	// Check for context cancellation before binding
 	select {
 	case <-ctx.Done():
-		conn.Close()
+		_ = conn.Close()
 		return nil, ctx.Err()
 	default:
 	}
 
 	// Bind with credentials
 	if err := conn.Bind(l.user, l.password); err != nil {
-		conn.Close()
+		_ = conn.Close()
 		l.logger.Error("ldap_bind_failed",
 			slog.String("server", l.config.Server),
 			slog.String("user", l.user),
