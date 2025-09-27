@@ -166,11 +166,20 @@ func (p *WorkerPool[T]) worker(id int, failFast bool) {
 				Duration: duration,
 			}
 
+			// Try to send the result even if context is cancelled
+			// This ensures timeout errors are delivered
 			select {
 			case p.resultChan <- result:
 				// Result sent successfully
-			case <-p.ctx.Done():
-				return
+			default:
+				// If can't send immediately, try one more time with context check
+				select {
+				case p.resultChan <- result:
+					// Result sent successfully
+				case <-p.ctx.Done():
+					// Context cancelled and couldn't send result
+					return
+				}
 			}
 
 			// Now handle fail-fast AFTER the result has been sent
