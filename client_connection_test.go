@@ -4,7 +4,6 @@ package ldap
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"testing"
 	"time"
@@ -307,7 +306,7 @@ func TestConnectionNeverReturnsNotImplemented(t *testing.T) {
 				}
 			}
 			if conn != nil {
-				conn.Close()
+				_ = conn.Close()
 			}
 		})
 	}
@@ -436,7 +435,7 @@ func TestConnectionConcurrency(t *testing.T) {
 			ctx := context.Background()
 			conn, err := client.GetConnectionContext(ctx)
 			if conn != nil {
-				conn.Close()
+				_ = conn.Close()
 			}
 			errChan <- err
 		}()
@@ -470,7 +469,7 @@ func BenchmarkGetConnectionPerformance(b *testing.B) {
 			ctx := context.Background()
 			conn, err := client.GetConnectionContext(ctx)
 			if err == nil && conn != nil {
-				conn.Close()
+				_ = conn.Close()
 			}
 		}
 	})
@@ -484,18 +483,3 @@ func TestConnectionLogging(t *testing.T) {
 }
 
 // Helper function to check if error is a connection error
-func isConnectionError(err error) bool {
-	if err == nil {
-		return false
-	}
-	// Check for various connection-related errors
-	return errors.Is(err, context.Canceled) ||
-		errors.Is(err, context.DeadlineExceeded) ||
-		containsString(err.Error(), "connection") ||
-		containsString(err.Error(), "dial") ||
-		containsString(err.Error(), "bind")
-}
-
-func containsString(s, substr string) bool {
-	return len(s) >= len(substr) && s[0:len(s)] != ""
-}
