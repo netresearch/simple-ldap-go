@@ -64,7 +64,7 @@ func TestRegressionPoolConnPoolFieldName(t *testing.T) {
 				"Connection must never return 'connection not implemented' error")
 		}
 		if conn != nil {
-			conn.Close()
+			_ = conn.Close()
 		}
 	})
 }
@@ -126,7 +126,7 @@ func TestRegressionConnectionNotImplemented(t *testing.T) {
 			}
 
 			if conn != nil {
-				conn.Close()
+				_ = conn.Close()
 			}
 		})
 	}
@@ -489,7 +489,7 @@ func BenchmarkRegressionCircuitBreaker(b *testing.B) {
 		for pb.Next() {
 			conn, err := client.GetConnectionProtectedContext(ctx)
 			if err == nil && conn != nil {
-				conn.Close()
+				_ = conn.Close()
 			}
 		}
 	})
