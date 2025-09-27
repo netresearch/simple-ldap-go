@@ -172,12 +172,18 @@ func (p *WorkerPool[T]) worker(id int, failFast bool) {
 			case p.resultChan <- result:
 				// Result sent successfully
 			default:
-				// If can't send immediately, try one more time with context check
+				// If can't send immediately, try one more time with context check and timeout
 				select {
 				case p.resultChan <- result:
 					// Result sent successfully
 				case <-p.ctx.Done():
 					// Context cancelled and couldn't send result
+					return
+				case <-time.After(time.Second):
+					// Timeout: couldn't send result, avoid goroutine leak
+					p.logger.Warn("worker_result_send_timeout",
+						slog.Int("worker_id", id),
+						slog.String("item_id", item.ID))
 					return
 				}
 			}
