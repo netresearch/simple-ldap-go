@@ -53,7 +53,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to create LDAP client: %v", err)
 	}
-	defer client.Close()
+	defer func() {
+		if err := client.Close(); err != nil {
+			log.Printf("Failed to close client: %v", err)
+		}
+	}()
 
 	ctx := context.Background()
 
@@ -68,6 +72,9 @@ func main() {
 
 	// Demonstrate cache management
 	demonstrateCacheManagement(client)
+
+	// Demonstrate convenience methods for client creation
+	demonstrateConvenienceMethods(ctx)
 
 	// Demonstrate configuration examples for different use cases
 	demonstrateConfigurationExamples()
@@ -147,7 +154,11 @@ func demonstrateConvenienceMethods(ctx context.Context) {
 	if err != nil {
 		log.Printf("Failed to create high-performance client: %v", err)
 	} else {
-		defer highPerfClient.Close()
+		defer func() {
+			if err := highPerfClient.Close(); err != nil {
+				log.Printf("Failed to close high-perf client: %v", err)
+			}
+		}()
 		fmt.Println("✓ High-performance client created successfully")
 	}
 
@@ -157,7 +168,11 @@ func demonstrateConvenienceMethods(ctx context.Context) {
 	if err != nil {
 		log.Printf("Failed to create cached client: %v", err)
 	} else {
-		defer cachedClient.Close()
+		defer func() {
+			if err := cachedClient.Close(); err != nil {
+				log.Printf("Failed to close cached client: %v", err)
+			}
+		}()
 		fmt.Println("✓ Cached client created successfully")
 	}
 
@@ -167,7 +182,11 @@ func demonstrateConvenienceMethods(ctx context.Context) {
 	if err != nil {
 		log.Printf("Failed to create pooled client: %v", err)
 	} else {
-		defer pooledClient.Close()
+		defer func() {
+			if err := pooledClient.Close(); err != nil {
+				log.Printf("Failed to close pooled client: %v", err)
+			}
+		}()
 		fmt.Println("✓ Pooled client created successfully")
 	}
 }
