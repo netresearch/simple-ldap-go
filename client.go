@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"strings"
 	"time"
@@ -58,13 +57,13 @@ type Config struct {
 }
 
 // New creates a new LDAP client with the given configuration and optional functional options
-func New(config *Config, username, password string, opts ...Option) (*LDAP, error) {
+func New(config Config, username, password string, opts ...Option) (*LDAP, error) {
+	// Enable optimizations by default for better performance
+	config.EnableOptimizations = true
+
 	start := time.Now()
 
-	// Validate configuration
-	if config == nil {
-		return nil, errors.New("config cannot be nil")
-	}
+	// Value types cannot be nil, so no nil validation needed
 
 	// Use provided logger or default
 	logger := slog.Default()
@@ -101,14 +100,6 @@ func New(config *Config, username, password string, opts ...Option) (*LDAP, erro
 			slog.Bool("is_active_directory", config.IsActiveDirectory))
 	}
 
-	// Validate configuration
-	if config == nil {
-		err := fmt.Errorf("config cannot be nil")
-		logger.Error("ldap_client_initialization_failed",
-			slog.String("error", err.Error()),
-			slog.Duration("duration", time.Since(start)))
-		return nil, err
-	}
 
 	if config.Server == "" {
 		err := fmt.Errorf("server URL cannot be empty")
@@ -149,7 +140,7 @@ func New(config *Config, username, password string, opts ...Option) (*LDAP, erro
 
 	// Create the client
 	client := &LDAP{
-		config:   config,
+		config:   &config,
 		user:     username,
 		password: password,
 		logger:   logger,
@@ -175,7 +166,7 @@ func New(config *Config, username, password string, opts ...Option) (*LDAP, erro
 
 	// Initialize connection pool if configured
 	if config.Pool != nil && !isExampleServer {
-		pool, err := NewConnectionPool(config.Pool, *config, username, password, logger)
+		pool, err := NewConnectionPool(config.Pool, config, username, password, logger)
 		if err != nil {
 			logger.Error("connection_pool_initialization_failed",
 				slog.String("server", config.Server),
@@ -383,7 +374,7 @@ func (l *LDAP) GetPerformanceStats() PerformanceStats {
 //   - *LDAP: A new LDAP client authenticated with the provided credentials
 //   - error: Any error encountered during client creation
 func (l *LDAP) WithCredentials(dn, password string) (*LDAP, error) {
-	return New(l.config, dn, password)
+	return New(*l.config, dn, password)
 }
 
 // Close closes the LDAP client and cleans up resources.
@@ -430,180 +421,6 @@ func (l *LDAP) Close() error {
 	return nil
 }
 
-// NewWithOptions creates a new LDAP client using the modern functional options pattern.
-// This provides enhanced initialization with better error handling and monitoring compared to New().
-//
-// Parameters:
-//   - config: The base LDAP server configuration (passed by value)
-//   - username: The distinguished name (DN) or username for authentication
-//   - password: The password for authentication
-//   - opts: Functional options for customizing the client
-//
-// Returns:
-//   - *LDAP: A configured LDAP client ready for operations
-//   - error: Any error encountered during client creation or validation
-//
-// Example:
-//
-//	client, err := NewWithOptions(config, username, password,
-//	    WithConnectionPool(&PoolConfig{
-//	        MaxConnections: 20,
-//	        MinConnections: 5,
-//	    }),
-//	    WithCache(&CacheConfig{
-//	        Enabled: true,
-//	        TTL: 5 * time.Minute,
-//	    }),
-//	)
-func NewWithOptions(config Config, username, password string, opts ...Option) (*LDAP, error) {
-	// Enable optimizations by default in NewWithOptions
-	config.EnableOptimizations = true
-
-	// Start with provided logger or create a no-op logger
-	logger := config.Logger
-	if logger == nil {
-		logger = slog.New(slog.NewTextHandler(io.Discard, nil))
-	}
-
-	// Create initial LDAP client
-	l := &LDAP{
-		config:   &config,
-		logger:   logger,
-		user:     username,
-		password: password,
-	}
-
-	// Apply all functional options
-	for _, opt := range opts {
-		opt(l)
-	}
-
-	// Re-validate logger after options are applied
-	if l.logger == nil {
-		l.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
-	}
-
-	start := time.Now()
-	l.logger.Debug("ldap_client_initializing",
-		slog.String("server", l.config.Server),
-		slog.String("base_dn", l.config.BaseDN),
-		slog.Bool("is_active_directory", l.config.IsActiveDirectory),
-		slog.Bool("pooling_enabled", l.config.Pool != nil),
-		slog.Bool("caching_enabled", l.config.Cache != nil && l.config.Cache.Enabled),
-		slog.Bool("performance_monitoring_enabled", l.config.Performance == nil || l.config.Performance.Enabled),
-		slog.Int("dial_options_count", len(l.config.DialOptions)))
-
-	// Initialize connection pool if configured
-	if l.config.Pool != nil {
-		pool, err := NewConnectionPool(l.config.Pool, *l.config, username, password, l.logger)
-		if err != nil {
-			l.logger.Error("connection_pool_initialization_failed",
-				slog.String("server", l.config.Server),
-				slog.String("error", err.Error()),
-				slog.Duration("duration", time.Since(start)))
-			return nil, fmt.Errorf("failed to initialize connection pool: %w", WrapLDAPError("NewConnectionPool", l.config.Server, err))
-		}
-		l.connPool = pool
-
-		l.logger.Info("ldap_client_initialized_with_pool",
-			slog.String("server", l.config.Server),
-			slog.Int("max_connections", l.config.Pool.MaxConnections),
-			slog.Int("min_connections", l.config.Pool.MinConnections),
-			slog.Duration("duration", time.Since(start)))
-	} else {
-		// Check if this is an example server to avoid connection attempts
-		serverLower := strings.ToLower(l.config.Server)
-		isExampleServer := strings.Contains(serverLower, "example.") ||
-			strings.Contains(serverLower, "localhost") ||
-			strings.Contains(serverLower, "://test:") ||
-			strings.HasSuffix(serverLower, ".server") ||
-			strings.Contains(serverLower, "test.com")
-
-		// Validate URL format even for example servers
-		if strings.HasPrefix(serverLower, "invalid://") {
-			return nil, fmt.Errorf("failed to validate connection: invalid server URL protocol: %s", l.config.Server)
-		}
-
-		if !isExampleServer {
-			// Validate connection without pooling
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			defer cancel()
-
-			c, err := l.GetConnectionContext(ctx)
-			if err != nil {
-				l.logger.Error("ldap_client_initialization_failed",
-					slog.String("server", l.config.Server),
-					slog.String("error", err.Error()),
-					slog.Duration("duration", time.Since(start)))
-				return nil, fmt.Errorf("failed to validate connection: %w", WrapLDAPError("GetConnection", l.config.Server, err))
-			}
-			_ = c.Close()
-		}
-
-		l.logger.Info("ldap_client_initialized",
-			slog.String("server", l.config.Server),
-			slog.Duration("duration", time.Since(start)))
-	}
-
-	// Initialize intelligent caching system if configured
-	if l.config.Cache != nil && l.config.Cache.Enabled {
-		cache, err := NewLRUCache(l.config.Cache, l.logger)
-		if err != nil {
-			l.logger.Error("cache_initialization_failed",
-				slog.String("server", l.config.Server),
-				slog.String("error", err.Error()))
-			// Don't fail client creation if cache fails, just log and continue without cache
-		} else {
-			l.cache = cache
-			l.logger.Info("ldap_client_cache_initialized",
-				slog.String("server", l.config.Server),
-				slog.Int("max_size", l.config.Cache.MaxSize),
-				slog.Duration("ttl", l.config.Cache.TTL),
-				slog.Int("max_memory_mb", l.config.Cache.MaxMemoryMB))
-		}
-	}
-
-	// Initialize performance monitoring system
-	perfConfig := l.config.Performance
-	if perfConfig == nil {
-		perfConfig = DefaultPerformanceConfig()
-	}
-
-	if perfConfig.Enabled {
-		perfMonitor := NewPerformanceMonitor(perfConfig, l.logger)
-		l.perfMonitor = perfMonitor
-
-		l.logger.Info("ldap_client_performance_monitoring_initialized",
-			slog.String("server", l.config.Server),
-			slog.Bool("detailed_metrics", perfConfig.DetailedMetrics),
-			slog.Duration("slow_query_threshold", perfConfig.SlowQueryThreshold))
-	}
-
-	// Initialize resilience features if configured
-	if l.config.Resilience != nil {
-		if l.config.Resilience.EnableCircuitBreaker {
-			cbConfig := l.config.Resilience.CircuitBreaker
-			if cbConfig == nil {
-				cbConfig = DefaultCircuitBreakerConfig()
-			}
-
-			cb := NewCircuitBreaker("ldap_client", cbConfig, l.logger)
-			l.circuitBreaker = cb
-
-			l.logger.Info("ldap_client_circuit_breaker_initialized",
-				slog.String("server", l.config.Server))
-		}
-
-		// Rate limiting is not yet implemented - skip for now
-		// TODO: Implement rate limiting if needed
-	}
-
-	l.logger.Info("ldap_client_fully_initialized",
-		slog.String("server", l.config.Server),
-		slog.Duration("total_duration", time.Since(start)))
-
-	return l, nil
-}
 
 // ============================================================================
 // Convenience Client Constructors (For backward compatibility)
@@ -611,7 +428,7 @@ func NewWithOptions(config Config, username, password string, opts ...Option) (*
 
 // NewBasicClient creates a basic LDAP client with minimal configuration.
 func NewBasicClient(config Config, username, password string) (*LDAP, error) {
-	return NewWithOptions(config, username, password)
+	return New(config, username, password)
 }
 
 // NewPooledClient creates an LDAP client with connection pooling enabled.
@@ -622,7 +439,7 @@ func NewPooledClient(config Config, username, password string, maxConnections in
 		MaxIdleTime:         10 * time.Minute,
 		HealthCheckInterval: 1 * time.Minute,
 	}
-	return NewWithOptions(config, username, password, WithConnectionPool(poolConfig))
+	return New(config, username, password, WithConnectionPool(poolConfig))
 }
 
 // NewCachedClient creates an LDAP client with caching enabled.
@@ -633,7 +450,7 @@ func NewCachedClient(config Config, username, password string, maxSize int, ttl 
 		MaxSize:     maxSize,
 		MaxMemoryMB: 100,
 	}
-	return NewWithOptions(config, username, password, WithCache(cacheConfig))
+	return New(config, username, password, WithCache(cacheConfig))
 }
 
 // NewHighPerformanceClient creates an LDAP client optimized for high performance with pooling, caching, and monitoring.
@@ -654,7 +471,7 @@ func NewHighPerformanceClient(config Config, username, password string) (*LDAP, 
 
 	perfConfig := DefaultPerformanceConfig()
 
-	return NewWithOptions(config, username, password,
+	return New(config, username, password,
 		WithConnectionPool(poolConfig),
 		WithCache(cacheConfig),
 		WithPerformanceMonitoring(perfConfig))
@@ -667,9 +484,9 @@ func NewSecureClient(config Config, username, password string, tlsConfigs ...*tl
 		tlsConfig = tlsConfigs[0]
 	}
 	if tlsConfig != nil {
-		return NewWithOptions(config, username, password, WithTLS(tlsConfig))
+		return New(config, username, password, WithTLS(tlsConfig))
 	}
-	return NewWithOptions(config, username, password)
+	return New(config, username, password)
 }
 
 // NewReadOnlyClient creates an LDAP client optimized for read-only operations with caching.
@@ -681,7 +498,7 @@ func NewReadOnlyClient(config Config, username, password string) (*LDAP, error) 
 		MaxMemoryMB: 200,
 	}
 
-	return NewWithOptions(config, username, password, WithCache(cacheConfig))
+	return New(config, username, password, WithCache(cacheConfig))
 }
 
 // GetPoolStats returns pool statistics for backward compatibility.
