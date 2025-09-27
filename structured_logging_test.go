@@ -64,7 +64,7 @@ func TestStructuredLoggingConfiguration(t *testing.T) {
 
 	testBuf := NewTestLogBuffer(slog.LevelDebug)
 	// This will fail but should generate initialization logs
-	_, err := New(&Config{
+	_, err := New(Config{
 		Server:            "ldap://realserver.invalid:389",
 		BaseDN:            "DC=test,DC=com",
 		IsActiveDirectory: false,
@@ -101,7 +101,7 @@ func TestNoOpLogger(t *testing.T) {
 	// Skip test that tries to connect to a real server
 	t.Skip("Skipping test that attempts real connection")
 	// This should not panic and should not generate any output
-	_, err := New(&Config{
+	_, err := New(Config{
 		Server:            "ldap://realserver.invalid:389",
 		BaseDN:            "DC=test,DC=com",
 		IsActiveDirectory: false,
@@ -144,7 +144,7 @@ func TestLogLevels(t *testing.T) {
 				Logger:            testBuf.logger,
 			}
 
-			_, err := New(&config, "test", "test")
+			_, err := New(config, "test", "test")
 			require.Error(t, err)
 
 			entries := testBuf.GetLogEntries()
@@ -175,7 +175,7 @@ func TestAuthenticationLogging(t *testing.T) {
 		Logger:            testBuf.logger,
 	}
 
-	client, err := New(&config, "test", "test")
+	client, err := New(config, "test", "test")
 	require.Error(t, err) // Expected to fail
 	require.Nil(t, client)
 
@@ -218,7 +218,7 @@ func TestSearchOperationLogging(t *testing.T) {
 		Logger:            testBuf.logger,
 	}
 
-	_, err := New(&config, "cn=admin,dc=test,dc=com", "password")
+	_, err := New(config, "cn=admin,dc=test,dc=com", "password")
 	require.Error(t, err) // Will fail to connect but generate logs
 
 	entries := testBuf.GetLogEntries()
@@ -248,7 +248,7 @@ func TestLogSecurity(t *testing.T) {
 	}
 
 	// This will fail but should not log the password
-	_, err := New(&config, "testuser", "supersecretpassword")
+	_, err := New(config, "testuser", "supersecretpassword")
 	require.Error(t, err)
 
 	allLogs := testBuf.buf.String()
@@ -272,7 +272,7 @@ func TestPerformanceLogging(t *testing.T) {
 
 	// This will fail but should log duration
 	start := time.Now()
-	_, err := New(&config, "test", "test")
+	_, err := New(config, "test", "test")
 	actualDuration := time.Since(start)
 	require.Error(t, err)
 

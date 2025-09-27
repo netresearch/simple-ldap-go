@@ -36,7 +36,7 @@ func Example_connectionPooling() {
 	}
 
 	// Create client with connection pooling
-	client, err := ldap.New(&config, "CN=admin,CN=Users,DC=example,DC=com", "password")
+	client, err := ldap.New(config, "CN=admin,CN=Users,DC=example,DC=com", "password")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -79,7 +79,7 @@ func Example_concurrentOperations() {
 		},
 	}
 
-	client, err := ldap.New(&config, "cn=admin,dc=example,dc=org", "password")
+	client, err := ldap.New(config, "cn=admin,dc=example,dc=org", "password")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -156,7 +156,7 @@ func Example_poolMonitoring() {
 		},
 	}
 
-	client, err := ldap.New(&config, "cn=admin,dc=example,dc=org", "password")
+	client, err := ldap.New(config, "cn=admin,dc=example,dc=org", "password")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -219,7 +219,7 @@ func Example_backwardCompatibility() {
 		// Pool: nil - no pooling, legacy behavior
 	}
 
-	client, err := ldap.New(&config, "cn=admin,dc=example,dc=org", "password")
+	client, err := ldap.New(config, "cn=admin,dc=example,dc=org", "password")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -325,7 +325,7 @@ func Example_poolConfiguration() {
 		fmt.Println()
 
 		// Note: In real usage, you would create and use the client here
-		// client, err := ldap.New(&config, bindDN, password)
+		// client, err := ldap.New(config, bindDN, password)
 		// if err != nil { ... }
 		// defer client.Close()
 	}

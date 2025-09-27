@@ -50,7 +50,7 @@ func TestRegressionPoolConnPoolFieldName(t *testing.T) {
 			BaseDN: "dc=test,dc=com",
 		}
 
-		client, err := New(config, "user", "pass")
+		client, err := New(*config, "user", "pass")
 		require.NoError(t, err)
 
 		// The connection attempt will fail, but should never return "not implemented"
@@ -105,7 +105,7 @@ func TestRegressionConnectionNotImplemented(t *testing.T) {
 				BaseDN: "dc=test,dc=com",
 			}
 
-			client, err := New(config, "user", "pass")
+			client, err := New(*config, "user", "pass")
 			require.NoError(t, err)
 
 			ctx := context.Background()
@@ -141,7 +141,7 @@ func TestRegressionContextPropagation(t *testing.T) {
 			BaseDN: "dc=test,dc=com",
 		}
 
-		client, err := New(config, "user", "pass")
+		client, err := New(*config, "user", "pass")
 		require.NoError(t, err)
 
 		// Cancel context immediately
@@ -161,7 +161,7 @@ func TestRegressionContextPropagation(t *testing.T) {
 			BaseDN: "dc=test,dc=com",
 		}
 
-		client, err := New(config, "user", "pass")
+		client, err := New(*config, "user", "pass")
 		require.NoError(t, err)
 
 		// Create context with immediate timeout
@@ -185,7 +185,7 @@ func TestRegressionContextPropagation(t *testing.T) {
 			},
 		}
 
-		client, err := New(config, "user", "pass")
+		client, err := New(*config, "user", "pass")
 		require.NoError(t, err)
 
 		ctx, cancel := context.WithCancel(context.Background())
@@ -210,7 +210,7 @@ func TestRegressionOptionsAPI(t *testing.T) {
 		}
 
 		// This should compile - if it doesn't, the API is broken
-		client, err := New(config, "user", "pass",
+		client, err := New(*config, "user", "pass",
 			WithTimeout(5*time.Second, 10*time.Second),
 			WithLogger(slog.Default()))
 		require.NoError(t, err)
@@ -226,7 +226,7 @@ func TestRegressionOptionsAPI(t *testing.T) {
 		}
 
 		// Apply multiple timeout options - last one should win
-		client, err := New(config, "user", "pass",
+		client, err := New(*config, "user", "pass",
 			WithTimeout(5*time.Second, 10*time.Second),
 			WithTimeout(10*time.Second, 20*time.Second))
 		require.NoError(t, err)
@@ -317,7 +317,7 @@ func TestRegressionIteratorContextUsage(t *testing.T) {
 			},
 		}
 
-		client, err := New(config, "user", "pass")
+		client, err := New(*config, "user", "pass")
 		require.NoError(t, err)
 
 		// Cancel context to test propagation
@@ -353,7 +353,7 @@ func TestRegressionIteratorContextUsage(t *testing.T) {
 			BaseDN: "dc=example,dc=com",
 		}
 
-		client, err := New(config, "user", "pass")
+		client, err := New(*config, "user", "pass")
 		require.NoError(t, err)
 
 		// Create timeout context
@@ -386,12 +386,7 @@ func TestRegressionIteratorContextUsage(t *testing.T) {
 
 // TestRegressionValidation ensures all validation is consistent
 func TestRegressionValidation(t *testing.T) {
-	t.Run("nil config validation", func(t *testing.T) {
-		client, err := New(nil, "user", "pass")
-		assert.Error(t, err)
-		assert.Nil(t, client)
-		assert.Contains(t, err.Error(), "config cannot be nil")
-	})
+	// Note: nil config validation test removed since Config is now a value type
 
 	t.Run("empty server validation", func(t *testing.T) {
 		config := &Config{
@@ -399,7 +394,7 @@ func TestRegressionValidation(t *testing.T) {
 			Port:   389,
 			BaseDN: "dc=test,dc=com",
 		}
-		client, err := New(config, "user", "pass")
+		client, err := New(*config, "user", "pass")
 		assert.Error(t, err)
 		assert.Nil(t, client)
 		assert.Contains(t, err.Error(), "server URL cannot be empty")
@@ -413,13 +408,13 @@ func TestRegressionValidation(t *testing.T) {
 		}
 
 		// Empty username
-		client, err := New(config, "", "pass")
+		client, err := New(*config, "", "pass")
 		assert.Error(t, err)
 		assert.Nil(t, client)
 		assert.Contains(t, err.Error(), "username cannot be empty")
 
 		// Empty password
-		client, err = New(config, "user", "")
+		client, err = New(*config, "user", "")
 		assert.Error(t, err)
 		assert.Nil(t, client)
 		assert.Contains(t, err.Error(), "password cannot be empty")
@@ -449,7 +444,7 @@ func TestRegressionErrorMessages(t *testing.T) {
 			BaseDN: "dc=example,dc=com",
 		}
 
-		client, err := New(config, "user", "pass")
+		client, err := New(*config, "user", "pass")
 		require.NoError(t, err)
 
 		ctx := context.Background()
@@ -477,7 +472,7 @@ func BenchmarkRegressionCircuitBreaker(b *testing.B) {
 		},
 	}
 
-	client, err := New(config, "user", "pass")
+	client, err := New(*config, "user", "pass")
 	if err != nil {
 		b.Fatal(err)
 	}

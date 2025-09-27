@@ -62,7 +62,7 @@ func TestNew(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client, err := New(&tt.config, tt.user, tt.password)
+			client, err := New(tt.config, tt.user, tt.password)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -175,7 +175,7 @@ func TestGetConnection(t *testing.T) {
 			ldap.DialWithDialer(nil),
 		}
 
-		clientWithOpts, err := New(&configWithOpts, tc.AdminUser, tc.AdminPass)
+		clientWithOpts, err := New(configWithOpts, tc.AdminUser, tc.AdminPass)
 		require.NoError(t, err)
 
 		conn, err := clientWithOpts.GetConnection()
@@ -227,7 +227,7 @@ func TestConfigValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := New(&tt.config, tc.AdminUser, tc.AdminPass)
+			_, err := New(tt.config, tc.AdminUser, tc.AdminPass)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -249,7 +249,7 @@ func TestIsActiveDirectoryFlag(t *testing.T) {
 		config := tc.Config
 		config.IsActiveDirectory = false
 
-		client, err := New(&config, tc.AdminUser, tc.AdminPass)
+		client, err := New(config, tc.AdminUser, tc.AdminPass)
 		require.NoError(t, err)
 
 		assert.False(t, client.config.IsActiveDirectory)
@@ -259,7 +259,7 @@ func TestIsActiveDirectoryFlag(t *testing.T) {
 		config := tc.Config
 		config.IsActiveDirectory = true
 
-		client, err := New(&config, tc.AdminUser, tc.AdminPass)
+		client, err := New(config, tc.AdminUser, tc.AdminPass)
 		require.NoError(t, err)
 
 		assert.True(t, client.config.IsActiveDirectory)
@@ -280,7 +280,7 @@ func BenchmarkNewConnection(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		client, err := New(&tc.Config, tc.AdminUser, tc.AdminPass)
+		client, err := New(tc.Config, tc.AdminUser, tc.AdminPass)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -322,7 +322,7 @@ func TestGetConnectionContext(t *testing.T) {
 			},
 		}
 
-		client, err := New(config, "testuser", "testpass")
+		client, err := New(*config, "testuser", "testpass")
 		require.NoError(t, err)
 		require.NotNil(t, client)
 
@@ -337,7 +337,7 @@ func TestGetConnectionContext(t *testing.T) {
 			BaseDN: "dc=example,dc=com",
 		}
 
-		client, err := New(config, "testuser", "testpass")
+		client, err := New(*config, "testuser", "testpass")
 		require.NoError(t, err)
 		require.NotNil(t, client)
 		assert.Nil(t, client.connPool)
@@ -357,7 +357,7 @@ func TestGetConnectionContext(t *testing.T) {
 			BaseDN: "dc=example,dc=com",
 		}
 
-		client, err := New(config, "testuser", "testpass")
+		client, err := New(*config, "testuser", "testpass")
 		require.NoError(t, err)
 
 		// Cancel context before calling
@@ -377,7 +377,7 @@ func TestGetConnectionContext(t *testing.T) {
 			BaseDN: "dc=example,dc=com",
 		}
 
-		client, err := New(config, "testuser", "testpass")
+		client, err := New(*config, "testuser", "testpass")
 		require.NoError(t, err)
 
 		// Create context with immediate timeout
@@ -407,7 +407,7 @@ func TestCreateDirectConnection(t *testing.T) {
 			BaseDN: "dc=example,dc=com",
 		}
 
-		client, err := New(config, "testuser", "testpass")
+		client, err := New(*config, "testuser", "testpass")
 		require.NoError(t, err)
 
 		ctx := context.Background()
@@ -424,7 +424,7 @@ func TestCreateDirectConnection(t *testing.T) {
 			BaseDN: "dc=local,dc=com",
 		}
 
-		client, err := New(config, "testuser", "testpass")
+		client, err := New(*config, "testuser", "testpass")
 		require.NoError(t, err)
 
 		ctx := context.Background()
@@ -441,7 +441,7 @@ func TestCreateDirectConnection(t *testing.T) {
 			BaseDN: "dc=test,dc=com",
 		}
 
-		client, err := New(config, "testuser", "testpass")
+		client, err := New(*config, "testuser", "testpass")
 		require.NoError(t, err)
 
 		// Cancel immediately
@@ -465,7 +465,7 @@ func TestCreateDirectConnection(t *testing.T) {
 			},
 		}
 
-		client, err := New(config, "testuser", "testpass")
+		client, err := New(*config, "testuser", "testpass")
 		require.NoError(t, err)
 		assert.NotNil(t, client.config.DialOptions)
 		assert.Len(t, client.config.DialOptions, 1)
@@ -481,7 +481,7 @@ func TestGetConnectionProtected(t *testing.T) {
 			BaseDN: "dc=example,dc=com",
 		}
 
-		client, err := New(config, "testuser", "testpass")
+		client, err := New(*config, "testuser", "testpass")
 		require.NoError(t, err)
 		assert.Nil(t, client.circuitBreaker)
 
@@ -506,7 +506,7 @@ func TestGetConnectionProtected(t *testing.T) {
 			},
 		}
 
-		client, err := New(config, "testuser", "testpass")
+		client, err := New(*config, "testuser", "testpass")
 		require.NoError(t, err)
 		assert.NotNil(t, client.circuitBreaker)
 
@@ -535,7 +535,7 @@ func TestConnectionFieldName(t *testing.T) {
 			BaseDN: "dc=test,dc=com",
 		}
 
-		client, err := New(config, "testuser", "testpass")
+		client, err := New(*config, "testuser", "testpass")
 		require.NoError(t, err)
 
 		// Directly check that the field exists and is named correctly
@@ -586,7 +586,7 @@ func TestConnectionNeverReturnsNotImplemented(t *testing.T) {
 				BaseDN: "dc=test,dc=com",
 			}
 
-			client, err := New(config, "user", "pass")
+			client, err := New(*config, "user", "pass")
 			require.NoError(t, err)
 
 			ctx := context.Background()
@@ -618,7 +618,7 @@ func TestConnectionWithOptions(t *testing.T) {
 		}
 
 		customLogger := slog.Default().With("test", "true")
-		client, err := New(config, "user", "pass", WithLogger(customLogger))
+		client, err := New(*config, "user", "pass", WithLogger(customLogger))
 		require.NoError(t, err)
 		assert.NotNil(t, client.logger)
 	})
@@ -630,7 +630,7 @@ func TestConnectionWithOptions(t *testing.T) {
 			BaseDN: "dc=example,dc=com",
 		}
 
-		client, err := New(config, "user", "pass",
+		client, err := New(*config, "user", "pass",
 			WithTimeout(10*time.Second, 30*time.Second))
 		require.NoError(t, err)
 		assert.Equal(t, 30*time.Second, client.operationTimeout)
@@ -647,7 +647,7 @@ func TestConnectionWithOptions(t *testing.T) {
 			MaxFailures: 3,
 			Timeout:     1 * time.Minute,
 		}
-		client, err := New(config, "user", "pass", WithCircuitBreaker(cbConfig))
+		client, err := New(*config, "user", "pass", WithCircuitBreaker(cbConfig))
 		require.NoError(t, err)
 		assert.NotNil(t, client.circuitBreaker)
 	})
@@ -655,12 +655,7 @@ func TestConnectionWithOptions(t *testing.T) {
 
 // TestConnectionErrorHandling tests various error scenarios
 func TestConnectionErrorHandling(t *testing.T) {
-	t.Run("nil config", func(t *testing.T) {
-		client, err := New(nil, "user", "pass")
-		assert.Error(t, err)
-		assert.Nil(t, client)
-		assert.Contains(t, err.Error(), "config cannot be nil")
-	})
+	// Note: nil config test removed since Config is now a value type
 
 	t.Run("empty server", func(t *testing.T) {
 		config := &Config{
@@ -668,7 +663,7 @@ func TestConnectionErrorHandling(t *testing.T) {
 			Port:   389,
 			BaseDN: "dc=test,dc=com",
 		}
-		client, err := New(config, "user", "pass")
+		client, err := New(*config, "user", "pass")
 		assert.Error(t, err)
 		assert.Nil(t, client)
 		assert.Contains(t, err.Error(), "server URL cannot be empty")
@@ -680,7 +675,7 @@ func TestConnectionErrorHandling(t *testing.T) {
 			Port:   389,
 			BaseDN: "",
 		}
-		client, err := New(config, "user", "pass")
+		client, err := New(*config, "user", "pass")
 		assert.Error(t, err)
 		assert.Nil(t, client)
 		assert.Contains(t, err.Error(), "base DN cannot be empty")
@@ -692,7 +687,7 @@ func TestConnectionErrorHandling(t *testing.T) {
 			Port:   389,
 			BaseDN: "dc=test,dc=com",
 		}
-		client, err := New(config, "", "pass")
+		client, err := New(*config, "", "pass")
 		assert.Error(t, err)
 		assert.Nil(t, client)
 		assert.Contains(t, err.Error(), "username cannot be empty")
@@ -704,7 +699,7 @@ func TestConnectionErrorHandling(t *testing.T) {
 			Port:   389,
 			BaseDN: "dc=test,dc=com",
 		}
-		client, err := New(config, "user", "")
+		client, err := New(*config, "user", "")
 		assert.Error(t, err)
 		assert.Nil(t, client)
 		assert.Contains(t, err.Error(), "password cannot be empty")
@@ -719,7 +714,7 @@ func TestConnectionConcurrency(t *testing.T) {
 		BaseDN: "dc=example,dc=com",
 	}
 
-	client, err := New(config, "user", "pass")
+	client, err := New(*config, "user", "pass")
 	require.NoError(t, err)
 
 	// Run concurrent connection attempts
@@ -754,7 +749,7 @@ func BenchmarkGetConnectionPerformance(b *testing.B) {
 		BaseDN: "dc=example,dc=com",
 	}
 
-	client, err := New(config, "user", "pass")
+	client, err := New(*config, "user", "pass")
 	if err != nil {
 		b.Fatal(err)
 	}
