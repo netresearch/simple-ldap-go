@@ -507,7 +507,7 @@ func TestWorkerPoolTypes(t *testing.T) {
 		defer pool.Close()
 
 		user := &User{}
-		user.Object.cn = "testuser"
+		user.cn = "testuser"
 
 		err := pool.Submit(WorkItem[*User]{
 			ID:   "pointer_item",
