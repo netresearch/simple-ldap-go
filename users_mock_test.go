@@ -206,7 +206,6 @@ func TestBulkFindUsersBySAMAccountNameWithMock(t *testing.T) {
 	assert.Contains(t, users, "nonexistent")
 }
 
-
 // TestMockLDAPConnUserOperations tests the mock itself
 func TestMockLDAPConnUserOperations(t *testing.T) {
 	t.Run("search for users", func(t *testing.T) {
