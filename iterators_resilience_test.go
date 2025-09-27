@@ -1,3 +1,5 @@
+//go:build !integration
+
 package ldap
 
 import (
@@ -43,7 +45,7 @@ func TestIteratorsWithCircuitBreaker(t *testing.T) {
 
 		assert.Error(t, iterErr)
 		assert.NotContains(t, iterErr.Error(), "circuit breaker")
-		assert.Contains(t, iterErr.Error(), "connection not implemented")
+		assert.Contains(t, iterErr.Error(), "connection to example server not available")
 	})
 
 	t.Run("SearchIter with circuit breaker fast failure", func(t *testing.T) {

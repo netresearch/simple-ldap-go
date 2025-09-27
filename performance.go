@@ -160,6 +160,10 @@ type PerformanceMonitor struct {
 	// Optional external components for integrated metrics
 	cache Cache
 	pool  *ConnectionPool
+
+	// Goroutine management
+	done chan struct{}
+	wg   sync.WaitGroup
 }
 
 // NewPerformanceMonitor creates a new performance monitor with the given configuration
@@ -386,9 +390,14 @@ func (pm *PerformanceMonitor) Reset() {
 // Close stops background tasks and cleans up resources
 func (pm *PerformanceMonitor) Close() error {
 	pm.logger.Debug("performance_monitor_stopping")
-	// Background tasks will stop naturally when the monitor is garbage collected
-	// or when the application exits. For a more graceful shutdown, we could
-	// implement a context-based cancellation system.
+
+	// Signal all goroutines to stop
+	if pm.done != nil {
+		close(pm.done)
+		// Wait for all goroutines to finish
+		pm.wg.Wait()
+	}
+
 	return nil
 }
 
@@ -449,11 +458,22 @@ func (pm *PerformanceMonitor) shouldSample() bool {
 
 // startBackgroundTasks starts background monitoring tasks
 func (pm *PerformanceMonitor) startBackgroundTasks() {
+	// Initialize done channel
+	pm.done = make(chan struct{})
+
 	// Memory stats collection
-	go pm.memoryStatsCollector()
+	pm.wg.Add(1)
+	go func() {
+		defer pm.wg.Done()
+		pm.memoryStatsCollector()
+	}()
 
 	// Periodic cleanup of old metrics
-	go pm.metricsCleanup()
+	pm.wg.Add(1)
+	go func() {
+		defer pm.wg.Done()
+		pm.metricsCleanup()
+	}()
 }
 
 // memoryStatsCollector periodically collects memory and runtime statistics
@@ -461,8 +481,13 @@ func (pm *PerformanceMonitor) memoryStatsCollector() {
 	ticker := time.NewTicker(pm.config.MemoryStatsInterval)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		pm.updateMemoryStats()
+	for {
+		select {
+		case <-pm.done:
+			return
+		case <-ticker.C:
+			pm.updateMemoryStats()
+		}
 	}
 }
 
@@ -484,8 +509,13 @@ func (pm *PerformanceMonitor) metricsCleanup() {
 	ticker := time.NewTicker(pm.config.FlushInterval)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		pm.cleanupOldMetrics()
+	for {
+		select {
+		case <-pm.done:
+			return
+		case <-ticker.C:
+			pm.cleanupOldMetrics()
+		}
 	}
 }
 

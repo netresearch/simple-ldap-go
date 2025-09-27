@@ -1,3 +1,5 @@
+//go:build !integration
+
 // Package ldap provides modern testing patterns for the LDAP client library.
 package ldap
 

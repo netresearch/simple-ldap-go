@@ -151,13 +151,6 @@ func (p *WorkerPool[T]) worker(id int, failFast bool) {
 			p.processed.Add(1)
 			if err != nil {
 				p.errors.Add(1)
-				if failFast {
-					p.logger.Error("worker_fail_fast_triggered",
-						slog.Int("worker_id", id),
-						slog.String("item_id", item.ID),
-						slog.String("error", err.Error()))
-					p.cancel()
-				}
 			}
 
 			// Update average duration (simple moving average)
@@ -165,16 +158,37 @@ func (p *WorkerPool[T]) worker(id int, failFast bool) {
 			newAvg := (oldAvg + duration.Nanoseconds()) / 2
 			p.avgDuration.Store(newAvg)
 
-			// Send result
-			select {
-			case p.resultChan <- WorkResult[T]{
+			// Send result first, before canceling context in fail-fast mode
+			result := WorkResult[T]{
 				ID:       item.ID,
 				Data:     item.Data,
 				Error:    err,
 				Duration: duration,
-			}:
-			case <-p.ctx.Done():
-				return
+			}
+
+			// Try to send the result even if context is cancelled
+			// This ensures timeout errors are delivered
+			select {
+			case p.resultChan <- result:
+				// Result sent successfully
+			default:
+				// If can't send immediately, try one more time with context check
+				select {
+				case p.resultChan <- result:
+					// Result sent successfully
+				case <-p.ctx.Done():
+					// Context cancelled and couldn't send result
+					return
+				}
+			}
+
+			// Now handle fail-fast AFTER the result has been sent
+			if err != nil && failFast {
+				p.logger.Error("worker_fail_fast_triggered",
+					slog.Int("worker_id", id),
+					slog.String("item_id", item.ID),
+					slog.String("error", err.Error()))
+				p.cancel()
 			}
 
 			p.logger.Debug("worker_processed_item",

@@ -167,22 +167,36 @@ Comprehensive examples are available in the [examples](examples/) directory:
 ### Key Operations
 
 ```go
-// Client creation
+// Basic client creation
 client, err := ldap.New(config, username, password)
+
+// Enhanced client with connection pooling and caching
+client, err := ldap.NewHighPerformanceClient(config, username, password)
+// Or with custom configuration:
+client, err := ldap.NewCachedClient(config, username, password, 1000, 5*time.Minute)
+
+// Convenience constructors
+client, err := ldap.NewHighPerformanceClient(config, username, password)
+client, err := ldap.NewCachedClient(config, username, password, 1000, 5*time.Minute)
 
 // User authentication
 user, err := client.CheckPasswordForSAMAccountName("jdoe", "password")
 
-// Find users
+// Find users (standard methods)
 user, err := client.FindUserBySAMAccountName("jdoe")
 users, err := client.FindUsers()
+
+// Find users (caching is transparent if enabled in config)
+user, err := client.FindUserBySAMAccountNameContext(ctx, "jdoe")
+// Caching happens automatically if config.EnableCache is true
 
 // User management
 err := client.CreateUser(fullUser, "ou=Users,dc=example,dc=com")
 err := client.DeleteUser("cn=John Doe,ou=Users,dc=example,dc=com")
 
-// Group operations
-group, err := client.FindGroupByDN("cn=Admins,dc=example,dc=com")
+// Group operations (caching is transparent if enabled)
+group, err := client.FindGroupByDNContext(ctx, "cn=Admins,dc=example,dc=com")
+// Caching happens automatically if config.EnableCache is true
 err := client.AddUserToGroup(userDN, groupDN)
 ```
 
@@ -190,7 +204,9 @@ See the [Go Reference](https://pkg.go.dev/github.com/netresearch/simple-ldap-go)
 
 ## Configuration
 
-### Generic LDAP Server
+### Basic Configuration
+
+#### Generic LDAP Server
 ```go
 config := ldap.Config{
     Server:            "ldap://ldap.example.com:389",
@@ -199,13 +215,52 @@ config := ldap.Config{
 }
 ```
 
-### Microsoft Active Directory
+#### Microsoft Active Directory
 ```go
 config := ldap.Config{
     Server:            "ldaps://ad.example.com:636", // LDAPS recommended
-    BaseDN:            "dc=example,dc=com", 
+    BaseDN:            "dc=example,dc=com",
     IsActiveDirectory: true, // Enables AD-specific features
 }
+```
+
+### Performance Configuration
+
+Enable optimization features using configuration flags:
+
+```go
+config := ldap.Config{
+    Server:               "ldaps://ad.example.com:636",
+    BaseDN:               "dc=example,dc=com",
+    IsActiveDirectory:    true,
+
+    // Performance optimizations
+    EnableOptimizations:  true, // Enable all optimizations
+    EnableCache:         true,  // Enable caching separately
+    EnableMetrics:       true,  // Enable performance metrics
+    EnableBulkOps:       true,  // Enable bulk operations
+}
+```
+
+Or configure specific features:
+
+```go
+// High-performance client with all optimizations
+client, err := ldap.NewHighPerformanceClient(config, username, password)
+
+// Custom configuration with specific features
+// Use config flags to enable features:
+config.EnableOptimizations = true  // Enable all optimizations
+config.EnableCache = true         // Enable caching
+config.EnableMetrics = true       // Enable metrics
+config.EnableBulkOps = true       // Enable bulk operations
+
+// Then create client with convenience constructors:
+client, err := ldap.NewHighPerformanceClient(config, username, password)
+// Or:
+client, err := ldap.NewCachedClient(config, username, password, 1000, 5*time.Minute)
+// Or:
+client, err := ldap.NewPooledClient(config, username, password, 20)
 ```
 
 ## Security Best Practices

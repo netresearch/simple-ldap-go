@@ -56,12 +56,12 @@ type CircuitBreaker struct {
 	name         string
 	mu           sync.RWMutex
 	state        atomic.Int32 // Use atomic for thread-safe state transitions
-	failures     int64
+	failures     atomic.Int64 // Atomic counter for failures
 	lastFailure  time.Time
 	nextRetry    time.Time
-	halfOpenReqs int64
-	requests     int64
-	successes    int64
+	halfOpenReqs atomic.Int64 // Atomic counter for half-open requests
+	requests     atomic.Int64 // Atomic counter for total requests
+	successes    atomic.Int64 // Atomic counter for successes
 }
 
 // NewCircuitBreaker creates a new circuit breaker
@@ -90,10 +90,10 @@ func (cb *CircuitBreaker) Execute(fn func() error) error {
 		cb.logger.Debug("circuit_breaker_blocked",
 			slog.String("name", cb.name),
 			slog.String("state", currentState.String()),
-			slog.Int64("failures", cb.failures))
+			slog.Int64("failures", cb.failures.Load()))
 		return &CircuitBreakerError{
 			State:       currentState.String(),
-			Failures:    int(cb.failures),
+			Failures:    int(cb.failures.Load()),
 			LastFailure: cb.lastFailure,
 			NextRetry:   cb.nextRetry,
 		}
@@ -108,7 +108,7 @@ func (cb *CircuitBreaker) Execute(fn func() error) error {
 
 // canExecute determines if the circuit allows execution
 func (cb *CircuitBreaker) canExecute() bool {
-	atomic.AddInt64(&cb.requests, 1)
+	cb.requests.Add(1)
 
 	currentState := CircuitBreakerState(cb.state.Load())
 
@@ -125,9 +125,7 @@ func (cb *CircuitBreaker) canExecute() bool {
 			// Try to transition from OPEN to HALF_OPEN using atomic compare-and-swap
 			if cb.state.CompareAndSwap(int32(StateCircuitOpen), int32(StateCircuitHalfOpen)) {
 				// Successfully transitioned to half-open
-				cb.mu.Lock()
-				cb.halfOpenReqs = 0
-				cb.mu.Unlock()
+				cb.halfOpenReqs.Store(0)
 
 				cb.logger.Info("circuit_breaker_transition",
 					slog.String("name", cb.name),
@@ -141,7 +139,7 @@ func (cb *CircuitBreaker) canExecute() bool {
 		return false
 	case StateCircuitHalfOpen:
 		// Allow limited requests in half-open state
-		return atomic.LoadInt64(&cb.halfOpenReqs) < cb.config.HalfOpenMaxRequests
+		return cb.halfOpenReqs.Load() < cb.config.HalfOpenMaxRequests
 	default:
 		return false
 	}
@@ -153,18 +151,16 @@ func (cb *CircuitBreaker) recordResult(err error) {
 
 	if err == nil {
 		// Success
-		atomic.AddInt64(&cb.successes, 1)
+		cb.successes.Add(1)
 
 		if currentState == StateCircuitHalfOpen {
 			// If we have enough successful requests in half-open, try to close the circuit
-			halfOpenCount := atomic.AddInt64(&cb.halfOpenReqs, 1)
+			halfOpenCount := cb.halfOpenReqs.Add(1)
 			if halfOpenCount >= cb.config.HalfOpenMaxRequests {
 				// Try to transition from HALF_OPEN to CLOSED
 				if cb.state.CompareAndSwap(int32(StateCircuitHalfOpen), int32(StateCircuitClosed)) {
 					// Successfully closed the circuit
-					cb.mu.Lock()
-					cb.failures = 0
-					cb.mu.Unlock()
+					cb.failures.Store(0)
 
 					cb.logger.Info("circuit_breaker_closed",
 						slog.String("name", cb.name),
@@ -174,7 +170,7 @@ func (cb *CircuitBreaker) recordResult(err error) {
 		}
 	} else {
 		// Failure
-		failureCount := atomic.AddInt64(&cb.failures, 1)
+		failureCount := cb.failures.Add(1)
 
 		cb.mu.Lock()
 		cb.lastFailure = time.Now()
@@ -200,8 +196,9 @@ func (cb *CircuitBreaker) openCircuit() {
 	cb.mu.Lock()
 	cb.nextRetry = time.Now().Add(cb.config.Timeout)
 	nextRetry := cb.nextRetry
-	failures := cb.failures
 	cb.mu.Unlock()
+
+	failures := cb.failures.Load()
 
 	cb.logger.Warn("circuit_breaker_opened",
 		slog.String("name", cb.name),
@@ -218,23 +215,23 @@ func (cb *CircuitBreaker) GetStats() map[string]interface{} {
 	return map[string]interface{}{
 		"name":           cb.name,
 		"state":          currentState.String(),
-		"failures":       atomic.LoadInt64(&cb.failures),
-		"requests":       atomic.LoadInt64(&cb.requests),
-		"successes":      atomic.LoadInt64(&cb.successes),
+		"failures":       cb.failures.Load(),
+		"requests":       cb.requests.Load(),
+		"successes":      cb.successes.Load(),
 		"last_failure":   cb.lastFailure,
 		"next_retry":     cb.nextRetry,
-		"half_open_reqs": atomic.LoadInt64(&cb.halfOpenReqs),
+		"half_open_reqs": cb.halfOpenReqs.Load(),
 		"success_rate":   cb.getSuccessRate(),
 	}
 }
 
 // getSuccessRate calculates the success rate
 func (cb *CircuitBreaker) getSuccessRate() float64 {
-	requests := atomic.LoadInt64(&cb.requests)
+	requests := cb.requests.Load()
 	if requests == 0 {
 		return 1.0
 	}
-	successes := atomic.LoadInt64(&cb.successes)
+	successes := cb.successes.Load()
 	return float64(successes) / float64(requests)
 }
 
@@ -243,10 +240,8 @@ func (cb *CircuitBreaker) Reset() {
 	// Use atomic store for thread-safe state change
 	cb.state.Store(int32(StateCircuitClosed))
 
-	cb.mu.Lock()
-	cb.failures = 0
-	cb.halfOpenReqs = 0
-	cb.mu.Unlock()
+	cb.failures.Store(0)
+	cb.halfOpenReqs.Store(0)
 
 	cb.logger.Info("circuit_breaker_reset", slog.String("name", cb.name))
 }

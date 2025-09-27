@@ -1,3 +1,5 @@
+//go:build !integration
+
 package ldap
 
 import (
@@ -180,7 +182,7 @@ func TestCircuitBreaker(t *testing.T) {
 		// Reset the circuit breaker
 		cb.Reset()
 		assert.Equal(t, StateCircuitClosed, CircuitBreakerState(cb.state.Load()))
-		assert.Equal(t, int64(0), cb.failures)
+		assert.Equal(t, int64(0), cb.failures.Load())
 
 		// Should work normally after reset
 		err := cb.Execute(func() error {

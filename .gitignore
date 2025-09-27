@@ -2,6 +2,12 @@
 *.out
 coverage*.html
 unit_coverage.html
+coverage.out
+
+# Backup and temporary files
+*.bak
+*.tmp
+*~
 
 # Test binaries
 enhanced_errors
