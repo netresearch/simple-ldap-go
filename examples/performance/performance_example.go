@@ -27,7 +27,7 @@ func main() {
 	}
 
 	// Create high-performance LDAP client with advanced features
-	client, err := ldap.NewWithOptions(config, "CN=admin,CN=Users,DC=example,DC=com", "password",
+	client, err := ldap.New(config, "CN=admin,CN=Users,DC=example,DC=com", "password",
 		// Connection pooling for high-volume applications
 		ldap.WithConnectionPool(&ldap.PoolConfig{
 			MaxConnections: 20,
@@ -289,7 +289,7 @@ func demonstrateConfigurationExamples() {
 	highPerfConfig.EnableBulkOps = true
 
 	// Would create with:
-	// client, _ := ldap.NewWithOptions(highPerfConfig, username, password,
+	// client, _ := ldap.New(highPerfConfig, username, password,
 	//     ldap.WithConnectionPool(&ldap.PoolConfig{MaxConnections: 50}),
 	//     ldap.WithCache(&ldap.CacheConfig{MaxSize: 5000, TTL: 10*time.Minute}),
 	// )
@@ -306,7 +306,7 @@ func demonstrateConfigurationExamples() {
 	lowMemoryConfig.EnableCache = true // Selective optimization
 
 	// Would create with:
-	// client, _ := ldap.NewWithOptions(lowMemoryConfig, username, password,
+	// client, _ := ldap.New(lowMemoryConfig, username, password,
 	//     ldap.WithConnectionPool(&ldap.PoolConfig{MaxConnections: 5}),
 	//     ldap.WithCache(&ldap.CacheConfig{MaxSize: 100, MaxMemoryMB: 8}),
 	// )
@@ -323,7 +323,7 @@ func demonstrateConfigurationExamples() {
 	writeHeavyConfig.EnableBulkOps = true // Only bulk operations
 
 	// Would create with:
-	// client, _ := ldap.NewWithOptions(writeHeavyConfig, username, password,
+	// client, _ := ldap.New(writeHeavyConfig, username, password,
 	//     ldap.WithConnectionPool(&ldap.PoolConfig{MaxConnections: 20}),
 	//     ldap.WithCache(&ldap.CacheConfig{TTL: 30*time.Second}), // Short TTL
 	// )
