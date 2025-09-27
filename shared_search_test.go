@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/go-ldap/ldap/v3"
+	"github.com/netresearch/simple-ldap-go/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -36,8 +37,8 @@ func TestDNSearchParams(t *testing.T) {
 // TestFindByDNContext tests the findByDNContext shared search function
 func TestFindByDNContext(t *testing.T) {
 	t.Run("successful search", func(t *testing.T) {
-		mock := NewMockLDAPConn()
-		SetupTestUsersAndGroups(mock)
+		mock := testutil.NewMockLDAPConn()
+		testutil.SetupTestUsersAndGroups(mock)
 
 		client := &LDAP{
 			config: &Config{
@@ -93,7 +94,7 @@ func TestFindByDNContext(t *testing.T) {
 	})
 
 	t.Run("object not found", func(t *testing.T) {
-		mock := NewMockLDAPConn()
+		mock := testutil.NewMockLDAPConn()
 		mock.SearchFunc = func(req *ldap.SearchRequest) (*ldap.SearchResult, error) {
 			return nil, ldap.NewError(ldap.LDAPResultNoSuchObject, errors.New("object not found"))
 		}
@@ -123,7 +124,7 @@ func TestFindByDNContext(t *testing.T) {
 	})
 
 	t.Run("search error", func(t *testing.T) {
-		mock := NewMockLDAPConn()
+		mock := testutil.NewMockLDAPConn()
 		mock.SearchFunc = func(req *ldap.SearchRequest) (*ldap.SearchResult, error) {
 			return nil, errors.New("search failed")
 		}
@@ -210,8 +211,8 @@ func TestFindByDNContext(t *testing.T) {
 func TestFindByDNContextWithMockConnection(t *testing.T) {
 	t.Skip("Skipping test that requires connection injection capability")
 	t.Run("successful user search", func(t *testing.T) {
-		mock := NewMockLDAPConn()
-		SetupTestUsersAndGroups(mock)
+		mock := testutil.NewMockLDAPConn()
+		testutil.SetupTestUsersAndGroups(mock)
 
 		// Test setup would require a way to inject mock connection
 		_ = mock // Mock prepared but cannot be injected without refactoring
@@ -244,7 +245,7 @@ func TestFindByDNContextWithMockConnection(t *testing.T) {
 	})
 
 	t.Run("timeout context", func(t *testing.T) {
-		mock := NewMockLDAPConn()
+		mock := testutil.NewMockLDAPConn()
 		// Add delay to search to trigger timeout
 		mock.SearchFunc = func(req *ldap.SearchRequest) (*ldap.SearchResult, error) {
 			time.Sleep(100 * time.Millisecond)
@@ -288,8 +289,8 @@ func TestFindByDNContextWithMockConnection(t *testing.T) {
 
 // BenchmarkFindByDNContext benchmarks the shared search function
 func BenchmarkFindByDNContext(b *testing.B) {
-	mock := NewMockLDAPConn()
-	SetupTestUsersAndGroups(mock)
+	mock := testutil.NewMockLDAPConn()
+	testutil.SetupTestUsersAndGroups(mock)
 
 	client := &LDAP{
 		config: &Config{

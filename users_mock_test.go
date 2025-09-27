@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/go-ldap/ldap/v3"
+	"github.com/netresearch/simple-ldap-go/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -205,52 +206,12 @@ func TestBulkFindUsersBySAMAccountNameWithMock(t *testing.T) {
 	assert.Contains(t, users, "nonexistent")
 }
 
-// SetupTestUsersAndGroups creates standard test data
-func SetupTestUsersAndGroups(mock *MockLDAPConn) {
-	// Clear existing data
-	mock.Users = make(map[string]*MockUser)
-	mock.Groups = make(map[string]*MockGroup)
-
-	// Add test users
-	mock.AddUser(&MockUser{
-		DN:             "cn=admin,ou=users,dc=example,dc=com",
-		CN:             "admin",
-		SAMAccountName: "admin",
-		Mail:           "admin@example.com",
-		Description:    "Administrator",
-		Password:       "admin123",
-		Enabled:        true,
-		Groups:         []string{"cn=admins,ou=groups,dc=example,dc=com"},
-	})
-
-	mock.AddUser(&MockUser{
-		DN:             "cn=user1,ou=users,dc=example,dc=com",
-		CN:             "user1",
-		SAMAccountName: "user1",
-		Mail:           "user1@example.com",
-		Description:    "Test User 1",
-		Password:       "password1",
-		Enabled:        true,
-		Groups:         []string{"cn=users,ou=groups,dc=example,dc=com"},
-	})
-
-	mock.AddUser(&MockUser{
-		DN:             "cn=disabled,ou=users,dc=example,dc=com",
-		CN:             "disabled",
-		SAMAccountName: "disabled",
-		Mail:           "disabled@example.com",
-		Description:    "Disabled User",
-		Password:       "disabled123",
-		Enabled:        false,
-		Groups:         []string{},
-	})
-}
 
 // TestMockLDAPConnUserOperations tests the mock itself
 func TestMockLDAPConnUserOperations(t *testing.T) {
 	t.Run("search for users", func(t *testing.T) {
-		mock := NewMockLDAPConn()
-		SetupTestUsersAndGroups(mock)
+		mock := testutil.NewMockLDAPConn()
+		testutil.SetupTestUsersAndGroups(mock)
 
 		req := ldap.NewSearchRequest(
 			"ou=users,dc=example,dc=com",
@@ -267,8 +228,8 @@ func TestMockLDAPConnUserOperations(t *testing.T) {
 	})
 
 	t.Run("search by SAMAccountName", func(t *testing.T) {
-		mock := NewMockLDAPConn()
-		SetupTestUsersAndGroups(mock)
+		mock := testutil.NewMockLDAPConn()
+		testutil.SetupTestUsersAndGroups(mock)
 
 		req := ldap.NewSearchRequest(
 			"dc=example,dc=com",
@@ -286,8 +247,8 @@ func TestMockLDAPConnUserOperations(t *testing.T) {
 	})
 
 	t.Run("add new user", func(t *testing.T) {
-		mock := NewMockLDAPConn()
-		SetupTestUsersAndGroups(mock)
+		mock := testutil.NewMockLDAPConn()
+		testutil.SetupTestUsersAndGroups(mock)
 
 		addReq := ldap.NewAddRequest("cn=newuser,ou=users,dc=example,dc=com", nil)
 		addReq.Attribute("objectClass", []string{"user"})
@@ -307,8 +268,8 @@ func TestMockLDAPConnUserOperations(t *testing.T) {
 	})
 
 	t.Run("modify user", func(t *testing.T) {
-		mock := NewMockLDAPConn()
-		SetupTestUsersAndGroups(mock)
+		mock := testutil.NewMockLDAPConn()
+		testutil.SetupTestUsersAndGroups(mock)
 
 		modReq := ldap.NewModifyRequest("cn=user1,ou=users,dc=example,dc=com", nil)
 		modReq.Replace("mail", []string{"updated@example.com"})
@@ -324,8 +285,8 @@ func TestMockLDAPConnUserOperations(t *testing.T) {
 	})
 
 	t.Run("delete user", func(t *testing.T) {
-		mock := NewMockLDAPConn()
-		SetupTestUsersAndGroups(mock)
+		mock := testutil.NewMockLDAPConn()
+		testutil.SetupTestUsersAndGroups(mock)
 
 		delReq := ldap.NewDelRequest("cn=user1,ou=users,dc=example,dc=com", nil)
 		err := mock.Del(delReq)
@@ -336,8 +297,8 @@ func TestMockLDAPConnUserOperations(t *testing.T) {
 	})
 
 	t.Run("bind with valid credentials", func(t *testing.T) {
-		mock := NewMockLDAPConn()
-		SetupTestUsersAndGroups(mock)
+		mock := testutil.NewMockLDAPConn()
+		testutil.SetupTestUsersAndGroups(mock)
 
 		err := mock.Bind("cn=admin,ou=users,dc=example,dc=com", "admin123")
 		assert.NoError(t, err)
@@ -345,8 +306,8 @@ func TestMockLDAPConnUserOperations(t *testing.T) {
 	})
 
 	t.Run("bind with invalid credentials", func(t *testing.T) {
-		mock := NewMockLDAPConn()
-		SetupTestUsersAndGroups(mock)
+		mock := testutil.NewMockLDAPConn()
+		testutil.SetupTestUsersAndGroups(mock)
 
 		err := mock.Bind("cn=admin,ou=users,dc=example,dc=com", "wrongpassword")
 		assert.Error(t, err)
@@ -354,8 +315,8 @@ func TestMockLDAPConnUserOperations(t *testing.T) {
 	})
 
 	t.Run("bind with nonexistent user", func(t *testing.T) {
-		mock := NewMockLDAPConn()
-		SetupTestUsersAndGroups(mock)
+		mock := testutil.NewMockLDAPConn()
+		testutil.SetupTestUsersAndGroups(mock)
 
 		err := mock.Bind("cn=nonexistent,ou=users,dc=example,dc=com", "password")
 		assert.Error(t, err)
@@ -385,8 +346,8 @@ func BenchmarkUserFromEntry(b *testing.B) {
 
 // BenchmarkMockSearch benchmarks mock search operations
 func BenchmarkMockSearch(b *testing.B) {
-	mock := NewMockLDAPConn()
-	SetupTestUsersAndGroups(mock)
+	mock := testutil.NewMockLDAPConn()
+	testutil.SetupTestUsersAndGroups(mock)
 
 	req := ldap.NewSearchRequest(
 		"dc=example,dc=com",

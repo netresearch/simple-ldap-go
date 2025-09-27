@@ -1,4 +1,4 @@
-package ldap
+package testutil
 
 import (
 	"context"
