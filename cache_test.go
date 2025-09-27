@@ -22,7 +22,9 @@ func TestNewLRUCache(t *testing.T) {
 		cache, err := NewLRUCache(nil, nil)
 		require.NoError(t, err)
 		require.NotNil(t, cache)
-		defer cache.Close()
+		defer func() {
+			_ = cache.Close()
+		}()
 
 		// Verify defaults were applied
 		assert.Equal(t, false, cache.config.Enabled) // Disabled by default
@@ -49,7 +51,9 @@ func TestNewLRUCache(t *testing.T) {
 		cache, err := NewLRUCache(config, nil)
 		require.NoError(t, err)
 		require.NotNil(t, cache)
-		defer cache.Close()
+		defer func() {
+			_ = cache.Close()
+		}()
 
 		assert.Equal(t, true, cache.config.Enabled)
 		assert.Equal(t, 10*time.Minute, cache.config.TTL)
@@ -71,7 +75,9 @@ func TestNewLRUCache(t *testing.T) {
 		cache, err := NewLRUCache(config, nil)
 		require.NoError(t, err)
 		require.NotNil(t, cache)
-		defer cache.Close()
+		defer func() {
+			_ = cache.Close()
+		}()
 
 		assert.Equal(t, 5*time.Minute, cache.config.TTL)
 		assert.Equal(t, 1000, cache.config.MaxSize)
@@ -92,7 +98,7 @@ func TestLRUCacheBasicOperations(t *testing.T) {
 
 	cache, err := NewLRUCache(config, nil)
 	require.NoError(t, err)
-	defer cache.Close()
+	defer func() { _ = cache.Close() }()
 
 	t.Run("set and get", func(t *testing.T) {
 		key := "test_key"
@@ -163,7 +169,7 @@ func TestCacheWithContext(t *testing.T) {
 
 	cache, err := NewLRUCache(config, nil)
 	require.NoError(t, err)
-	defer cache.Close()
+	defer func() { _ = cache.Close() }()
 
 	t.Run("set with context", func(t *testing.T) {
 		ctx := context.Background()
@@ -207,7 +213,7 @@ func TestCacheTTL(t *testing.T) {
 
 	cache, err := NewLRUCache(config, nil)
 	require.NoError(t, err)
-	defer cache.Close()
+	defer func() { _ = cache.Close() }()
 
 	t.Run("entry expires after TTL", func(t *testing.T) {
 		key := "expiring_key"
@@ -266,13 +272,13 @@ func TestCacheLRU(t *testing.T) {
 
 	cache, err := NewLRUCache(config, nil)
 	require.NoError(t, err)
-	defer cache.Close()
+	defer func() { _ = cache.Close() }()
 
 	t.Run("LRU eviction when cache is full", func(t *testing.T) {
 		// Fill cache to capacity
-		cache.Set("key1", "value1", 0)
-		cache.Set("key2", "value2", 0)
-		cache.Set("key3", "value3", 0)
+		_ = cache.Set("key1", "value1", 0)
+		_ = cache.Set("key2", "value2", 0)
+		_ = cache.Set("key3", "value3", 0)
 
 		// Wait for entries to become stale for LRU updates to take effect
 		time.Sleep(1100 * time.Millisecond)
@@ -282,7 +288,7 @@ func TestCacheLRU(t *testing.T) {
 		cache.Get("key2")
 
 		// Add a new key, should evict key3 (least recently used)
-		cache.Set("key4", "value4", 0)
+		_ = cache.Set("key4", "value4", 0)
 
 		// key3 should be evicted
 		_, found := cache.Get("key3")
@@ -301,15 +307,15 @@ func TestCacheLRU(t *testing.T) {
 		cache.Clear()
 
 		// Fill cache
-		cache.Set("key1", "value1", 0)
-		cache.Set("key2", "value2", 0)
-		cache.Set("key3", "value3", 0)
+		_ = cache.Set("key1", "value1", 0)
+		_ = cache.Set("key2", "value2", 0)
+		_ = cache.Set("key3", "value3", 0)
 
 		// Update key1 (moves to front)
-		cache.Set("key1", "updated_value1", 0)
+		_ = cache.Set("key1", "updated_value1", 0)
 
 		// Add new key, should evict key2 (now least recently used)
-		cache.Set("key4", "value4", 0)
+		_ = cache.Set("key4", "value4", 0)
 
 		// key2 should be evicted
 		_, found := cache.Get("key2")
@@ -333,7 +339,7 @@ func TestLRUNegativeCache(t *testing.T) {
 
 	cache, err := NewLRUCache(config, nil)
 	require.NoError(t, err)
-	defer cache.Close()
+	defer func() { _ = cache.Close() }()
 
 	t.Run("set and get negative entry", func(t *testing.T) {
 		key := "negative_key"
@@ -369,8 +375,8 @@ func TestLRUNegativeCache(t *testing.T) {
 		cache.Clear()
 
 		// Add some negative entries
-		cache.SetNegative("neg1", 0)
-		cache.SetNegative("neg2", 0)
+		_ = cache.SetNegative("neg1", 0)
+		_ = cache.SetNegative("neg2", 0)
 
 		// Access them
 		cache.Get("neg1")
@@ -394,7 +400,7 @@ func TestCacheWithRefresh(t *testing.T) {
 
 	cache, err := NewLRUCache(config, nil)
 	require.NoError(t, err)
-	defer cache.Close()
+	defer func() { _ = cache.Close() }()
 
 	t.Run("refresh function called when not in cache", func(t *testing.T) {
 		key := "refresh_key"
@@ -442,7 +448,7 @@ func TestCacheWithRefresh(t *testing.T) {
 		refreshedValue := "refreshed"
 
 		// Set initial value
-		cache.Set(key, initialValue, 100*time.Millisecond)
+		_ = cache.Set(key, initialValue, 100*time.Millisecond)
 
 		// Wait for entry to become stale (75% of TTL)
 		time.Sleep(80 * time.Millisecond)
@@ -478,7 +484,7 @@ func TestCacheMemoryManagement(t *testing.T) {
 
 	cache, err := NewLRUCache(config, nil)
 	require.NoError(t, err)
-	defer cache.Close()
+	defer func() { _ = cache.Close() }()
 
 	t.Run("eviction for memory limit", func(t *testing.T) {
 		// Add entries until we approach memory limit
@@ -504,7 +510,7 @@ func TestCacheMemoryManagement(t *testing.T) {
 		// Add entries and verify memory tracking
 		initialMemory := atomic.LoadInt64(&cache.memoryUsage)
 
-		cache.Set("key1", "small_value", 0)
+		_ = cache.Set("key1", "small_value", 0)
 		afterFirst := atomic.LoadInt64(&cache.memoryUsage)
 		assert.Greater(t, afterFirst, initialMemory)
 
@@ -524,7 +530,7 @@ func TestCacheStatistics(t *testing.T) {
 
 	cache, err := NewLRUCache(config, nil)
 	require.NoError(t, err)
-	defer cache.Close()
+	defer func() { _ = cache.Close() }()
 
 	t.Run("track hits and misses", func(t *testing.T) {
 		cache.Clear()
@@ -534,7 +540,7 @@ func TestCacheStatistics(t *testing.T) {
 		atomic.StoreInt64(&cache.stats.Misses, 0)
 
 		// Add entry
-		cache.Set("key1", "value1", 0)
+		_ = cache.Set("key1", "value1", 0)
 
 		// Hit
 		_, found := cache.Get("key1")
@@ -560,7 +566,7 @@ func TestCacheStatistics(t *testing.T) {
 
 		// Perform operations
 		for i := 0; i < 5; i++ {
-			cache.Set(fmt.Sprintf("key%d", i), fmt.Sprintf("value%d", i), 0)
+			_ = cache.Set(fmt.Sprintf("key%d", i), fmt.Sprintf("value%d", i), 0)
 		}
 
 		cache.Delete("key0")
@@ -568,7 +574,7 @@ func TestCacheStatistics(t *testing.T) {
 
 		// Fill cache to trigger eviction
 		for i := 5; i < 15; i++ {
-			cache.Set(fmt.Sprintf("key%d", i), fmt.Sprintf("value%d", i), 0)
+			_ = cache.Set(fmt.Sprintf("key%d", i), fmt.Sprintf("value%d", i), 0)
 		}
 
 		stats := cache.Stats()
@@ -582,7 +588,7 @@ func TestCacheStatistics(t *testing.T) {
 
 		// Perform some operations
 		for i := 0; i < 10; i++ {
-			cache.Set(fmt.Sprintf("key%d", i), "value", 0)
+			_ = cache.Set(fmt.Sprintf("key%d", i), "value", 0)
 			cache.Get(fmt.Sprintf("key%d", i))
 		}
 
@@ -602,7 +608,7 @@ func TestCacheConcurrency(t *testing.T) {
 
 	cache, err := NewLRUCache(config, nil)
 	require.NoError(t, err)
-	defer cache.Close()
+	defer func() { _ = cache.Close() }()
 
 	t.Run("concurrent set and get", func(t *testing.T) {
 		numGoroutines := 50
@@ -636,7 +642,7 @@ func TestCacheConcurrency(t *testing.T) {
 	t.Run("concurrent delete", func(t *testing.T) {
 		// Pre-populate cache
 		for i := 0; i < 50; i++ {
-			cache.Set(fmt.Sprintf("del_key_%d", i), fmt.Sprintf("value_%d", i), 0)
+			_ = cache.Set(fmt.Sprintf("del_key_%d", i), fmt.Sprintf("value_%d", i), 0)
 		}
 
 		numGoroutines := 10
@@ -684,7 +690,7 @@ func TestCacheDisabled(t *testing.T) {
 
 	cache, err := NewLRUCache(config, nil)
 	require.NoError(t, err)
-	defer cache.Close()
+	defer func() { _ = cache.Close() }()
 
 	t.Run("operations return expected values when disabled", func(t *testing.T) {
 		// Set should return error
@@ -735,13 +741,13 @@ func TestCacheBackgroundTasks(t *testing.T) {
 
 	cache, err := NewLRUCache(config, nil)
 	require.NoError(t, err)
-	defer cache.Close()
+	defer func() { _ = cache.Close() }()
 
 	t.Run("expired entries cleaned up", func(t *testing.T) {
 		// Add entries with short TTL
 		for i := 0; i < 5; i++ {
 			key := fmt.Sprintf("expire_%d", i)
-			cache.Set(key, "value", 50*time.Millisecond)
+			_ = cache.Set(key, "value", 50*time.Millisecond)
 		}
 
 		// Wait for expiration and cleanup
@@ -818,7 +824,7 @@ func TestCacheEntryMethods(t *testing.T) {
 func TestCacheEstimateSize(t *testing.T) {
 	cache, err := NewLRUCache(nil, nil)
 	require.NoError(t, err)
-	defer cache.Close()
+	defer func() { _ = cache.Close() }()
 
 	t.Run("string size", func(t *testing.T) {
 		size := cache.estimateEntrySize("key", "value")
@@ -861,7 +867,7 @@ func BenchmarkLRUCacheSet(b *testing.B) {
 
 	cache, err := NewLRUCache(config, nil)
 	require.NoError(b, err)
-	defer cache.Close()
+	defer func() { _ = cache.Close() }()
 
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
@@ -869,7 +875,7 @@ func BenchmarkLRUCacheSet(b *testing.B) {
 		for pb.Next() {
 			key := fmt.Sprintf("key_%d", i)
 			value := fmt.Sprintf("value_%d", i)
-			cache.Set(key, value, 0)
+			_ = cache.Set(key, value, 0)
 			i++
 		}
 	})
@@ -885,13 +891,13 @@ func BenchmarkLRUCacheGet(b *testing.B) {
 
 	cache, err := NewLRUCache(config, nil)
 	require.NoError(b, err)
-	defer cache.Close()
+	defer func() { _ = cache.Close() }()
 
 	// Pre-populate cache
 	for i := 0; i < 1000; i++ {
 		key := fmt.Sprintf("key_%d", i)
 		value := fmt.Sprintf("value_%d", i)
-		cache.Set(key, value, 0)
+		_ = cache.Set(key, value, 0)
 	}
 
 	b.ResetTimer()
@@ -915,7 +921,7 @@ func BenchmarkCacheConcurrent(b *testing.B) {
 
 	cache, err := NewLRUCache(config, nil)
 	require.NoError(b, err)
-	defer cache.Close()
+	defer func() { _ = cache.Close() }()
 
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
@@ -925,7 +931,7 @@ func BenchmarkCacheConcurrent(b *testing.B) {
 			value := fmt.Sprintf("value_%d", i)
 
 			if i%2 == 0 {
-				cache.Set(key, value, 0)
+				_ = cache.Set(key, value, 0)
 			} else {
 				cache.Get(key)
 			}
