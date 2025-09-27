@@ -113,6 +113,21 @@ func (l *LDAP) FindUserByDN(dn string) (user *User, err error) {
 func (l *LDAP) FindUserByDNContext(ctx context.Context, dn string) (user *User, err error) {
 	start := time.Now()
 
+	// Check cache if enabled
+	var cacheKey string
+	if l.config.EnableCache && l.cache != nil {
+		cacheKey = fmt.Sprintf("user:dn:%s", dn)
+		if cached, found := l.cache.Get(cacheKey); found {
+			if cachedUser, ok := cached.(*User); ok {
+				l.logger.Debug("user_cache_hit",
+					slog.String("operation", "FindUserByDN"),
+					slog.String("dn", dn),
+					slog.Duration("duration", time.Since(start)))
+				return cachedUser, nil
+			}
+		}
+	}
+
 	// Use generic DN search function to eliminate code duplication
 	params := dnSearchParams{
 		operation:   "FindUserByDN",
@@ -150,6 +165,15 @@ func (l *LDAP) FindUserByDNContext(ctx context.Context, dn string) (user *User, 
 			slog.String("dn", dn),
 			slog.String("error", err.Error()))
 		return nil, fmt.Errorf("failed to parse user entry for DN %s: %w", dn, err)
+	}
+
+	// Cache the result if caching is enabled
+	if l.config.EnableCache && l.cache != nil && user != nil {
+		ttl := 5 * time.Minute // Default TTL
+		if l.config.Cache != nil && l.config.Cache.TTL > 0 {
+			ttl = l.config.Cache.TTL
+		}
+		l.cache.Set(cacheKey, user, ttl)
 	}
 
 	l.logger.Debug("user_found_by_dn",
@@ -201,6 +225,22 @@ func (l *LDAP) FindUserBySAMAccountNameContext(ctx context.Context, sAMAccountNa
 	start := time.Now()
 	// Mask sensitive data for logging
 	maskedUsername := maskSensitiveData(sAMAccountName)
+
+	// Check cache if enabled
+	var cacheKey string
+	if l.config.EnableCache && l.cache != nil {
+		cacheKey = fmt.Sprintf("user:sam:%s", sAMAccountName)
+		if cached, found := l.cache.Get(cacheKey); found {
+			if cachedUser, ok := cached.(*User); ok {
+				l.logger.Debug("user_cache_hit",
+					slog.String("operation", "FindUserBySAMAccountName"),
+					slog.String("username_masked", maskedUsername),
+					slog.Duration("duration", time.Since(start)))
+				return cachedUser, nil
+			}
+		}
+	}
+
 	l.logger.Debug("user_search_by_sam_account_started",
 		slog.String("operation", "FindUserBySAMAccountName"),
 		slog.String("username_masked", maskedUsername))
@@ -301,6 +341,16 @@ func (l *LDAP) FindUserBySAMAccountNameContext(ctx context.Context, sAMAccountNa
 		return nil, err
 	}
 
+	// Store in cache if enabled
+	if l.config.EnableCache && l.cache != nil && cacheKey != "" {
+		if err := l.cache.Set(cacheKey, user, 5*time.Minute); err != nil {
+			l.logger.Debug("cache_set_error",
+				slog.String("operation", "FindUserBySAMAccountName"),
+				slog.String("key", cacheKey),
+				slog.String("error", err.Error()))
+		}
+	}
+
 	l.logger.Debug("user_found_by_sam_account",
 		slog.String("operation", "FindUserBySAMAccountName"),
 		slog.String("username_masked", maskedUsername),
@@ -341,6 +391,21 @@ func (l *LDAP) FindUserByMail(mail string) (user *User, err error) {
 // This method performs a subtree search starting from the configured BaseDN.
 func (l *LDAP) FindUserByMailContext(ctx context.Context, mail string) (user *User, err error) {
 	start := time.Now()
+
+	// Check cache if enabled
+	var cacheKey string
+	if l.config.EnableCache && l.cache != nil {
+		cacheKey = fmt.Sprintf("user:mail:%s", mail)
+		if cached, found := l.cache.Get(cacheKey); found {
+			if cachedUser, ok := cached.(*User); ok {
+				l.logger.Debug("user_cache_hit",
+					slog.String("operation", "FindUserByMail"),
+					slog.String("mail", mail),
+					slog.Duration("duration", time.Since(start)))
+				return cachedUser, nil
+			}
+		}
+	}
 	l.logger.Debug("user_search_by_mail_started",
 		slog.String("operation", "FindUserByMail"),
 		slog.String("mail", mail))
@@ -413,6 +478,16 @@ func (l *LDAP) FindUserByMailContext(ctx context.Context, mail string) (user *Us
 			slog.String("mail", mail),
 			slog.String("error", err.Error()))
 		return nil, err
+	}
+
+	// Store in cache if enabled
+	if l.config.EnableCache && l.cache != nil && cacheKey != "" {
+		if err := l.cache.Set(cacheKey, user, 5*time.Minute); err != nil {
+			l.logger.Debug("cache_set_error",
+				slog.String("operation", "FindUserByMail"),
+				slog.String("key", cacheKey),
+				slog.String("error", err.Error()))
+		}
 	}
 
 	l.logger.Debug("user_found_by_mail",

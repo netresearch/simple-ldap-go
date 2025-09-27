@@ -3,6 +3,7 @@ package ldap
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -65,6 +66,21 @@ func (l *LDAP) FindGroupByDN(dn string) (group *Group, err error) {
 func (l *LDAP) FindGroupByDNContext(ctx context.Context, dn string) (group *Group, err error) {
 	start := time.Now()
 
+	// Check cache if enabled
+	var cacheKey string
+	if l.config.EnableCache && l.cache != nil {
+		cacheKey = fmt.Sprintf("group:dn:%s", dn)
+		if cached, found := l.cache.Get(cacheKey); found {
+			if cachedGroup, ok := cached.(*Group); ok {
+				l.logger.Debug("group_cache_hit",
+					slog.String("operation", "FindGroupByDN"),
+					slog.String("dn", dn),
+					slog.Duration("duration", time.Since(start)))
+				return cachedGroup, nil
+			}
+		}
+	}
+
 	// Use generic DN search function to eliminate code duplication
 	params := dnSearchParams{
 		operation:   "FindGroupByDN",
@@ -99,6 +115,16 @@ func (l *LDAP) FindGroupByDNContext(ctx context.Context, dn string) (group *Grou
 	group = &Group{
 		Object:  objectFromEntry(r.Entries[0]),
 		Members: r.Entries[0].GetAttributeValues("member"),
+	}
+
+	// Store in cache if enabled
+	if l.config.EnableCache && l.cache != nil && cacheKey != "" {
+		if err := l.cache.Set(cacheKey, group, 5*time.Minute); err != nil {
+			l.logger.Debug("cache_set_error",
+				slog.String("operation", "FindGroupByDN"),
+				slog.String("key", cacheKey),
+				slog.String("error", err.Error()))
+		}
 	}
 
 	l.logger.Debug("group_found_by_dn",
