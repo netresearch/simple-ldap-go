@@ -484,7 +484,7 @@ func NewWithOptions(config Config, username, password string, opts ...Option) (*
 	}
 
 	start := time.Now()
-	l.logger.Debug("ldap_modern_client_initializing",
+	l.logger.Debug("ldap_client_initializing",
 		slog.String("server", l.config.Server),
 		slog.String("base_dn", l.config.BaseDN),
 		slog.Bool("is_active_directory", l.config.IsActiveDirectory),
@@ -505,7 +505,7 @@ func NewWithOptions(config Config, username, password string, opts ...Option) (*
 		}
 		l.connPool = pool
 
-		l.logger.Info("ldap_modern_client_initialized_with_pool",
+		l.logger.Info("ldap_client_initialized_with_pool",
 			slog.String("server", l.config.Server),
 			slog.Int("max_connections", l.config.Pool.MaxConnections),
 			slog.Int("min_connections", l.config.Pool.MinConnections),
@@ -531,7 +531,7 @@ func NewWithOptions(config Config, username, password string, opts ...Option) (*
 
 			c, err := l.GetConnectionContext(ctx)
 			if err != nil {
-				l.logger.Error("ldap_modern_client_initialization_failed",
+				l.logger.Error("ldap_client_initialization_failed",
 					slog.String("server", l.config.Server),
 					slog.String("error", err.Error()),
 					slog.Duration("duration", time.Since(start)))
@@ -540,7 +540,7 @@ func NewWithOptions(config Config, username, password string, opts ...Option) (*
 			_ = c.Close()
 		}
 
-		l.logger.Info("ldap_modern_client_initialized",
+		l.logger.Info("ldap_client_initialized",
 			slog.String("server", l.config.Server),
 			slog.Duration("duration", time.Since(start)))
 	}
@@ -555,7 +555,7 @@ func NewWithOptions(config Config, username, password string, opts ...Option) (*
 			// Don't fail client creation if cache fails, just log and continue without cache
 		} else {
 			l.cache = cache
-			l.logger.Info("ldap_modern_client_cache_initialized",
+			l.logger.Info("ldap_client_cache_initialized",
 				slog.String("server", l.config.Server),
 				slog.Int("max_size", l.config.Cache.MaxSize),
 				slog.Duration("ttl", l.config.Cache.TTL),
@@ -573,7 +573,7 @@ func NewWithOptions(config Config, username, password string, opts ...Option) (*
 		perfMonitor := NewPerformanceMonitor(perfConfig, l.logger)
 		l.perfMonitor = perfMonitor
 
-		l.logger.Info("ldap_modern_client_performance_monitoring_initialized",
+		l.logger.Info("ldap_client_performance_monitoring_initialized",
 			slog.String("server", l.config.Server),
 			slog.Bool("detailed_metrics", perfConfig.DetailedMetrics),
 			slog.Duration("slow_query_threshold", perfConfig.SlowQueryThreshold))
@@ -590,7 +590,7 @@ func NewWithOptions(config Config, username, password string, opts ...Option) (*
 			cb := NewCircuitBreaker("ldap_client", cbConfig, l.logger)
 			l.circuitBreaker = cb
 
-			l.logger.Info("ldap_modern_client_circuit_breaker_initialized",
+			l.logger.Info("ldap_client_circuit_breaker_initialized",
 				slog.String("server", l.config.Server))
 		}
 
@@ -598,7 +598,7 @@ func NewWithOptions(config Config, username, password string, opts ...Option) (*
 		// TODO: Implement rate limiting if needed
 	}
 
-	l.logger.Info("ldap_modern_client_fully_initialized",
+	l.logger.Info("ldap_client_fully_initialized",
 		slog.String("server", l.config.Server),
 		slog.Duration("total_duration", time.Since(start)))
 
