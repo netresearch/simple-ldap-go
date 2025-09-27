@@ -362,3 +362,766 @@ func BenchmarkConnectionPool_GetPut(b *testing.B) {
 		b.ReportMetric(float64(stats.ConnectionsCreated), "connections_created")
 	}
 }
+func TestLDAP_WithConnectionPool(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	server := os.Getenv("LDAP_SERVER")
+	baseDN := os.Getenv("LDAP_BASE_DN")
+	bindDN := os.Getenv("LDAP_BIND_DN")
+	bindPassword := os.Getenv("LDAP_BIND_PASSWORD")
+
+	if server == "" || baseDN == "" || bindDN == "" || bindPassword == "" {
+		t.Skip("LDAP test environment not configured. Set LDAP_SERVER, LDAP_BASE_DN, LDAP_BIND_DN, and LDAP_BIND_PASSWORD")
+	}
+
+	config := Config{
+		Server:            server,
+		BaseDN:            baseDN,
+		IsActiveDirectory: false,
+		Logger:            slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})),
+		Pool: &PoolConfig{
+			MaxConnections:      10,
+			MinConnections:      3,
+			MaxIdleTime:         2 * time.Minute,
+			HealthCheckInterval: 30 * time.Second,
+			ConnectionTimeout:   10 * time.Second,
+			GetTimeout:          5 * time.Second,
+		},
+	}
+
+	client, err := New(&config, bindDN, bindPassword)
+	require.NoError(t, err)
+	defer func() { _ = client.Close() }()
+
+	// Verify pool is initialized
+	stats := client.GetPoolStats()
+	require.NotNil(t, stats)
+	assert.GreaterOrEqual(t, stats.TotalConnections, int32(3))
+	t.Logf("Initial pool stats: %+v", stats)
+
+	t.Run("BasicOperations", func(t *testing.T) {
+		ctx := context.Background()
+
+		// Test user operations
+		users, err := client.FindUsersContext(ctx)
+		assert.NoError(t, err)
+		t.Logf("Found %d users", len(users))
+
+		if len(users) > 0 {
+			// Test finding specific user
+			user, err := client.FindUserByDNContext(ctx, users[0].DN())
+			assert.NoError(t, err)
+			assert.Equal(t, users[0].DN(), user.DN())
+		}
+	})
+
+	t.Run("ConcurrentOperations", func(t *testing.T) {
+		const numGoroutines = 20
+		const operationsPerGoroutine = 5
+
+		var wg sync.WaitGroup
+		errCh := make(chan error, numGoroutines*operationsPerGoroutine)
+
+		startTime := time.Now()
+
+		for i := 0; i < numGoroutines; i++ {
+			wg.Add(1)
+			go func(id int) {
+				defer wg.Done()
+				ctx := context.Background()
+
+				for j := 0; j < operationsPerGoroutine; j++ {
+					// Perform various operations
+					_, err := client.FindUsersContext(ctx)
+					if err != nil {
+						errCh <- err
+						continue
+					}
+
+					// Small delay to simulate real usage
+					time.Sleep(10 * time.Millisecond)
+				}
+			}(i)
+		}
+
+		wg.Wait()
+		close(errCh)
+
+		duration := time.Since(startTime)
+		t.Logf("Concurrent operations completed in %v", duration)
+
+		// Check for errors
+		var errors []error
+		for err := range errCh {
+			errors = append(errors, err)
+		}
+		assert.Empty(t, errors, "Expected no errors during concurrent operations")
+
+		// Check final stats
+		finalStats := client.GetPoolStats()
+		require.NotNil(t, finalStats)
+		assert.Greater(t, finalStats.PoolHits, int64(0))
+		t.Logf("Final pool stats: %+v", finalStats)
+
+		// Pool hits should be much higher than misses for efficient pooling
+		if finalStats.PoolHits > 0 && finalStats.PoolMisses > 0 {
+			hitRatio := float64(finalStats.PoolHits) / float64(finalStats.PoolHits+finalStats.PoolMisses)
+			t.Logf("Pool hit ratio: %.2f%%", hitRatio*100)
+			assert.Greater(t, hitRatio, 0.5, "Expected pool hit ratio > 50%")
+		}
+	})
+
+	t.Run("PoolStatsProgression", func(t *testing.T) {
+		ctx := context.Background()
+
+		initialStats := client.GetPoolStats()
+		require.NotNil(t, initialStats)
+
+		// Perform several operations
+		for i := 0; i < 10; i++ {
+			_, err := client.FindUsersContext(ctx)
+			assert.NoError(t, err)
+		}
+
+		finalStats := client.GetPoolStats()
+		require.NotNil(t, finalStats)
+
+		// Stats should have progressed
+		assert.GreaterOrEqual(t, finalStats.PoolHits, initialStats.PoolHits)
+
+		t.Logf("Stats progression: initial_hits=%d, final_hits=%d",
+			initialStats.PoolHits, finalStats.PoolHits)
+	})
+}
+
+func TestLDAP_WithoutConnectionPool(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	server := os.Getenv("LDAP_SERVER")
+	baseDN := os.Getenv("LDAP_BASE_DN")
+	bindDN := os.Getenv("LDAP_BIND_DN")
+	bindPassword := os.Getenv("LDAP_BIND_PASSWORD")
+
+	if server == "" || baseDN == "" || bindDN == "" || bindPassword == "" {
+		t.Skip("LDAP test environment not configured")
+	}
+
+	// Create client without pool configuration (legacy behavior)
+	config := Config{
+		Server:            server,
+		BaseDN:            baseDN,
+		IsActiveDirectory: false,
+		Logger:            slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})),
+		// Pool: nil - no pooling
+	}
+
+	client, err := New(&config, bindDN, bindPassword)
+	require.NoError(t, err)
+	defer func() { _ = client.Close() }()
+
+	// Verify no pool is initialized
+	stats := client.GetPoolStats()
+	assert.Nil(t, stats, "Expected no pool stats when pooling is disabled")
+
+	t.Run("LegacyBehaviorWorks", func(t *testing.T) {
+		ctx := context.Background()
+
+		// Operations should still work without pooling
+		users, err := client.FindUsersContext(ctx)
+		assert.NoError(t, err)
+		t.Logf("Found %d users without pooling", len(users))
+	})
+}
+
+func TestLDAP_PooledConnectionInterface(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	server := os.Getenv("LDAP_SERVER")
+	baseDN := os.Getenv("LDAP_BASE_DN")
+	bindDN := os.Getenv("LDAP_BIND_DN")
+	bindPassword := os.Getenv("LDAP_BIND_PASSWORD")
+
+	if server == "" || baseDN == "" || bindDN == "" || bindPassword == "" {
+		t.Skip("LDAP test environment not configured")
+	}
+
+	config := Config{
+		Server:            server,
+		BaseDN:            baseDN,
+		IsActiveDirectory: false,
+		Pool: &PoolConfig{
+			MaxConnections: 3,
+			MinConnections: 1,
+		},
+	}
+
+	client, err := New(&config, bindDN, bindPassword)
+	require.NoError(t, err)
+	defer func() { _ = client.Close() }()
+
+	ctx := context.Background()
+
+	t.Run("ConnectionInterfaceCompliance", func(t *testing.T) {
+		conn, err := client.GetConnectionContext(ctx)
+		require.NoError(t, err)
+		defer func() {
+			_ = conn.Close()
+		}()
+
+		// Test that pooled connection implements required interface methods
+		assert.NotNil(t, conn)
+
+		// Test search operation through pooled connection
+		searchReq := &ldap.SearchRequest{
+			BaseDN:       baseDN,
+			Scope:        ldap.ScopeWholeSubtree,
+			DerefAliases: ldap.NeverDerefAliases,
+			Filter:       "(objectClass=*)",
+			Attributes:   []string{"cn"},
+			SizeLimit:    1,
+		}
+
+		result, err := conn.Search(searchReq)
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+	})
+
+	t.Run("ConnectionReuse", func(t *testing.T) {
+		initialStats := client.GetPoolStats()
+		require.NotNil(t, initialStats)
+
+		// Get and immediately return connection multiple times
+		for i := 0; i < 5; i++ {
+			conn, err := client.GetConnectionContext(ctx)
+			require.NoError(t, err)
+			_ = conn.Close() // Should return to pool
+		}
+
+		finalStats := client.GetPoolStats()
+		require.NotNil(t, finalStats)
+
+		// Should have reused connections
+		assert.Greater(t, finalStats.PoolHits, initialStats.PoolHits)
+
+		t.Logf("Connection reuse test: hits increased by %d",
+			finalStats.PoolHits-initialStats.PoolHits)
+	})
+}
+
+func BenchmarkLDAP_PooledVsNonPooled(b *testing.B) {
+	server := os.Getenv("LDAP_SERVER")
+	baseDN := os.Getenv("LDAP_BASE_DN")
+	bindDN := os.Getenv("LDAP_BIND_DN")
+	bindPassword := os.Getenv("LDAP_BIND_PASSWORD")
+
+	if server == "" || baseDN == "" || bindDN == "" || bindPassword == "" {
+		b.Skip("LDAP test environment not configured")
+	}
+
+	b.Run("WithPool", func(b *testing.B) {
+		config := Config{
+			Server: server,
+			BaseDN: baseDN,
+			Pool: &PoolConfig{
+				MaxConnections: 10,
+				MinConnections: 5,
+			},
+		}
+
+		client, err := New(&config, bindDN, bindPassword)
+		require.NoError(b, err)
+		defer func() { _ = client.Close() }()
+
+		ctx := context.Background()
+
+		b.ResetTimer()
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				_, err := client.FindUsersContext(ctx)
+				if err != nil {
+					b.Error(err)
+				}
+			}
+		})
+
+		// Log final stats
+		if !b.Failed() {
+			stats := client.GetPoolStats()
+			b.Logf("Pool stats: hits=%d, misses=%d, hit_ratio=%.2f%%",
+				stats.PoolHits, stats.PoolMisses,
+				float64(stats.PoolHits)/float64(stats.PoolHits+stats.PoolMisses)*100)
+		}
+	})
+
+	b.Run("WithoutPool", func(b *testing.B) {
+		config := Config{
+			Server: server,
+			BaseDN: baseDN,
+			// Pool: nil - no pooling
+		}
+
+		client, err := New(&config, bindDN, bindPassword)
+		require.NoError(b, err)
+		defer func() { _ = client.Close() }()
+
+		ctx := context.Background()
+
+		b.ResetTimer()
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				_, err := client.FindUsersContext(ctx)
+				if err != nil {
+					b.Error(err)
+				}
+			}
+		})
+	})
+}
+
+func TestLDAP_PoolWithCredentials(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	server := os.Getenv("LDAP_SERVER")
+	baseDN := os.Getenv("LDAP_BASE_DN")
+	bindDN := os.Getenv("LDAP_BIND_DN")
+	bindPassword := os.Getenv("LDAP_BIND_PASSWORD")
+
+	if server == "" || baseDN == "" || bindDN == "" || bindPassword == "" {
+		t.Skip("LDAP test environment not configured")
+	}
+
+	config := Config{
+		Server: server,
+		BaseDN: baseDN,
+		Pool: &PoolConfig{
+			MaxConnections: 5,
+			MinConnections: 2,
+		},
+	}
+
+	client1, err := New(&config, bindDN, bindPassword)
+	require.NoError(t, err)
+	defer func() { _ = client1.Close() }()
+
+	t.Run("WithCredentialsCreatesSeparatePool", func(t *testing.T) {
+		// Create client with different credentials (should have separate pool)
+		client2, err := client1.WithCredentials(bindDN, bindPassword)
+		require.NoError(t, err)
+		defer func() { _ = client2.Close() }()
+
+		// Both clients should have pools
+		stats1 := client1.GetPoolStats()
+		stats2 := client2.GetPoolStats()
+
+		assert.NotNil(t, stats1)
+		assert.NotNil(t, stats2)
+
+		// They should be independent pools
+		ctx := context.Background()
+		_, err = client1.FindUsersContext(ctx)
+		assert.NoError(t, err)
+
+		newStats1 := client1.GetPoolStats()
+		unchangedStats2 := client2.GetPoolStats()
+
+		// Client1 stats should change, client2 should remain unchanged
+		assert.Greater(t, newStats1.PoolHits, stats1.PoolHits)
+		assert.Equal(t, stats2.PoolHits, unchangedStats2.PoolHits)
+	})
+}
+
+// Tests from client_pool_init_test.go
+func TestPoolInitialization(t *testing.T) {
+	t.Run("pool enabled for non-example servers", func(t *testing.T) {
+		config := &Config{
+			Server: "ldap://production.server.com",
+			Port:   389,
+			BaseDN: "dc=prod,dc=com",
+			Pool: &PoolConfig{
+				MaxConnections:      10,
+				MinConnections:      2,
+				MaxIdleTime:         5 * time.Minute,
+				HealthCheckInterval: 30 * time.Second,
+			},
+		}
+
+		client, err := New(config, "user", "pass")
+		require.NoError(t, err)
+		require.NotNil(t, client)
+
+		// Pool initialization may fail for non-reachable servers
+		// but the client should still be created
+		if client.connPool != nil {
+			assert.NotNil(t, client.connPool)
+		}
+	})
+
+	t.Run("pool disabled for example servers", func(t *testing.T) {
+		exampleServers := []string{
+			"ldap://example.com",
+			"ldap://localhost",
+			"ldaps://example.org",
+			"ldap://test.example.com",
+		}
+
+		for _, server := range exampleServers {
+			config := &Config{
+				Server: server,
+				Port:   389,
+				BaseDN: "dc=example,dc=com",
+				Pool: &PoolConfig{
+					MaxConnections: 5,
+				},
+			}
+
+			client, err := New(config, "user", "pass")
+			require.NoError(t, err, "Failed for server: %s", server)
+			assert.Nil(t, client.connPool, "Pool should be nil for example server: %s", server)
+		}
+	})
+
+	t.Run("pool not initialized when config is nil", func(t *testing.T) {
+		config := &Config{
+			Server: "ldap://prod.server.com",
+			Port:   389,
+			BaseDN: "dc=prod,dc=com",
+			Pool:   nil,
+		}
+
+		client, err := New(config, "user", "pass")
+		require.NoError(t, err)
+		assert.Nil(t, client.connPool)
+	})
+
+	t.Run("pool configuration validation", func(t *testing.T) {
+		testCases := []struct {
+			name       string
+			poolConfig *PoolConfig
+			shouldFail bool
+		}{
+			{
+				name: "valid config",
+				poolConfig: &PoolConfig{
+					MaxConnections: 10,
+					MinConnections: 2,
+				},
+				shouldFail: false,
+			},
+			{
+				name: "min greater than max",
+				poolConfig: &PoolConfig{
+					MaxConnections: 5,
+					MinConnections: 10,
+				},
+				shouldFail: false, // Client creation shouldn't fail, pool init might
+			},
+			{
+				name: "zero connections",
+				poolConfig: &PoolConfig{
+					MaxConnections: 0,
+					MinConnections: 0,
+				},
+				shouldFail: false, // Client creation shouldn't fail
+			},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				config := &Config{
+					Server: "ldap://server.com",
+					Port:   389,
+					BaseDN: "dc=test,dc=com",
+					Pool:   tc.poolConfig,
+				}
+
+				client, err := New(config, "user", "pass")
+				if tc.shouldFail {
+					assert.Error(t, err)
+					assert.Nil(t, client)
+				} else {
+					assert.NoError(t, err)
+					assert.NotNil(t, client)
+				}
+			})
+		}
+	})
+
+	t.Run("pool with connection options", func(t *testing.T) {
+		config := &Config{
+			Server: "ldap://server.com",
+			Port:   389,
+			BaseDN: "dc=test,dc=com",
+			Pool: &PoolConfig{
+				MaxConnections: 5,
+				MaxIdleTime:    10 * time.Minute,
+			},
+			DialOptions: []ldap.DialOpt{
+				ldap.DialWithTLSConfig(nil),
+			},
+		}
+
+		client, err := New(config, "user", "pass",
+			WithTimeout(5*time.Second, 10*time.Second))
+		require.NoError(t, err)
+		assert.NotNil(t, client)
+		assert.Equal(t, 10*time.Second, client.operationTimeout)
+	})
+
+	t.Run("pool initialization with circuit breaker", func(t *testing.T) {
+		config := &Config{
+			Server: "ldap://server.com",
+			Port:   389,
+			BaseDN: "dc=test,dc=com",
+			Pool: &PoolConfig{
+				MaxConnections: 5,
+			},
+			Resilience: &ResilienceConfig{
+				EnableCircuitBreaker: true,
+				CircuitBreaker: &CircuitBreakerConfig{
+					MaxFailures: 3,
+					Timeout:     30 * time.Second,
+				},
+			},
+		}
+
+		client, err := New(config, "user", "pass")
+		require.NoError(t, err)
+		assert.NotNil(t, client)
+		assert.NotNil(t, client.circuitBreaker)
+	})
+
+	t.Run("pool initialization failure handling", func(t *testing.T) {
+		// This tests that even if pool initialization fails,
+		// the client can still be created and fall back to direct connections
+		config := &Config{
+			Server: "ldap://unreachable.server.com",
+			Port:   389,
+			BaseDN: "dc=test,dc=com",
+			Pool: &PoolConfig{
+				MaxConnections: 5,
+				MinConnections: 5, // Force immediate connection attempts
+			},
+		}
+
+		client, err := New(config, "user", "pass")
+		require.NoError(t, err)
+		assert.NotNil(t, client)
+		// Pool may be nil if initialization failed
+		// Client should fall back to direct connections
+	})
+
+	t.Run("connection retrieval with and without pool", func(t *testing.T) {
+		// Without pool
+		configNoPool := &Config{
+			Server: "ldap://example.com",
+			Port:   389,
+			BaseDN: "dc=example,dc=com",
+		}
+
+		clientNoPool, err := New(configNoPool, "user", "pass")
+		require.NoError(t, err)
+		assert.Nil(t, clientNoPool.connPool)
+
+		ctx := context.Background()
+		conn, err := clientNoPool.GetConnectionContext(ctx)
+		assert.Error(t, err)
+		assert.Nil(t, conn)
+		assert.Contains(t, err.Error(), "connection to example server not available")
+
+		// With pool (but for example server, so pool won't be initialized)
+		configWithPool := &Config{
+			Server: "ldap://example.com",
+			Port:   389,
+			BaseDN: "dc=example,dc=com",
+			Pool: &PoolConfig{
+				MaxConnections: 5,
+			},
+		}
+
+		clientWithPool, err := New(configWithPool, "user", "pass")
+		require.NoError(t, err)
+		assert.Nil(t, clientWithPool.connPool) // Pool not initialized for example servers
+
+		conn, err = clientWithPool.GetConnectionContext(ctx)
+		assert.Error(t, err)
+		assert.Nil(t, conn)
+		assert.Contains(t, err.Error(), "connection to example server not available")
+	})
+
+	t.Run("pool with custom logger", func(t *testing.T) {
+		customLogger := slog.Default().With("test", "pool_init")
+
+		config := &Config{
+			Server: "ldap://server.com",
+			Port:   389,
+			BaseDN: "dc=test,dc=com",
+			Pool: &PoolConfig{
+				MaxConnections: 5,
+			},
+			Logger: customLogger,
+		}
+
+		client, err := New(config, "user", "pass", WithLogger(customLogger))
+		require.NoError(t, err)
+		assert.NotNil(t, client)
+		assert.Equal(t, customLogger, client.logger)
+	})
+}
+
+// TestPoolHealthCheck tests connection pool health checking
+func TestPoolHealthCheck(t *testing.T) {
+	t.Run("health check interval configuration", func(t *testing.T) {
+		config := &Config{
+			Server: "ldap://server.com",
+			Port:   389,
+			BaseDN: "dc=test,dc=com",
+			Pool: &PoolConfig{
+				MaxConnections:      5,
+				HealthCheckInterval: 10 * time.Second,
+			},
+		}
+
+		client, err := New(config, "user", "pass")
+		require.NoError(t, err)
+		assert.NotNil(t, client)
+
+		// Verify pool config is stored correctly
+		assert.Equal(t, config.Pool.HealthCheckInterval, 10*time.Second)
+	})
+
+	t.Run("pool with idle timeout", func(t *testing.T) {
+		config := &Config{
+			Server: "ldap://server.com",
+			Port:   389,
+			BaseDN: "dc=test,dc=com",
+			Pool: &PoolConfig{
+				MaxConnections: 5,
+				MaxIdleTime:    30 * time.Second,
+			},
+		}
+
+		client, err := New(config, "user", "pass")
+		require.NoError(t, err)
+		assert.NotNil(t, client)
+
+		// Verify idle timeout is configured
+		assert.Equal(t, config.Pool.MaxIdleTime, 30*time.Second)
+	})
+}
+
+// TestPoolConcurrency tests concurrent pool operations
+func TestPoolConcurrency(t *testing.T) {
+	t.Run("concurrent pool initialization", func(t *testing.T) {
+		config := &Config{
+			Server: "ldap://server.com",
+			Port:   389,
+			BaseDN: "dc=test,dc=com",
+			Pool: &PoolConfig{
+				MaxConnections: 10,
+				MinConnections: 2,
+			},
+		}
+
+		// Create multiple clients concurrently
+		numClients := 10
+		clients := make([]*LDAP, numClients)
+		errors := make([]error, numClients)
+
+		// Use WaitGroup for proper synchronization
+		var wg sync.WaitGroup
+		wg.Add(numClients)
+
+		for i := 0; i < numClients; i++ {
+			go func(idx int) {
+				defer wg.Done()
+				clients[idx], errors[idx] = New(config, "user", "pass")
+			}(i)
+		}
+
+		// Wait for all goroutines to complete
+		wg.Wait()
+
+		for i := 0; i < numClients; i++ {
+			assert.NoError(t, errors[i], "Client %d creation failed", i)
+			assert.NotNil(t, clients[i], "Client %d is nil", i)
+		}
+	})
+}
+
+// TestPoolWithOptions tests pool initialization with various options
+func TestPoolWithOptions(t *testing.T) {
+	t.Run("pool with connection pool option", func(t *testing.T) {
+		config := &Config{
+			Server: "ldap://server.com",
+			Port:   389,
+			BaseDN: "dc=test,dc=com",
+		}
+
+		poolConfig := &PoolConfig{
+			MaxConnections: 15,
+			MinConnections: 3,
+		}
+
+		client, err := New(config, "user", "pass", WithConnectionPool(poolConfig))
+		require.NoError(t, err)
+		assert.NotNil(t, client)
+		assert.Equal(t, poolConfig, client.config.Pool)
+	})
+
+	t.Run("pool with multiple options", func(t *testing.T) {
+		config := &Config{
+			Server: "ldap://server.com",
+			Port:   389,
+			BaseDN: "dc=test,dc=com",
+		}
+
+		poolConfig := &PoolConfig{
+			MaxConnections: 20,
+		}
+
+		cbConfig := &CircuitBreakerConfig{
+			MaxFailures: 5,
+			Timeout:     1 * time.Minute,
+		}
+
+		client, err := New(config, "user", "pass",
+			WithConnectionPool(poolConfig),
+			WithCircuitBreaker(cbConfig),
+			WithTimeout(10*time.Second, 20*time.Second))
+		require.NoError(t, err)
+		assert.NotNil(t, client)
+		assert.Equal(t, poolConfig, client.config.Pool)
+		assert.NotNil(t, client.circuitBreaker)
+		assert.Equal(t, 20*time.Second, client.operationTimeout)
+	})
+}
+
+// BenchmarkPoolInitialization benchmarks pool initialization
+func BenchmarkPoolInitialization(b *testing.B) {
+	config := &Config{
+		Server: "ldap://server.com",
+		Port:   389,
+		BaseDN: "dc=test,dc=com",
+		Pool: &PoolConfig{
+			MaxConnections: 10,
+			MinConnections: 2,
+		},
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		client, err := New(config, "user", "pass")
+		if err != nil {
+			b.Fatal(err)
+		}
+		_ = client
+	}
+}
