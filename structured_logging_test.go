@@ -59,19 +59,17 @@ func (tlb *TestLogBuffer) Reset() {
 }
 
 func TestStructuredLoggingConfiguration(t *testing.T) {
-	testBuf := NewTestLogBuffer(slog.LevelDebug)
+	// Skip test that tries to connect to a real server
+	t.Skip("Skipping test that attempts real connection")
 
-	config := Config{
+	testBuf := NewTestLogBuffer(slog.LevelDebug)
+	// This will fail but should generate initialization logs
+	_, err := New(&Config{
 		Server:            "ldap://realserver.invalid:389",
 		BaseDN:            "DC=test,DC=com",
 		IsActiveDirectory: false,
 		Logger:            testBuf.logger,
-	}
-
-	// Skip test that tries to connect to a real server
-	t.Skip("Skipping test that attempts real connection")
-	// This will fail but should generate initialization logs
-	_, err := New(&config, "test", "test")
+	}, "test", "test")
 	require.Error(t, err) // Expected to fail since no real server
 
 	entries := testBuf.GetLogEntries()
@@ -100,17 +98,15 @@ func TestStructuredLoggingConfiguration(t *testing.T) {
 
 func TestNoOpLogger(t *testing.T) {
 	// Test with no logger configured (should use no-op)
-	config := Config{
+	// Skip test that tries to connect to a real server
+	t.Skip("Skipping test that attempts real connection")
+	// This should not panic and should not generate any output
+	_, err := New(&Config{
 		Server:            "ldap://realserver.invalid:389",
 		BaseDN:            "DC=test,DC=com",
 		IsActiveDirectory: false,
 		// Logger is nil
-	}
-
-	// Skip test that tries to connect to a real server
-	t.Skip("Skipping test that attempts real connection")
-	// This should not panic and should not generate any output
-	_, err := New(&config, "test", "test")
+	}, "test", "test")
 	require.Error(t, err) // Expected to fail since no real server
 }
 
