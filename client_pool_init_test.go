@@ -5,6 +5,7 @@ package ldap
 import (
 	"context"
 	"log/slog"
+	"sync"
 	"testing"
 	"time"
 
@@ -310,14 +311,19 @@ func TestPoolConcurrency(t *testing.T) {
 		clients := make([]*LDAP, numClients)
 		errors := make([]error, numClients)
 
+		// Use WaitGroup for proper synchronization
+		var wg sync.WaitGroup
+		wg.Add(numClients)
+
 		for i := 0; i < numClients; i++ {
 			go func(idx int) {
+				defer wg.Done()
 				clients[idx], errors[idx] = New(config, "user", "pass")
 			}(i)
 		}
 
-		// Wait and check results
-		time.Sleep(100 * time.Millisecond)
+		// Wait for all goroutines to complete
+		wg.Wait()
 
 		for i := 0; i < numClients; i++ {
 			assert.NoError(t, errors[i], "Client %d creation failed", i)
