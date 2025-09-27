@@ -11,6 +11,9 @@ import (
 	"time"
 )
 
+// workerResultTimeout is the timeout for sending results to prevent goroutine leaks
+const workerResultTimeout = time.Second
+
 // WorkerPool provides a worker pool pattern for concurrent LDAP operations.
 // This pattern is useful for bulk operations like creating multiple users or processing search results.
 type WorkerPool[T any] struct {
@@ -179,7 +182,7 @@ func (p *WorkerPool[T]) worker(id int, failFast bool) {
 				case <-p.ctx.Done():
 					// Context cancelled and couldn't send result
 					return
-				case <-time.After(time.Second):
+				case <-time.After(workerResultTimeout):
 					// Timeout: couldn't send result, avoid goroutine leak
 					p.logger.Warn("worker_result_send_timeout",
 						slog.Int("worker_id", id),
