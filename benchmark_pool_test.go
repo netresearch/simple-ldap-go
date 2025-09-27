@@ -57,7 +57,7 @@ func BenchmarkConnectionPoolPerformance(b *testing.B) {
 			config := baseConfig
 			config.Pool = poolConfig
 
-			client, err := New(&config, bindDN, bindPassword)
+			client, err := New(config, bindDN, bindPassword)
 			require.NoError(b, err)
 			defer func() { _ = client.Close() }()
 
@@ -90,7 +90,7 @@ func BenchmarkConnectionPoolPerformance(b *testing.B) {
 		config := baseConfig
 		// Pool is nil for direct connections
 
-		client, err := New(&config, bindDN, bindPassword)
+		client, err := New(config, bindDN, bindPassword)
 		require.NoError(b, err)
 		defer func() { _ = client.Close() }()
 
@@ -149,7 +149,7 @@ func BenchmarkLDAPOperationsPooled(b *testing.B) {
 				},
 			}
 
-			client, err := New(&config, bindDN, bindPassword)
+			client, err := New(config, bindDN, bindPassword)
 			require.NoError(b, err)
 			defer func() { _ = client.Close() }()
 
@@ -180,7 +180,7 @@ func BenchmarkLDAPOperationsPooled(b *testing.B) {
 				// Pool: nil - direct connections
 			}
 
-			client, err := New(&config, bindDN, bindPassword)
+			client, err := New(config, bindDN, bindPassword)
 			require.NoError(b, err)
 			defer func() { _ = client.Close() }()
 
@@ -224,7 +224,7 @@ func BenchmarkConcurrentLoad(b *testing.B) {
 				},
 			}
 
-			client, err := New(&config, bindDN, bindPassword)
+			client, err := New(config, bindDN, bindPassword)
 			require.NoError(b, err)
 			defer func() { _ = client.Close() }()
 
@@ -271,7 +271,7 @@ func BenchmarkConcurrentLoad(b *testing.B) {
 					// Pool: nil - direct connections
 				}
 
-				client, err := New(&config, bindDN, bindPassword)
+				client, err := New(config, bindDN, bindPassword)
 				require.NoError(b, err)
 				defer func() { _ = client.Close() }()
 
@@ -361,7 +361,7 @@ func BenchmarkPoolEfficiency(b *testing.B) {
 				Pool:   scenario.poolConfig,
 			}
 
-			client, err := New(&config, bindDN, bindPassword)
+			client, err := New(config, bindDN, bindPassword)
 			require.NoError(b, err)
 			defer func() { _ = client.Close() }()
 

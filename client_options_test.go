@@ -141,7 +141,7 @@ func TestClientOptionsCreation(t *testing.T) {
 				t.Skip("Skipping connection test in short mode")
 			}
 
-			client, err := NewWithOptions(tt.config, tt.username, tt.password, tt.options...)
+			client, err := New(tt.config, tt.username, tt.password, tt.options...)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -328,13 +328,13 @@ func BenchmarkClientCreation(b *testing.B) {
 		}
 	})
 
-	b.Run("NewWithOptions", func(b *testing.B) {
+	b.Run("New", func(b *testing.B) {
 		b.ReportAllocs()
 		options := []Option{
 			WithLogger(slog.New(slog.NewTextHandler(os.Stdout, nil))),
 		}
 		for i := 0; i < b.N; i++ {
-			client, err := NewWithOptions(config, username, password, options...)
+			client, err := New(config, username, password, options...)
 			if err == nil {
 				_ = client.Close()
 			}
@@ -436,7 +436,7 @@ func (h *TestHelper) CreateTestClient(t *testing.T, options ...Option) *LDAP {
 		t.Skip("Skipping client creation in short mode")
 	}
 
-	client, err := NewWithOptions(h.Config, h.Username, h.Password, options...)
+	client, err := New(h.Config, h.Username, h.Password, options...)
 	if err != nil {
 		// In unit tests, we expect connection failures
 		t.Logf("Expected connection failure in unit test: %v", err)

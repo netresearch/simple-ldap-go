@@ -215,7 +215,7 @@ func TestChangePasswordForSAMAccountName(t *testing.T) {
 	config.Server = "ldap://localhost:389" // Non-LDAPS server
 
 	// Create client with OpenLDAP config but AD flag - this tests the validation logic
-	client, err := New(&config, tc.AdminUser, tc.AdminPass)
+	client, err := New(config, tc.AdminUser, tc.AdminPass)
 	if err != nil {
 		t.Skip("Cannot create AD-mode client with OpenLDAP container")
 		return
@@ -241,7 +241,7 @@ func TestChangePasswordForSAMAccountName(t *testing.T) {
 
 		// This will fail due to either certificate issues or LDAP connection issues
 		// We're primarily testing the user lookup logic here
-		_, err := New(&ldapsConfig, tc.AdminUser, tc.AdminPass)
+		_, err := New(ldapsConfig, tc.AdminUser, tc.AdminPass)
 		if err != nil {
 			t.Skip("LDAPS not available for testing with OpenLDAP container")
 			return
@@ -298,7 +298,7 @@ func TestAuthErrorConditions(t *testing.T) {
 			BaseDN: tc.BaseDN,
 		}
 
-		invalidClient, err := New(&invalidConfig, tc.AdminUser, tc.AdminPass)
+		invalidClient, err := New(invalidConfig, tc.AdminUser, tc.AdminPass)
 		assert.Error(t, err)
 		assert.Nil(t, invalidClient)
 	})

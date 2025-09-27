@@ -213,7 +213,7 @@ func TestLDAPCircuitBreakerIntegration(t *testing.T) {
 			BaseDN: "dc=example,dc=com",
 		}
 
-		client, err := New(config, "user", "pass")
+		client, err := New(*config, "user", "pass")
 		require.NoError(t, err)
 		assert.Nil(t, client.circuitBreaker)
 
@@ -240,7 +240,7 @@ func TestLDAPCircuitBreakerIntegration(t *testing.T) {
 			},
 		}
 
-		client, err := New(config, "user", "pass")
+		client, err := New(*config, "user", "pass")
 		require.NoError(t, err)
 		assert.NotNil(t, client.circuitBreaker)
 
@@ -265,7 +265,7 @@ func TestLDAPCircuitBreakerIntegration(t *testing.T) {
 			},
 		}
 
-		client, err := New(config, "user", "pass")
+		client, err := New(*config, "user", "pass")
 		require.NoError(t, err)
 
 		ctx := context.Background()

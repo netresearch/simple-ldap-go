@@ -21,7 +21,7 @@ func TestIteratorsWithCircuitBreaker(t *testing.T) {
 			BaseDN: "dc=example,dc=com",
 		}
 
-		client, err := New(config, "user", "pass")
+		client, err := New(*config, "user", "pass")
 		require.NoError(t, err)
 
 		ctx := context.Background()
@@ -63,7 +63,7 @@ func TestIteratorsWithCircuitBreaker(t *testing.T) {
 			},
 		}
 
-		client, err := New(config, "user", "pass")
+		client, err := New(*config, "user", "pass")
 		require.NoError(t, err)
 
 		ctx := context.Background()
@@ -117,7 +117,7 @@ func TestIteratorsWithCircuitBreaker(t *testing.T) {
 			},
 		}
 
-		client, err := New(config, "user", "pass")
+		client, err := New(*config, "user", "pass")
 		require.NoError(t, err)
 
 		ctx := context.Background()
@@ -169,7 +169,7 @@ func TestIteratorsWithCircuitBreaker(t *testing.T) {
 			},
 		}
 
-		client, err := New(config, "user", "pass")
+		client, err := New(*config, "user", "pass")
 		require.NoError(t, err)
 
 		ctx := context.Background()
@@ -216,7 +216,7 @@ func TestIteratorsWithCircuitBreaker(t *testing.T) {
 			},
 		}
 
-		client, err := New(config, "user", "pass")
+		client, err := New(*config, "user", "pass")
 		require.NoError(t, err)
 		assert.NotNil(t, client.circuitBreaker)
 
@@ -267,7 +267,7 @@ func TestIteratorsWithCircuitBreaker(t *testing.T) {
 			BaseDN: "dc=example,dc=com",
 		}
 
-		clientNoCB, err := New(configNoCB, "user", "pass")
+		clientNoCB, err := New(*configNoCB, "user", "pass")
 		require.NoError(t, err)
 
 		// With circuit breaker - fast failures after initial failures
@@ -284,7 +284,7 @@ func TestIteratorsWithCircuitBreaker(t *testing.T) {
 			},
 		}
 
-		clientWithCB, err := New(configWithCB, "user", "pass")
+		clientWithCB, err := New(*configWithCB, "user", "pass")
 		require.NoError(t, err)
 
 		ctx := context.Background()
@@ -351,7 +351,7 @@ func TestIteratorsWithCircuitBreaker(t *testing.T) {
 			},
 		}
 
-		client, err := New(config, "user", "pass")
+		client, err := New(*config, "user", "pass")
 		require.NoError(t, err)
 
 		// Create a context that will be cancelled
@@ -396,7 +396,7 @@ func TestIteratorsWithCircuitBreaker(t *testing.T) {
 			},
 		}
 
-		client, err := New(config, "user", "pass")
+		client, err := New(*config, "user", "pass")
 		require.NoError(t, err)
 
 		// Create a context with very short timeout

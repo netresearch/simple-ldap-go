@@ -391,7 +391,7 @@ func TestLDAP_WithConnectionPool(t *testing.T) {
 		},
 	}
 
-	client, err := New(&config, bindDN, bindPassword)
+	client, err := New(config, bindDN, bindPassword)
 	require.NoError(t, err)
 	defer func() { _ = client.Close() }()
 
@@ -519,7 +519,7 @@ func TestLDAP_WithoutConnectionPool(t *testing.T) {
 		// Pool: nil - no pooling
 	}
 
-	client, err := New(&config, bindDN, bindPassword)
+	client, err := New(config, bindDN, bindPassword)
 	require.NoError(t, err)
 	defer func() { _ = client.Close() }()
 
@@ -561,7 +561,7 @@ func TestLDAP_PooledConnectionInterface(t *testing.T) {
 		},
 	}
 
-	client, err := New(&config, bindDN, bindPassword)
+	client, err := New(config, bindDN, bindPassword)
 	require.NoError(t, err)
 	defer func() { _ = client.Close() }()
 
@@ -634,7 +634,7 @@ func BenchmarkLDAP_PooledVsNonPooled(b *testing.B) {
 			},
 		}
 
-		client, err := New(&config, bindDN, bindPassword)
+		client, err := New(config, bindDN, bindPassword)
 		require.NoError(b, err)
 		defer func() { _ = client.Close() }()
 
@@ -666,7 +666,7 @@ func BenchmarkLDAP_PooledVsNonPooled(b *testing.B) {
 			// Pool: nil - no pooling
 		}
 
-		client, err := New(&config, bindDN, bindPassword)
+		client, err := New(config, bindDN, bindPassword)
 		require.NoError(b, err)
 		defer func() { _ = client.Close() }()
 
@@ -707,7 +707,7 @@ func TestLDAP_PoolWithCredentials(t *testing.T) {
 		},
 	}
 
-	client1, err := New(&config, bindDN, bindPassword)
+	client1, err := New(config, bindDN, bindPassword)
 	require.NoError(t, err)
 	defer func() { _ = client1.Close() }()
 
@@ -753,7 +753,7 @@ func TestPoolInitialization(t *testing.T) {
 			},
 		}
 
-		client, err := New(config, "user", "pass")
+		client, err := New(*config, "user", "pass")
 		require.NoError(t, err)
 		require.NotNil(t, client)
 
@@ -782,7 +782,7 @@ func TestPoolInitialization(t *testing.T) {
 				},
 			}
 
-			client, err := New(config, "user", "pass")
+			client, err := New(*config, "user", "pass")
 			require.NoError(t, err, "Failed for server: %s", server)
 			assert.Nil(t, client.connPool, "Pool should be nil for example server: %s", server)
 		}
@@ -796,7 +796,7 @@ func TestPoolInitialization(t *testing.T) {
 			Pool:   nil,
 		}
 
-		client, err := New(config, "user", "pass")
+		client, err := New(*config, "user", "pass")
 		require.NoError(t, err)
 		assert.Nil(t, client.connPool)
 	})
@@ -842,7 +842,7 @@ func TestPoolInitialization(t *testing.T) {
 					Pool:   tc.poolConfig,
 				}
 
-				client, err := New(config, "user", "pass")
+				client, err := New(*config, "user", "pass")
 				if tc.shouldFail {
 					assert.Error(t, err)
 					assert.Nil(t, client)
@@ -868,7 +868,7 @@ func TestPoolInitialization(t *testing.T) {
 			},
 		}
 
-		client, err := New(config, "user", "pass",
+		client, err := New(*config, "user", "pass",
 			WithTimeout(5*time.Second, 10*time.Second))
 		require.NoError(t, err)
 		assert.NotNil(t, client)
@@ -892,7 +892,7 @@ func TestPoolInitialization(t *testing.T) {
 			},
 		}
 
-		client, err := New(config, "user", "pass")
+		client, err := New(*config, "user", "pass")
 		require.NoError(t, err)
 		assert.NotNil(t, client)
 		assert.NotNil(t, client.circuitBreaker)
@@ -911,7 +911,7 @@ func TestPoolInitialization(t *testing.T) {
 			},
 		}
 
-		client, err := New(config, "user", "pass")
+		client, err := New(*config, "user", "pass")
 		require.NoError(t, err)
 		assert.NotNil(t, client)
 		// Pool may be nil if initialization failed
@@ -926,7 +926,7 @@ func TestPoolInitialization(t *testing.T) {
 			BaseDN: "dc=example,dc=com",
 		}
 
-		clientNoPool, err := New(configNoPool, "user", "pass")
+		clientNoPool, err := New(*configNoPool, "user", "pass")
 		require.NoError(t, err)
 		assert.Nil(t, clientNoPool.connPool)
 
@@ -946,7 +946,7 @@ func TestPoolInitialization(t *testing.T) {
 			},
 		}
 
-		clientWithPool, err := New(configWithPool, "user", "pass")
+		clientWithPool, err := New(*configWithPool, "user", "pass")
 		require.NoError(t, err)
 		assert.Nil(t, clientWithPool.connPool) // Pool not initialized for example servers
 
@@ -969,7 +969,7 @@ func TestPoolInitialization(t *testing.T) {
 			Logger: customLogger,
 		}
 
-		client, err := New(config, "user", "pass", WithLogger(customLogger))
+		client, err := New(*config, "user", "pass", WithLogger(customLogger))
 		require.NoError(t, err)
 		assert.NotNil(t, client)
 		assert.Equal(t, customLogger, client.logger)
@@ -989,7 +989,7 @@ func TestPoolHealthCheck(t *testing.T) {
 			},
 		}
 
-		client, err := New(config, "user", "pass")
+		client, err := New(*config, "user", "pass")
 		require.NoError(t, err)
 		assert.NotNil(t, client)
 
@@ -1008,7 +1008,7 @@ func TestPoolHealthCheck(t *testing.T) {
 			},
 		}
 
-		client, err := New(config, "user", "pass")
+		client, err := New(*config, "user", "pass")
 		require.NoError(t, err)
 		assert.NotNil(t, client)
 
@@ -1042,7 +1042,7 @@ func TestPoolConcurrency(t *testing.T) {
 		for i := 0; i < numClients; i++ {
 			go func(idx int) {
 				defer wg.Done()
-				clients[idx], errors[idx] = New(config, "user", "pass")
+				clients[idx], errors[idx] = New(*config, "user", "pass")
 			}(i)
 		}
 
@@ -1070,7 +1070,7 @@ func TestPoolWithOptions(t *testing.T) {
 			MinConnections: 3,
 		}
 
-		client, err := New(config, "user", "pass", WithConnectionPool(poolConfig))
+		client, err := New(*config, "user", "pass", WithConnectionPool(poolConfig))
 		require.NoError(t, err)
 		assert.NotNil(t, client)
 		assert.Equal(t, poolConfig, client.config.Pool)
@@ -1092,7 +1092,7 @@ func TestPoolWithOptions(t *testing.T) {
 			Timeout:     1 * time.Minute,
 		}
 
-		client, err := New(config, "user", "pass",
+		client, err := New(*config, "user", "pass",
 			WithConnectionPool(poolConfig),
 			WithCircuitBreaker(cbConfig),
 			WithTimeout(10*time.Second, 20*time.Second))
@@ -1118,7 +1118,7 @@ func BenchmarkPoolInitialization(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		client, err := New(config, "user", "pass")
+		client, err := New(*config, "user", "pass")
 		if err != nil {
 			b.Fatal(err)
 		}
