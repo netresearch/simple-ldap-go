@@ -70,10 +70,7 @@ func userFromEntry(entry *ldap.Entry) (*User, error) {
 		}
 	}
 
-	var mail *string
-	if mails := entry.GetAttributeValues("mail"); len(mails) > 0 && strings.TrimSpace(mails[0]) != "" {
-		mail = &mails[0]
-	}
+	mail := getFirstNonEmptyAttribute(entry, "mail")
 
 	return &User{
 		Object:         objectFromEntry(entry),
@@ -83,6 +80,24 @@ func userFromEntry(entry *ldap.Entry) (*User, error) {
 		Mail:           mail,
 		Groups:         entry.GetAttributeValues("memberOf"),
 	}, nil
+}
+
+// getCacheTTL returns the cache TTL from configuration or the default value
+func (l *LDAP) getCacheTTL() time.Duration {
+	if l.config.Cache != nil && l.config.Cache.TTL > 0 {
+		return l.config.Cache.TTL
+	}
+	return 5 * time.Minute // Default TTL
+}
+
+// getFirstNonEmptyAttribute returns the first non-empty value from an LDAP attribute
+func getFirstNonEmptyAttribute(entry *ldap.Entry, attribute string) *string {
+	values := entry.GetAttributeValues(attribute)
+	if len(values) > 0 && strings.TrimSpace(values[0]) != "" {
+		value := values[0]
+		return &value
+	}
+	return nil
 }
 
 // FindUserByDN retrieves a user by their distinguished name.
@@ -169,11 +184,7 @@ func (l *LDAP) FindUserByDNContext(ctx context.Context, dn string) (user *User, 
 
 	// Cache the result if caching is enabled
 	if l.config.EnableCache && l.cache != nil && user != nil {
-		ttl := 5 * time.Minute // Default TTL
-		if l.config.Cache != nil && l.config.Cache.TTL > 0 {
-			ttl = l.config.Cache.TTL
-		}
-		_ = l.cache.Set(cacheKey, user, ttl)
+		_ = l.cache.Set(cacheKey, user, l.getCacheTTL())
 	}
 
 	l.logger.Debug("user_found_by_dn",
@@ -343,7 +354,7 @@ func (l *LDAP) FindUserBySAMAccountNameContext(ctx context.Context, sAMAccountNa
 
 	// Store in cache if enabled
 	if l.config.EnableCache && l.cache != nil && cacheKey != "" {
-		if err := l.cache.Set(cacheKey, user, 5*time.Minute); err != nil {
+		if err := l.cache.Set(cacheKey, user, l.getCacheTTL()); err != nil {
 			l.logger.Debug("cache_set_error",
 				slog.String("operation", "FindUserBySAMAccountName"),
 				slog.String("key", cacheKey),
@@ -482,7 +493,7 @@ func (l *LDAP) FindUserByMailContext(ctx context.Context, mail string) (user *Us
 
 	// Store in cache if enabled
 	if l.config.EnableCache && l.cache != nil && cacheKey != "" {
-		if err := l.cache.Set(cacheKey, user, 5*time.Minute); err != nil {
+		if err := l.cache.Set(cacheKey, user, l.getCacheTTL()); err != nil {
 			l.logger.Debug("cache_set_error",
 				slog.String("operation", "FindUserByMail"),
 				slog.String("key", cacheKey),
