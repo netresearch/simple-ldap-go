@@ -245,7 +245,8 @@ func (m *MockLDAPConn) setupDefaultFunctions() {
 			}
 		}
 
-		if objectClass == "user" {
+		switch objectClass {
+		case "user":
 			user := &MockUser{DN: req.DN, Enabled: true}
 			for _, attr := range req.Attributes {
 				switch attr.Type {
@@ -268,7 +269,7 @@ func (m *MockLDAPConn) setupDefaultFunctions() {
 				}
 			}
 			m.Users[req.DN] = user
-		} else if objectClass == "group" {
+		case "group":
 			group := &MockGroup{DN: req.DN}
 			for _, attr := range req.Attributes {
 				switch attr.Type {
