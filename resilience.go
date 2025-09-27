@@ -91,11 +91,18 @@ func (cb *CircuitBreaker) Execute(fn func() error) error {
 			slog.String("name", cb.name),
 			slog.String("state", currentState.String()),
 			slog.Int64("failures", cb.failures.Load()))
+
+		// Read time fields with mutex protection to prevent race conditions
+		cb.mu.RLock()
+		lastFailure := cb.lastFailure
+		nextRetry := cb.nextRetry
+		cb.mu.RUnlock()
+
 		return &CircuitBreakerError{
 			State:       currentState.String(),
 			Failures:    int(cb.failures.Load()),
-			LastFailure: cb.lastFailure,
-			NextRetry:   cb.nextRetry,
+			LastFailure: lastFailure,
+			NextRetry:   nextRetry,
 		}
 	}
 
