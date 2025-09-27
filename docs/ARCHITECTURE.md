@@ -168,13 +168,13 @@ Foundational components that support core operations.
 Performance-critical enhancements for high-volume operations, integrated into unified operations.
 
 #### Components:
-- **Enhanced Operations** (`users_extended.go`, `groups_extended.go`): Unified methods with optional optimizations
+- **Enhanced Operations** (`users.go`, `groups.go`): Unified methods with optional optimizations
 - **Bulk Operations**: Batch processing with concurrency control
 - **Pipeline Processing**: Stream-based data handling
 - **Caching Integration**: Automatic cache utilization
 
 #### Optimization Features:
-- **WithOptions Methods**: Enable caching and performance monitoring per-operation
+- **Configuration Flags**: Enable caching and performance monitoring through config
 - **Feature Flags**: Enable optimizations at client or config level
 - **Reduced Round Trips**: Intelligent query batching to LDAP server
 - **Parallel Execution**: Safe concurrent operations where appropriate
