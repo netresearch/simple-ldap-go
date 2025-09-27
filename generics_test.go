@@ -1,4 +1,4 @@
-//go:build !integration && go1.18
+//go:build !integration
 
 package ldap
 
