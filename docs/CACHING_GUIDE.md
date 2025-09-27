@@ -197,8 +197,8 @@ func (c *Cache) SetNegative(key string) error {
     return nil
 }
 
-// users_optimized.go:45 - Using negative cache
-func (l *LDAP) FindUserBySAMAccountNameOptimized(sam string) (*User, error) {
+// users_extended.go:45 - Using negative cache
+func (l *LDAP) FindUserBySAMAccountNameWithOptions(ctx context.Context, sam string, options *SearchOptions) (*User, error) {
     cacheKey := fmt.Sprintf("user:sam:%s", sam)
 
     // Check cache first
@@ -231,7 +231,7 @@ func (l *LDAP) FindUserBySAMAccountNameOptimized(sam string) (*User, error) {
 ### 1. User Lookups
 
 ```go
-// users_optimized.go:78 - Optimized user retrieval with caching
+// users_extended.go:78 - Optimized user retrieval with caching
 func (l *LDAP) GetUserDetailsOptimized(username string) (*FullUser, error) {
     // Multi-level cache key strategy
     primaryKey := fmt.Sprintf("user:full:%s", username)
@@ -282,7 +282,7 @@ func (l *LDAP) GetUserDetailsOptimized(username string) (*FullUser, error) {
 ### 2. Group Membership
 
 ```go
-// groups_optimized.go:112 - Cached group membership checks
+// groups_extended.go:112 - Cached group membership checks
 func (l *LDAP) IsUserInGroupOptimized(username, groupDN string) (bool, error) {
     cacheKey := fmt.Sprintf("membership:%s:%s", username, groupDN)
 
@@ -303,7 +303,7 @@ func (l *LDAP) IsUserInGroupOptimized(username, groupDN string) (bool, error) {
     return isMember, nil
 }
 
-// groups_optimized.go:145 - Batch group membership with cache warming
+// groups_extended.go:145 - Batch group membership with cache warming
 func (l *LDAP) GetUserGroupsOptimized(username string) ([]Group, error) {
     cacheKey := fmt.Sprintf("groups:user:%s", username)
 
