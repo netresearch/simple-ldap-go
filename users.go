@@ -1075,11 +1075,12 @@ func (l *LDAP) CreateUserContext(ctx context.Context, user FullUser, password st
 //   - error: Any LDAP operation error, including user not found or insufficient permissions
 //
 // Example:
-//   attributes := map[string][]string{
-//       "mail": {"newemail@example.com"},
-//       "description": {"Updated description"},
-//   }
-//   err := client.ModifyUser("uid=jdoe,ou=users,dc=example,dc=com", attributes)
+//
+//	attributes := map[string][]string{
+//	    "mail": {"newemail@example.com"},
+//	    "description": {"Updated description"},
+//	}
+//	err := client.ModifyUser("uid=jdoe,ou=users,dc=example,dc=com", attributes)
 func (l *LDAP) ModifyUser(dn string, attributes map[string][]string) error {
 	return l.ModifyUserContext(context.Background(), dn, attributes)
 }
