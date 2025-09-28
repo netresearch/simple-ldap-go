@@ -446,7 +446,6 @@ func BenchmarkIntegrationSearch(b *testing.B) {
 	container := SetupTestContainer(t)
 	defer container.Close(t)
 
-
 	config := &Config{
 		Server: container.Config.Server,
 		Port:   container.Config.Port,

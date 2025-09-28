@@ -100,7 +100,6 @@ func New(config Config, username, password string, opts ...Option) (*LDAP, error
 			slog.Bool("is_active_directory", config.IsActiveDirectory))
 	}
 
-
 	if config.Server == "" {
 		err := fmt.Errorf("server URL cannot be empty")
 		logger.Error("ldap_client_initialization_failed",
@@ -462,7 +461,6 @@ func (l *LDAP) Close() error {
 
 	return nil
 }
-
 
 // ============================================================================
 // Convenience Client Constructors (For backward compatibility)
