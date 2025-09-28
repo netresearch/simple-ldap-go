@@ -65,6 +65,19 @@ func (l *LDAP) FindGroupByDN(dn string) (group *Group, err error) {
 //     context cancellation error, or any LDAP operation error
 func (l *LDAP) FindGroupByDNContext(ctx context.Context, dn string) (group *Group, err error) {
 	start := time.Now()
+	cacheHit := false
+
+	// Record operation completion on return
+	if l.perfMonitor != nil {
+		defer func() {
+			duration := time.Since(start)
+			resultCount := 0
+			if group != nil {
+				resultCount = 1
+			}
+			l.perfMonitor.RecordOperation(ctx, "FindGroupByDN", duration, cacheHit, err, resultCount)
+		}()
+	}
 
 	// Check cache if enabled
 	var cacheKey string
@@ -72,6 +85,7 @@ func (l *LDAP) FindGroupByDNContext(ctx context.Context, dn string) (group *Grou
 		cacheKey = fmt.Sprintf("group:dn:%s", dn)
 		if cached, found := l.cache.Get(cacheKey); found {
 			if cachedGroup, ok := cached.(*Group); ok {
+				cacheHit = true
 				l.logger.Debug("group_cache_hit",
 					slog.String("operation", "FindGroupByDN"),
 					slog.String("dn", dn),
@@ -119,7 +133,7 @@ func (l *LDAP) FindGroupByDNContext(ctx context.Context, dn string) (group *Grou
 
 	// Store in cache if enabled
 	if l.config.EnableCache && l.cache != nil && cacheKey != "" {
-		if err := l.cache.Set(cacheKey, group, 5*time.Minute); err != nil {
+		if err := l.cache.Set(cacheKey, group, l.getCacheTTL()); err != nil {
 			l.logger.Debug("cache_set_error",
 				slog.String("operation", "FindGroupByDN"),
 				slog.String("key", cacheKey),

@@ -203,6 +203,30 @@ func New(config Config, username, password string, opts ...Option) (*LDAP, error
 		}
 	}
 
+	// Initialize performance monitor if metrics are enabled
+	if (config.EnableMetrics || config.EnableOptimizations) && !isExampleServer {
+		perfConfig := config.Performance
+		if perfConfig == nil {
+			perfConfig = DefaultPerformanceConfig()
+		}
+		perfConfig.Enabled = true
+
+		client.perfMonitor = NewPerformanceMonitor(perfConfig, logger)
+
+		// Link cache and pool to performance monitor for integrated metrics
+		if client.cache != nil {
+			client.perfMonitor.SetCache(client.cache)
+		}
+		if client.connPool != nil {
+			client.perfMonitor.SetConnectionPool(client.connPool)
+		}
+
+		logger.Info("performance_monitor_initialized",
+			slog.String("server", config.Server),
+			slog.Duration("slow_query_threshold", perfConfig.SlowQueryThreshold),
+			slog.Float64("sample_rate", perfConfig.SampleRate))
+	}
+
 	// Test connection (skip for example servers)
 	if !isExampleServer {
 		_, err := client.GetConnection()
