@@ -37,7 +37,7 @@ func TestIntegrationConnectionPool(t *testing.T) {
 			},
 		}
 
-		client, err := New(config, container.AdminUser, container.AdminPass)
+		client, err := New(*config, container.AdminUser, container.AdminPass)
 		require.NoError(t, err)
 		defer client.Close()
 
@@ -66,7 +66,7 @@ func TestIntegrationConnectionPool(t *testing.T) {
 			},
 		}
 
-		client, err := New(config, container.AdminUser, container.AdminPass)
+		client, err := New(*config, container.AdminUser, container.AdminPass)
 		require.NoError(t, err)
 		defer client.Close()
 
@@ -121,7 +121,7 @@ func TestIntegrationCircuitBreaker(t *testing.T) {
 		}
 
 		// Use wrong credentials to trigger failures
-		client, err := New(config, "wrong", "credentials")
+		client, err := New(*config, "wrong", "credentials")
 		require.NoError(t, err)
 		defer client.Close()
 
@@ -164,7 +164,7 @@ func TestIntegrationSearch(t *testing.T) {
 		BaseDN: container.BaseDN,
 	}
 
-	client, err := New(config, container.AdminUser, container.AdminPass)
+	client, err := New(*config, container.AdminUser, container.AdminPass)
 	require.NoError(t, err)
 	defer client.Close()
 
@@ -252,7 +252,7 @@ func TestIntegrationAuthentication(t *testing.T) {
 
 		// Authenticate with test user
 		userDN := fmt.Sprintf("cn=testuser,%s", container.UsersOU)
-		client, err := New(config, userDN, "testpass123")
+		client, err := New(*config, userDN, "testpass123")
 		require.NoError(t, err)
 		defer client.Close()
 
@@ -272,7 +272,7 @@ func TestIntegrationAuthentication(t *testing.T) {
 
 		// Try with wrong password
 		userDN := fmt.Sprintf("cn=testuser,%s", container.UsersOU)
-		client, err := New(config, userDN, "wrongpassword")
+		client, err := New(*config, userDN, "wrongpassword")
 		require.NoError(t, err) // Client creation succeeds
 		defer client.Close()
 
@@ -299,7 +299,7 @@ func TestIntegrationContextHandling(t *testing.T) {
 		BaseDN: container.BaseDN,
 	}
 
-	client, err := New(config, container.AdminUser, container.AdminPass,
+	client, err := New(*config, container.AdminUser, container.AdminPass,
 		WithTimeout(5*time.Second, 10*time.Second))
 	require.NoError(t, err)
 	defer client.Close()
@@ -395,7 +395,7 @@ func TestIntegrationPerformance(t *testing.T) {
 			},
 		}
 
-		client, err := New(config, container.AdminUser, container.AdminPass,
+		client, err := New(*config, container.AdminUser, container.AdminPass,
 			WithLogger(slog.Default()))
 		require.NoError(t, err)
 		defer client.Close()
@@ -461,7 +461,7 @@ func BenchmarkIntegrationSearch(b *testing.B) {
 		},
 	}
 
-	client, err := New(config, container.AdminUser, container.AdminPass)
+	client, err := New(*config, container.AdminUser, container.AdminPass)
 	require.NoError(b, err)
 	defer client.Close()
 
