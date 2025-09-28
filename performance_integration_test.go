@@ -3,7 +3,6 @@
 package ldap
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"

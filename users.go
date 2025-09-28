@@ -198,7 +198,17 @@ func (l *LDAP) FindUserByDNContext(ctx context.Context, dn string) (user *User, 
 
 	// Cache the result if caching is enabled
 	if l.config.EnableCache && l.cache != nil && user != nil {
-		_ = l.cache.Set(cacheKey, user, l.getCacheTTL())
+		// Use SetWithPrimaryKey to register all related cache keys with the user's DN
+		_ = l.cache.SetWithPrimaryKey(cacheKey, user, l.getCacheTTL(), user.DN())
+		// Also register alternate cache keys
+		if user.Mail != nil && *user.Mail != "" {
+			mailKey := fmt.Sprintf("user:mail:%s", *user.Mail)
+			l.cache.RegisterCacheKey(user.DN(), mailKey)
+		}
+		if user.SAMAccountName != "" {
+			samKey := fmt.Sprintf("user:sam:%s", user.SAMAccountName)
+			l.cache.RegisterCacheKey(user.DN(), samKey)
+		}
 	}
 
 	l.logger.Debug("user_found_by_dn",
@@ -383,11 +393,20 @@ func (l *LDAP) FindUserBySAMAccountNameContext(ctx context.Context, sAMAccountNa
 
 	// Store in cache if enabled
 	if l.config.EnableCache && l.cache != nil && cacheKey != "" {
-		if err := l.cache.Set(cacheKey, user, l.getCacheTTL()); err != nil {
+		// Use SetWithPrimaryKey to register all related cache keys with the user's DN
+		if err := l.cache.SetWithPrimaryKey(cacheKey, user, l.getCacheTTL(), user.DN()); err != nil {
 			l.logger.Debug("cache_set_error",
 				slog.String("operation", "FindUserBySAMAccountName"),
 				slog.String("key", cacheKey),
 				slog.String("error", err.Error()))
+		} else {
+			// Also register alternate cache keys
+			dnKey := fmt.Sprintf("user:dn:%s", user.DN())
+			l.cache.RegisterCacheKey(user.DN(), dnKey)
+			if user.Mail != nil && *user.Mail != "" {
+				mailKey := fmt.Sprintf("user:mail:%s", *user.Mail)
+				l.cache.RegisterCacheKey(user.DN(), mailKey)
+			}
 		}
 	}
 
@@ -536,11 +555,20 @@ func (l *LDAP) FindUserByMailContext(ctx context.Context, mail string) (user *Us
 
 	// Store in cache if enabled
 	if l.config.EnableCache && l.cache != nil && cacheKey != "" {
-		if err := l.cache.Set(cacheKey, user, l.getCacheTTL()); err != nil {
+		// Use SetWithPrimaryKey to register all related cache keys with the user's DN
+		if err := l.cache.SetWithPrimaryKey(cacheKey, user, l.getCacheTTL(), user.DN()); err != nil {
 			l.logger.Debug("cache_set_error",
 				slog.String("operation", "FindUserByMail"),
 				slog.String("key", cacheKey),
 				slog.String("error", err.Error()))
+		} else {
+			// Also register alternate cache keys
+			dnKey := fmt.Sprintf("user:dn:%s", user.DN())
+			l.cache.RegisterCacheKey(user.DN(), dnKey)
+			if user.SAMAccountName != "" {
+				samKey := fmt.Sprintf("user:sam:%s", user.SAMAccountName)
+				l.cache.RegisterCacheKey(user.DN(), samKey)
+			}
 		}
 	}
 
@@ -1037,34 +1065,6 @@ func (l *LDAP) CreateUserContext(ctx context.Context, user FullUser, password st
 	return dn, nil
 }
 
-// userCacheKeys generates all cache keys for a user based on their attributes.
-// This ensures consistent cache key generation across the codebase.
-func (l *LDAP) userCacheKeys(user *User) []string {
-	keys := []string{}
-	if user.DN() != "" {
-		keys = append(keys, fmt.Sprintf("user:dn:%s", user.DN()))
-	}
-	if user.Mail != nil && *user.Mail != "" {
-		keys = append(keys, fmt.Sprintf("user:mail:%s", *user.Mail))
-	}
-	if user.SAMAccountName != "" {
-		keys = append(keys, fmt.Sprintf("user:sam:%s", user.SAMAccountName))
-	}
-	return keys
-}
-
-// invalidateUserCache removes all cache entries for a user.
-// This should be called when a user is modified or deleted.
-func (l *LDAP) invalidateUserCache(user *User) {
-	if l.config.EnableCache && l.cache != nil && user != nil {
-		keys := l.userCacheKeys(user)
-		for _, key := range keys {
-			l.cache.Delete(key)
-			l.logger.Debug("cache_key_invalidated",
-				slog.String("key", key))
-		}
-	}
-}
 
 // DeleteUser removes a user from the directory.
 //
@@ -1108,16 +1108,8 @@ func (l *LDAP) DeleteUserContext(ctx context.Context, dn string) (err error) {
 		slog.String("operation", "DeleteUser"),
 		slog.String("dn", dn))
 
-	// Fetch user to get all attributes for cache invalidation
-	// We need mail and SAMAccountName to clear all cache keys
-	var userForCache *User
-	if l.config.EnableCache && l.cache != nil {
-		// Use a short context to avoid blocking delete if fetch fails
-		fetchCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-		userForCache, _ = l.FindUserByDNContext(fetchCtx, dn)
-		cancel()
-		// Ignore error - we still want to delete even if we can't fetch for cache
-	}
+	// With the new cache tracking system, we don't need to fetch the user
+	// We can invalidate all related cache entries directly using the DN as primary key
 
 	c, err := l.GetConnectionContext(ctx)
 	if err != nil {
@@ -1156,11 +1148,12 @@ func (l *LDAP) DeleteUserContext(ctx context.Context, dn string) (err error) {
 		slog.String("dn", dn),
 		slog.Duration("duration", time.Since(start)))
 
-	// Clear all cache entries for deleted user
-	l.invalidateUserCache(userForCache)
-	// Also clear by DN in case fetch failed
+	// Clear all cache entries for deleted user using the DN as primary key
 	if l.config.EnableCache && l.cache != nil {
-		l.cache.Delete(fmt.Sprintf("user:dn:%s", dn))
+		deleted := l.cache.InvalidateByPrimaryKey(dn)
+		l.logger.Debug("user_cache_invalidated_on_delete",
+			slog.String("dn", dn),
+			slog.Int("keys_deleted", deleted))
 	}
 
 	return nil
@@ -1329,16 +1322,12 @@ func (l *LDAP) BulkModifyUsersContext(ctx context.Context, modifications []UserM
 
 				err = conn.Modify(modReq)
 
-				// Clear cache for modified user - fetch user to clear all keys
+				// Clear cache for modified user using DN as primary key
 				if err == nil && client.config.EnableCache && client.cache != nil {
-					// Fetch user to get all attributes for complete cache invalidation
-					fetchCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-					userForCache, _ := client.FindUserByDNContext(fetchCtx, data.DN)
-					cancel()
-
-					client.invalidateUserCache(userForCache)
-					// Also clear by DN in case fetch failed
-					client.cache.Delete(fmt.Sprintf("user:dn:%s", data.DN))
+					deleted := client.cache.InvalidateByPrimaryKey(data.DN)
+					client.logger.Debug("user_cache_invalidated_on_modify",
+						slog.String("dn", data.DN),
+						slog.Int("keys_deleted", deleted))
 				}
 
 				return err

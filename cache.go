@@ -130,6 +130,12 @@ type Cache interface {
 	GetWithRefresh(key string, refreshFunc func() (interface{}, error)) (interface{}, error)
 	SetNegative(key string, ttl time.Duration) error
 
+	// Cache key tracking operations
+	RegisterCacheKey(primaryKey string, cacheKey string)
+	InvalidateByPrimaryKey(primaryKey string) int
+	SetWithPrimaryKey(cacheKey string, value interface{}, ttl time.Duration, primaryKey string) error
+	GetRelatedKeys(primaryKey string) []string
+
 	// Statistics and management
 	Stats() CacheStats
 	Close() error
@@ -144,6 +150,10 @@ type LRUCache struct {
 	items   map[string]*CacheEntry // Key -> CacheEntry mapping
 	lruList *list.List             // LRU ordering
 	mu      sync.RWMutex           // Read-write mutex for thread safety
+
+	// Cache key tracking for efficient invalidation
+	keyIndex   map[string][]string // Primary key -> related cache keys
+	keyIndexMu sync.RWMutex        // Separate mutex for key index
 
 	// Statistics (atomic for thread safety)
 	stats CacheStats
@@ -197,6 +207,7 @@ func NewLRUCache(config *CacheConfig, logger *slog.Logger) (*LRUCache, error) {
 		logger:   logger,
 		items:    make(map[string]*CacheEntry, config.MaxSize),
 		lruList:  list.New(),
+		keyIndex: make(map[string][]string),
 		stopChan: make(chan struct{}),
 		getTimes: make([]time.Duration, 0, 1000),
 		setTimes: make([]time.Duration, 0, 1000),
@@ -842,4 +853,113 @@ func GenerateCacheKey(operation string, components ...string) string {
 	}
 
 	return fmt.Sprintf("%s:%s", prefix, hash[:16])
+}
+
+// RegisterCacheKey registers a cache key with its primary identifier
+// This allows efficient invalidation without needing to fetch the cached object
+func (c *LRUCache) RegisterCacheKey(primaryKey string, cacheKey string) {
+	if !c.config.Enabled || primaryKey == "" || cacheKey == "" {
+		return
+	}
+
+	c.keyIndexMu.Lock()
+	defer c.keyIndexMu.Unlock()
+
+	// Add to the index
+	keys, exists := c.keyIndex[primaryKey]
+	if !exists {
+		c.keyIndex[primaryKey] = []string{cacheKey}
+	} else {
+		// Check if key already exists to avoid duplicates
+		found := false
+		for _, k := range keys {
+			if k == cacheKey {
+				found = true
+				break
+			}
+		}
+		if !found {
+			c.keyIndex[primaryKey] = append(keys, cacheKey)
+		}
+	}
+
+	c.logger.Debug("cache_key_registered",
+		slog.String("primary_key", primaryKey),
+		slog.String("cache_key", cacheKey),
+		slog.Int("total_keys", len(c.keyIndex[primaryKey])))
+}
+
+// InvalidateByPrimaryKey invalidates all cache entries related to a primary key
+// This is efficient as it doesn't require fetching the cached object
+func (c *LRUCache) InvalidateByPrimaryKey(primaryKey string) int {
+	if !c.config.Enabled || primaryKey == "" {
+		return 0
+	}
+
+	// Get all related cache keys
+	c.keyIndexMu.RLock()
+	cacheKeys, exists := c.keyIndex[primaryKey]
+	c.keyIndexMu.RUnlock()
+
+	if !exists || len(cacheKeys) == 0 {
+		c.logger.Debug("no_cache_keys_for_primary",
+			slog.String("primary_key", primaryKey))
+		return 0
+	}
+
+	// Copy the keys to avoid holding the lock while deleting
+	keysToDelete := make([]string, len(cacheKeys))
+	copy(keysToDelete, cacheKeys)
+
+	// Delete all related cache entries
+	deleted := 0
+	for _, cacheKey := range keysToDelete {
+		if c.Delete(cacheKey) {
+			deleted++
+		}
+	}
+
+	// Clean up the index
+	c.keyIndexMu.Lock()
+	delete(c.keyIndex, primaryKey)
+	c.keyIndexMu.Unlock()
+
+	c.logger.Debug("cache_invalidated_by_primary",
+		slog.String("primary_key", primaryKey),
+		slog.Int("keys_deleted", deleted))
+
+	return deleted
+}
+
+// SetWithPrimaryKey stores a value in cache and registers it with a primary key
+func (c *LRUCache) SetWithPrimaryKey(cacheKey string, value interface{}, ttl time.Duration, primaryKey string) error {
+	// Set the cache entry
+	err := c.Set(cacheKey, value, ttl)
+	if err != nil {
+		return err
+	}
+
+	// Register the relationship
+	c.RegisterCacheKey(primaryKey, cacheKey)
+	return nil
+}
+
+// GetRelatedKeys returns all cache keys associated with a primary key
+func (c *LRUCache) GetRelatedKeys(primaryKey string) []string {
+	if !c.config.Enabled || primaryKey == "" {
+		return nil
+	}
+
+	c.keyIndexMu.RLock()
+	defer c.keyIndexMu.RUnlock()
+
+	keys, exists := c.keyIndex[primaryKey]
+	if !exists {
+		return nil
+	}
+
+	// Return a copy to avoid race conditions
+	result := make([]string, len(keys))
+	copy(result, keys)
+	return result
 }

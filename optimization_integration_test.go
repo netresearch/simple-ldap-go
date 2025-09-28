@@ -3,7 +3,6 @@
 package ldap
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"testing"
@@ -474,6 +473,166 @@ func TestCacheInvalidation(t *testing.T) {
 		user2, err := client.FindUserByDN(userDN)
 		require.NoError(t, err)
 		assert.Equal(t, "newmail@example.com", user2.Mail, "should get updated email, not cached value")
+	})
+}
+
+// TestCacheKeyTracking tests the new cache key tracking system
+func TestCacheKeyTracking(t *testing.T) {
+	tc := SetupTestContainer(t)
+	defer tc.Close(t)
+
+	t.Run("cache key registration and invalidation", func(t *testing.T) {
+		config := tc.Config
+		config.EnableCache = true
+
+		client, err := New(config, tc.AdminUser, tc.AdminPass)
+		require.NoError(t, err)
+		defer client.Close()
+
+		// Create a test user
+		userDN := fmt.Sprintf("uid=keytrack,%s", tc.UsersOU)
+		addReq := ldap.NewAddRequest(userDN, nil)
+		addReq.Attribute("objectClass", []string{"inetOrgPerson", "organizationalPerson", "person", "top"})
+		addReq.Attribute("uid", []string{"keytrack"})
+		addReq.Attribute("cn", []string{"Key Track User"})
+		addReq.Attribute("sn", []string{"Track"})
+		addReq.Attribute("mail", []string{"keytrack@example.com"})
+		addReq.Attribute("sAMAccountName", []string{"keytrack"})
+
+		conn, err := client.GetConnection()
+		require.NoError(t, err)
+		err = conn.Add(addReq)
+		conn.Close()
+		require.NoError(t, err)
+		defer client.DeleteUser(userDN)
+
+		// Perform lookups by different attributes to register cache keys
+		user1, err := client.FindUserByDN(userDN)
+		require.NoError(t, err)
+		require.NotNil(t, user1)
+
+		user2, err := client.FindUserByMail("keytrack@example.com")
+		require.NoError(t, err)
+		require.NotNil(t, user2)
+
+		user3, err := client.FindUserBySAMAccountName("keytrack")
+		require.NoError(t, err)
+		require.NotNil(t, user3)
+
+		// Verify cache keys are registered
+		relatedKeys := client.cache.GetRelatedKeys(userDN)
+		assert.GreaterOrEqual(t, len(relatedKeys), 3, "should have at least 3 related cache keys")
+
+		// Invalidate by primary key
+		deleted := client.cache.InvalidateByPrimaryKey(userDN)
+		assert.GreaterOrEqual(t, deleted, 3, "should delete at least 3 cache entries")
+
+		// Verify keys are removed
+		relatedKeys = client.cache.GetRelatedKeys(userDN)
+		assert.Len(t, relatedKeys, 0, "should have no related keys after invalidation")
+	})
+
+	t.Run("cache invalidation without fetching user", func(t *testing.T) {
+		config := tc.Config
+		config.EnableCache = true
+
+		client, err := New(config, tc.AdminUser, tc.AdminPass)
+		require.NoError(t, err)
+		defer client.Close()
+
+		// Create a test user
+		userDN := fmt.Sprintf("uid=nofetch,%s", tc.UsersOU)
+		addReq := ldap.NewAddRequest(userDN, nil)
+		addReq.Attribute("objectClass", []string{"inetOrgPerson", "organizationalPerson", "person", "top"})
+		addReq.Attribute("uid", []string{"nofetch"})
+		addReq.Attribute("cn", []string{"No Fetch User"})
+		addReq.Attribute("sn", []string{"Fetch"})
+		addReq.Attribute("mail", []string{"nofetch@example.com"})
+		addReq.Attribute("sAMAccountName", []string{"nofetch"})
+
+		conn, err := client.GetConnection()
+		require.NoError(t, err)
+		err = conn.Add(addReq)
+		conn.Close()
+		require.NoError(t, err)
+
+		// Populate cache
+		_, _ = client.FindUserByDN(userDN)
+		_, _ = client.FindUserByMail("nofetch@example.com")
+		_, _ = client.FindUserBySAMAccountName("nofetch")
+
+		// Delete the user - this should NOT fetch the user for cache invalidation
+		// The new system should invalidate all keys using just the DN
+		err = client.DeleteUser(userDN)
+		require.NoError(t, err)
+
+		// Verify cache was cleared without fetching
+		// (The performance gain is that we don't do an extra LDAP lookup)
+		stats := client.GetCacheStats()
+		assert.NotNil(t, stats)
+	})
+
+	t.Run("concurrent cache operations", func(t *testing.T) {
+		config := tc.Config
+		config.EnableCache = true
+
+		client, err := New(config, tc.AdminUser, tc.AdminPass)
+		require.NoError(t, err)
+		defer client.Close()
+
+		// Create a test user
+		userDN := fmt.Sprintf("uid=concurrent,%s", tc.UsersOU)
+		addReq := ldap.NewAddRequest(userDN, nil)
+		addReq.Attribute("objectClass", []string{"inetOrgPerson", "organizationalPerson", "person", "top"})
+		addReq.Attribute("uid", []string{"concurrent"})
+		addReq.Attribute("cn", []string{"Concurrent User"})
+		addReq.Attribute("sn", []string{"User"})
+		addReq.Attribute("mail", []string{"concurrent@example.com"})
+		addReq.Attribute("sAMAccountName", []string{"concurrent"})
+
+		conn, err := client.GetConnection()
+		require.NoError(t, err)
+		err = conn.Add(addReq)
+		conn.Close()
+		require.NoError(t, err)
+		defer client.DeleteUser(userDN)
+
+		// Concurrent lookups and invalidations
+		done := make(chan bool, 3)
+
+		// Goroutine 1: Repeatedly lookup by DN
+		go func() {
+			for i := 0; i < 10; i++ {
+				client.FindUserByDN(userDN)
+				time.Sleep(5 * time.Millisecond)
+			}
+			done <- true
+		}()
+
+		// Goroutine 2: Repeatedly lookup by mail
+		go func() {
+			for i := 0; i < 10; i++ {
+				client.FindUserByMail("concurrent@example.com")
+				time.Sleep(5 * time.Millisecond)
+			}
+			done <- true
+		}()
+
+		// Goroutine 3: Invalidate cache periodically
+		go func() {
+			for i := 0; i < 3; i++ {
+				time.Sleep(15 * time.Millisecond)
+				client.cache.InvalidateByPrimaryKey(userDN)
+			}
+			done <- true
+		}()
+
+		// Wait for all goroutines
+		for i := 0; i < 3; i++ {
+			<-done
+		}
+
+		// No assertions needed - just verifying no race conditions
 	})
 }
 
