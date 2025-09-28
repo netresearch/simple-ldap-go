@@ -122,15 +122,15 @@ func TestClientOptionsCreation(t *testing.T) {
 		{
 			name: "invalid_server_url",
 			config: Config{
-				Server:            "invalid://test.example.com",
-				BaseDN:            "DC=test,DC=example,DC=com",
+				Server:            "invalid://real.company.com",
+				BaseDN:            "DC=real,DC=company,DC=com",
 				IsActiveDirectory: true,
 			},
-			username:    "CN=test,CN=Users,DC=test,DC=example,DC=com",
+			username:    "CN=test,CN=Users,DC=real,DC=company,DC=com",
 			password:    "password123",
 			options:     nil,
 			expectError: true,
-			errorMsg:    "connection",
+			errorMsg:    "failed to initialize LDAP client",
 		},
 	}
 

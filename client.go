@@ -151,6 +151,24 @@ func New(config Config, username, password string, opts ...Option) (*LDAP, error
 		opt(client)
 	}
 
+	// Initialize cache if enabled (skip for example servers)
+	if (config.EnableCache || config.EnableOptimizations) && !isExampleServer {
+		cacheConfig := DefaultCacheConfig()
+		cacheConfig.Enabled = true
+		cache, err := NewLRUCache(cacheConfig, logger)
+		if err != nil {
+			logger.Warn("cache_initialization_failed",
+				slog.String("server", config.Server),
+				slog.String("error", err.Error()))
+		} else {
+			client.cache = cache
+			logger.Info("cache_initialized",
+				slog.String("server", config.Server),
+				slog.Int("max_entries", cacheConfig.MaxSize),
+				slog.Duration("ttl", cacheConfig.TTL))
+		}
+	}
+
 	// Initialize circuit breaker if configured
 	if config.Resilience != nil && config.Resilience.EnableCircuitBreaker {
 		client.circuitBreaker = NewCircuitBreaker(

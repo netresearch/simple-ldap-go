@@ -26,6 +26,7 @@ func TestNew(t *testing.T) {
 		user        string
 		password    string
 		expectError bool
+		expectCache bool
 	}{
 		{
 			name:        "valid configuration",
@@ -33,6 +34,31 @@ func TestNew(t *testing.T) {
 			user:        tc.AdminUser,
 			password:    tc.AdminPass,
 			expectError: false,
+			expectCache: false,
+		},
+		{
+			name: "with cache enabled",
+			config: Config{
+				Server:      tc.Config.Server,
+				BaseDN:      tc.Config.BaseDN,
+				EnableCache: true,
+			},
+			user:        tc.AdminUser,
+			password:    tc.AdminPass,
+			expectError: false,
+			expectCache: true,
+		},
+		{
+			name: "with optimizations enabled",
+			config: Config{
+				Server:              tc.Config.Server,
+				BaseDN:              tc.Config.BaseDN,
+				EnableOptimizations: true,
+			},
+			user:        tc.AdminUser,
+			password:    tc.AdminPass,
+			expectError: false,
+			expectCache: true,
 		},
 		{
 			name: "invalid server URL",
@@ -43,6 +69,7 @@ func TestNew(t *testing.T) {
 			user:        tc.AdminUser,
 			password:    tc.AdminPass,
 			expectError: true,
+			expectCache: false,
 		},
 		{
 			name:        "invalid credentials",
@@ -50,6 +77,7 @@ func TestNew(t *testing.T) {
 			user:        tc.AdminUser,
 			password:    "wrongpassword",
 			expectError: true,
+			expectCache: false,
 		},
 		{
 			name:        "empty credentials",
@@ -57,6 +85,7 @@ func TestNew(t *testing.T) {
 			user:        "",
 			password:    "",
 			expectError: true,
+			expectCache: false,
 		},
 	}
 
@@ -74,9 +103,67 @@ func TestNew(t *testing.T) {
 				assert.Equal(t, tt.config.BaseDN, client.config.BaseDN)
 				assert.Equal(t, tt.user, client.user)
 				assert.Equal(t, tt.password, client.password)
+
+				// Check cache initialization
+				if tt.expectCache {
+					assert.NotNil(t, client.cache, "cache should be initialized when EnableCache or EnableOptimizations is true")
+				} else {
+					assert.Nil(t, client.cache, "cache should not be initialized by default")
+				}
 			}
 		})
 	}
+}
+
+func TestCacheInitialization(t *testing.T) {
+	t.Run("example servers never get cache", func(t *testing.T) {
+		// Use localhost which is treated as an example server
+		exampleConfig := Config{
+			Server:              "ldap://localhost:389",
+			BaseDN:              "dc=example,dc=com",
+			EnableCache:         true,
+			EnableOptimizations: true,
+		}
+
+		client, err := New(exampleConfig, "user", "pass")
+		assert.NoError(t, err)
+		assert.NotNil(t, client)
+		assert.Nil(t, client.cache, "cache should never be initialized for example servers")
+	})
+
+	// For real server tests, we need an integration test since non-example servers
+	// require actual connection validation
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	tc := SetupTestContainer(t)
+	defer tc.Close(t)
+
+	t.Run("cache not initialized by default for real server", func(t *testing.T) {
+		client, err := New(tc.Config, tc.AdminUser, tc.AdminPass)
+		assert.NoError(t, err)
+		assert.NotNil(t, client)
+		assert.Nil(t, client.cache, "cache should not be initialized by default")
+	})
+
+	t.Run("cache initialized with EnableCache for real server", func(t *testing.T) {
+		config := tc.Config
+		config.EnableCache = true
+		client, err := New(config, tc.AdminUser, tc.AdminPass)
+		assert.NoError(t, err)
+		assert.NotNil(t, client)
+		assert.NotNil(t, client.cache, "cache should be initialized when EnableCache is true")
+	})
+
+	t.Run("cache initialized with EnableOptimizations for real server", func(t *testing.T) {
+		config := tc.Config
+		config.EnableOptimizations = true
+		client, err := New(config, tc.AdminUser, tc.AdminPass)
+		assert.NoError(t, err)
+		assert.NotNil(t, client)
+		assert.NotNil(t, client.cache, "cache should be initialized when EnableOptimizations is true")
+	})
 }
 
 func TestWithCredentials(t *testing.T) {
