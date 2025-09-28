@@ -1065,6 +1065,121 @@ func (l *LDAP) CreateUserContext(ctx context.Context, user FullUser, password st
 	return dn, nil
 }
 
+// ModifyUser modifies attributes of an existing user in the directory.
+//
+// Parameters:
+//   - dn: The distinguished name of the user to modify
+//   - attributes: Map of attributes to modify (key: attribute name, value: new values)
+//
+// Returns:
+//   - error: Any LDAP operation error, including user not found or insufficient permissions
+//
+// Example:
+//   attributes := map[string][]string{
+//       "mail": {"newemail@example.com"},
+//       "description": {"Updated description"},
+//   }
+//   err := client.ModifyUser("uid=jdoe,ou=users,dc=example,dc=com", attributes)
+func (l *LDAP) ModifyUser(dn string, attributes map[string][]string) error {
+	return l.ModifyUserContext(context.Background(), dn, attributes)
+}
+
+// ModifyUserContext modifies attributes of an existing user with context support.
+//
+// Parameters:
+//   - ctx: Context for controlling the operation timeout and cancellation
+//   - dn: The distinguished name of the user to modify
+//   - attributes: Map of attributes to modify (key: attribute name, value: new values)
+//
+// Returns:
+//   - error: Any LDAP operation error, including user not found, insufficient permissions,
+//     or context cancellation error
+func (l *LDAP) ModifyUserContext(ctx context.Context, dn string, attributes map[string][]string) (err error) {
+	start := time.Now()
+
+	// Record operation completion on return
+	if l.perfMonitor != nil {
+		defer func() {
+			duration := time.Since(start)
+			resultCount := 0
+			if err == nil {
+				resultCount = 1
+			}
+			l.perfMonitor.RecordOperation(ctx, "ModifyUser", duration, false, err, resultCount)
+		}()
+	}
+
+	l.logger.Info("user_modify_started",
+		slog.String("operation", "ModifyUser"),
+		slog.String("dn", dn),
+		slog.Int("attributes", len(attributes)))
+
+	// Check for context cancellation first
+	select {
+	case <-ctx.Done():
+		l.logger.Debug("user_modify_cancelled",
+			slog.String("dn", dn),
+			slog.String("error", ctx.Err().Error()))
+		return ctx.Err()
+	default:
+	}
+
+	c, err := l.GetConnectionContext(ctx)
+	if err != nil {
+		return connectionError("modify", "user", err)
+	}
+	defer func() {
+		if closeErr := c.Close(); closeErr != nil {
+			l.logger.Debug("connection_close_error",
+				slog.String("operation", "ModifyUser"),
+				slog.String("dn", dn),
+				slog.String("error", closeErr.Error()))
+		}
+	}()
+
+	// Create modify request
+	modReq := ldap.NewModifyRequest(dn, nil)
+	for attr, values := range attributes {
+		modReq.Replace(attr, values)
+	}
+
+	// Check for context cancellation before modify operation
+	select {
+	case <-ctx.Done():
+		l.logger.Debug("user_modify_cancelled_before_ldap",
+			slog.String("dn", dn),
+			slog.String("error", ctx.Err().Error()))
+		return ctx.Err()
+	default:
+	}
+
+	// Execute modification
+	err = c.Modify(modReq)
+	if err != nil {
+		l.logger.Error("user_modify_failed",
+			slog.String("operation", "ModifyUser"),
+			slog.String("dn", dn),
+			slog.String("error", err.Error()),
+			slog.Duration("duration", time.Since(start)))
+		return WrapLDAPError("ModifyUser", l.config.Server, err)
+	}
+
+	l.logger.Info("user_modify_successful",
+		slog.String("operation", "ModifyUser"),
+		slog.String("dn", dn),
+		slog.Int("attributes", len(attributes)),
+		slog.Duration("duration", time.Since(start)))
+
+	// Clear cache for modified user using DN as primary key
+	if l.config.EnableCache && l.cache != nil {
+		deleted := l.cache.InvalidateByPrimaryKey(dn)
+		l.logger.Debug("user_cache_invalidated_on_modify",
+			slog.String("dn", dn),
+			slog.Int("keys_deleted", deleted))
+	}
+
+	return nil
+}
 
 // DeleteUser removes a user from the directory.
 //
