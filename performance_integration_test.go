@@ -111,10 +111,10 @@ func TestBulkOperationsPerformance(t *testing.T) {
 		// Prepare test users
 		users := []FullUser{
 			{
-				CN:        "Bulk User 1",
-				FirstName: "Bulk1",
-				LastName:  "User1",
-				Email:     ptr("bulk1@example.com"),
+				CN:             "Bulk User 1",
+				FirstName:      "Bulk1",
+				LastName:       "User1",
+				Email:          ptr("bulk1@example.com"),
 				SAMAccountName: ptr("bulkuser1"),
 				ObjectClasses: []string{
 					"top",
@@ -124,10 +124,10 @@ func TestBulkOperationsPerformance(t *testing.T) {
 				},
 			},
 			{
-				CN:        "Bulk User 2",
-				FirstName: "Bulk2",
-				LastName:  "User2",
-				Email:     ptr("bulk2@example.com"),
+				CN:             "Bulk User 2",
+				FirstName:      "Bulk2",
+				LastName:       "User2",
+				Email:          ptr("bulk2@example.com"),
 				SAMAccountName: ptr("bulkuser2"),
 				ObjectClasses: []string{
 					"top",
@@ -137,10 +137,10 @@ func TestBulkOperationsPerformance(t *testing.T) {
 				},
 			},
 			{
-				CN:        "Bulk User 3",
-				FirstName: "Bulk3",
-				LastName:  "User3",
-				Email:     ptr("bulk3@example.com"),
+				CN:             "Bulk User 3",
+				FirstName:      "Bulk3",
+				LastName:       "User3",
+				Email:          ptr("bulk3@example.com"),
 				SAMAccountName: ptr("bulkuser3"),
 				ObjectClasses: []string{
 					"top",
