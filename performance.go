@@ -387,9 +387,36 @@ func (pm *PerformanceMonitor) Reset() {
 	pm.logger.Debug("performance_metrics_reset")
 }
 
+// Flush writes any pending metrics data
+func (pm *PerformanceMonitor) Flush() {
+	if pm == nil || !pm.config.Enabled {
+		return
+	}
+
+	pm.mutex.Lock()
+	defer pm.mutex.Unlock()
+
+	// Log summary if there are pending operations
+	if len(pm.operations) > 0 {
+		pm.logger.Info("performance_monitor_flush",
+			slog.Int("pending_operations", len(pm.operations)),
+			slog.Int64("total_operations", pm.metrics.OperationsTotal),
+			slog.Int64("errors", pm.metrics.ErrorCount),
+			slog.Int64("slow_queries", pm.metrics.SlowQueries),
+			slog.Float64("cache_hit_ratio", pm.metrics.CacheHitRatio))
+	}
+
+	// Clear operation buffer to free memory
+	pm.operations = make([]OperationMetric, 0, pm.config.BufferSize)
+	pm.lastFlush = time.Now()
+}
+
 // Close stops background tasks and cleans up resources
 func (pm *PerformanceMonitor) Close() error {
 	pm.logger.Debug("performance_monitor_stopping")
+
+	// Flush any pending metrics before closing
+	pm.Flush()
 
 	// Signal all goroutines to stop
 	if pm.done != nil {

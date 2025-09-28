@@ -1037,6 +1037,35 @@ func (l *LDAP) CreateUserContext(ctx context.Context, user FullUser, password st
 	return dn, nil
 }
 
+// userCacheKeys generates all cache keys for a user based on their attributes.
+// This ensures consistent cache key generation across the codebase.
+func (l *LDAP) userCacheKeys(user *User) []string {
+	keys := []string{}
+	if user.DN() != "" {
+		keys = append(keys, fmt.Sprintf("user:dn:%s", user.DN()))
+	}
+	if user.Mail != nil && *user.Mail != "" {
+		keys = append(keys, fmt.Sprintf("user:mail:%s", *user.Mail))
+	}
+	if user.SAMAccountName != "" {
+		keys = append(keys, fmt.Sprintf("user:sam:%s", user.SAMAccountName))
+	}
+	return keys
+}
+
+// invalidateUserCache removes all cache entries for a user.
+// This should be called when a user is modified or deleted.
+func (l *LDAP) invalidateUserCache(user *User) {
+	if l.config.EnableCache && l.cache != nil && user != nil {
+		keys := l.userCacheKeys(user)
+		for _, key := range keys {
+			l.cache.Delete(key)
+			l.logger.Debug("cache_key_invalidated",
+				slog.String("key", key))
+		}
+	}
+}
+
 // DeleteUser removes a user from the directory.
 //
 // Parameters:
@@ -1079,6 +1108,17 @@ func (l *LDAP) DeleteUserContext(ctx context.Context, dn string) (err error) {
 		slog.String("operation", "DeleteUser"),
 		slog.String("dn", dn))
 
+	// Fetch user to get all attributes for cache invalidation
+	// We need mail and SAMAccountName to clear all cache keys
+	var userForCache *User
+	if l.config.EnableCache && l.cache != nil {
+		// Use a short context to avoid blocking delete if fetch fails
+		fetchCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		userForCache, _ = l.FindUserByDNContext(fetchCtx, dn)
+		cancel()
+		// Ignore error - we still want to delete even if we can't fetch for cache
+	}
+
 	c, err := l.GetConnectionContext(ctx)
 	if err != nil {
 		return err
@@ -1116,9 +1156,10 @@ func (l *LDAP) DeleteUserContext(ctx context.Context, dn string) (err error) {
 		slog.String("dn", dn),
 		slog.Duration("duration", time.Since(start)))
 
-	// Clear cache entry for deleted user if caching is enabled
+	// Clear all cache entries for deleted user
+	l.invalidateUserCache(userForCache)
+	// Also clear by DN in case fetch failed
 	if l.config.EnableCache && l.cache != nil {
-		// Clear all possible cache keys for this user
 		l.cache.Delete(fmt.Sprintf("user:dn:%s", dn))
 	}
 
@@ -1174,7 +1215,8 @@ func (l *LDAP) BulkCreateUsersContext(ctx context.Context, users []FullUser, pas
 	pool := NewWorkerPool[FullUser](l, config)
 	defer pool.Close()
 
-	// Submit work items
+	// Submit work items - continue on submission failures
+	submissionFailures := 0
 	for i, user := range users {
 		item := WorkItem[FullUser]{
 			ID:   fmt.Sprintf("user_%d_%s", i, user.CN),
@@ -1185,7 +1227,11 @@ func (l *LDAP) BulkCreateUsersContext(ctx context.Context, users []FullUser, pas
 			},
 		}
 		if err := pool.Submit(item); err != nil {
-			return nil, fmt.Errorf("failed to submit user %s: %w", user.CN, err)
+			// Track submission failure but continue processing
+			submissionFailures++
+			l.logger.Error("bulk_create_submit_failed",
+				slog.String("user", user.CN),
+				slog.String("error", err.Error()))
 		}
 	}
 
@@ -1194,6 +1240,14 @@ func (l *LDAP) BulkCreateUsersContext(ctx context.Context, users []FullUser, pas
 	resultsChan := pool.Results()
 	for result := range resultsChan {
 		results = append(results, result)
+	}
+
+	// Log summary if there were failures
+	if submissionFailures > 0 {
+		l.logger.Warn("bulk_create_completed_with_failures",
+			slog.Int("submission_failures", submissionFailures),
+			slog.Int("total_users", len(users)),
+			slog.Int("results_collected", len(results)))
 	}
 
 	return results, nil
@@ -1268,8 +1322,15 @@ func (l *LDAP) BulkModifyUsersContext(ctx context.Context, modifications []UserM
 
 				err = conn.Modify(modReq)
 
-				// Clear cache for modified user
+				// Clear cache for modified user - fetch user to clear all keys
 				if err == nil && client.config.EnableCache && client.cache != nil {
+					// Fetch user to get all attributes for complete cache invalidation
+					fetchCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+					userForCache, _ := client.FindUserByDNContext(fetchCtx, data.DN)
+					cancel()
+
+					client.invalidateUserCache(userForCache)
+					// Also clear by DN in case fetch failed
 					client.cache.Delete(fmt.Sprintf("user:dn:%s", data.DN))
 				}
 
@@ -1277,7 +1338,10 @@ func (l *LDAP) BulkModifyUsersContext(ctx context.Context, modifications []UserM
 			},
 		}
 		if err := pool.Submit(item); err != nil {
-			return nil, fmt.Errorf("failed to submit modification for %s: %w", mod.DN, err)
+			// Track submission failure but continue processing
+			l.logger.Error("bulk_modify_submit_failed",
+				slog.String("dn", mod.DN),
+				slog.String("error", err.Error()))
 		}
 	}
 
@@ -1347,7 +1411,10 @@ func (l *LDAP) BulkDeleteUsersContext(ctx context.Context, dns []string, config 
 			},
 		}
 		if err := pool.Submit(item); err != nil {
-			return nil, fmt.Errorf("failed to submit deletion for %s: %w", dn, err)
+			// Track submission failure but continue processing
+			l.logger.Error("bulk_delete_submit_failed",
+				slog.String("dn", dn),
+				slog.String("error", err.Error()))
 		}
 	}
 
