@@ -127,6 +127,19 @@ func (l *LDAP) FindUserByDN(dn string) (user *User, err error) {
 //     context cancellation error, or any LDAP operation error
 func (l *LDAP) FindUserByDNContext(ctx context.Context, dn string) (user *User, err error) {
 	start := time.Now()
+	cacheHit := false
+
+	// Record operation completion on return
+	if l.perfMonitor != nil {
+		defer func() {
+			duration := time.Since(start)
+			resultCount := 0
+			if user != nil {
+				resultCount = 1
+			}
+			l.perfMonitor.RecordOperation(ctx, "FindUserByDN", duration, cacheHit, err, resultCount)
+		}()
+	}
 
 	// Check cache if enabled
 	var cacheKey string
@@ -134,6 +147,7 @@ func (l *LDAP) FindUserByDNContext(ctx context.Context, dn string) (user *User, 
 		cacheKey = fmt.Sprintf("user:dn:%s", dn)
 		if cached, found := l.cache.Get(cacheKey); found {
 			if cachedUser, ok := cached.(*User); ok {
+				cacheHit = true
 				l.logger.Debug("user_cache_hit",
 					slog.String("operation", "FindUserByDN"),
 					slog.String("dn", dn),
@@ -234,6 +248,20 @@ func (l *LDAP) FindUserBySAMAccountNameContext(ctx context.Context, sAMAccountNa
 	}
 
 	start := time.Now()
+	cacheHit := false
+
+	// Record operation completion on return
+	if l.perfMonitor != nil {
+		defer func() {
+			duration := time.Since(start)
+			resultCount := 0
+			if user != nil {
+				resultCount = 1
+			}
+			l.perfMonitor.RecordOperation(ctx, "FindUserBySAMAccountName", duration, cacheHit, err, resultCount)
+		}()
+	}
+
 	// Mask sensitive data for logging
 	maskedUsername := maskSensitiveData(sAMAccountName)
 
@@ -243,6 +271,7 @@ func (l *LDAP) FindUserBySAMAccountNameContext(ctx context.Context, sAMAccountNa
 		cacheKey = fmt.Sprintf("user:sam:%s", sAMAccountName)
 		if cached, found := l.cache.Get(cacheKey); found {
 			if cachedUser, ok := cached.(*User); ok {
+				cacheHit = true
 				l.logger.Debug("user_cache_hit",
 					slog.String("operation", "FindUserBySAMAccountName"),
 					slog.String("username_masked", maskedUsername),
@@ -402,6 +431,19 @@ func (l *LDAP) FindUserByMail(mail string) (user *User, err error) {
 // This method performs a subtree search starting from the configured BaseDN.
 func (l *LDAP) FindUserByMailContext(ctx context.Context, mail string) (user *User, err error) {
 	start := time.Now()
+	cacheHit := false
+
+	// Record operation completion on return
+	if l.perfMonitor != nil {
+		defer func() {
+			duration := time.Since(start)
+			resultCount := 0
+			if user != nil {
+				resultCount = 1
+			}
+			l.perfMonitor.RecordOperation(ctx, "FindUserByMail", duration, cacheHit, err, resultCount)
+		}()
+	}
 
 	// Check cache if enabled
 	var cacheKey string
@@ -409,6 +451,7 @@ func (l *LDAP) FindUserByMailContext(ctx context.Context, mail string) (user *Us
 		cacheKey = fmt.Sprintf("user:mail:%s", mail)
 		if cached, found := l.cache.Get(cacheKey); found {
 			if cachedUser, ok := cached.(*User); ok {
+				cacheHit = true
 				l.logger.Debug("user_cache_hit",
 					slog.String("operation", "FindUserByMail"),
 					slog.String("mail", mail),
@@ -878,8 +921,20 @@ func (l *LDAP) CreateUser(user FullUser, password string) (string, error) {
 //   - ObjectClasses defaults to ["top", "person", "organizationalPerson", "user"] if not specified
 //   - DisplayName defaults to CN if not specified
 //   - The user is created at the specified Path relative to BaseDN, or directly under BaseDN if Path is nil
-func (l *LDAP) CreateUserContext(ctx context.Context, user FullUser, password string) (string, error) {
+func (l *LDAP) CreateUserContext(ctx context.Context, user FullUser, password string) (dn string, err error) {
 	start := time.Now()
+
+	// Record operation completion on return
+	if l.perfMonitor != nil {
+		defer func() {
+			duration := time.Since(start)
+			resultCount := 0
+			if err == nil {
+				resultCount = 1
+			}
+			l.perfMonitor.RecordOperation(ctx, "CreateUser", duration, false, err, resultCount)
+		}()
+	}
 	l.logger.Info("user_create_started",
 		slog.String("operation", "CreateUser"),
 		slog.String("cn", user.CN),
@@ -928,7 +983,7 @@ func (l *LDAP) CreateUserContext(ctx context.Context, user FullUser, password st
 
 	// Performance optimization: Use direct string concatenation instead of fmt.Sprintf
 	escapedCN := ldap.EscapeDN(user.CN)
-	dn := "CN=" + escapedCN + "," + baseDN
+	dn = "CN=" + escapedCN + "," + baseDN
 	l.logger.Debug("user_create_constructing_request",
 		slog.String("target_dn", dn),
 		slog.Any("object_classes", user.ObjectClasses))
@@ -1006,8 +1061,20 @@ func (l *LDAP) DeleteUser(dn string) error {
 //     or context cancellation error
 //
 // Warning: This operation is irreversible. Ensure you have proper backups and permissions before deletion.
-func (l *LDAP) DeleteUserContext(ctx context.Context, dn string) error {
+func (l *LDAP) DeleteUserContext(ctx context.Context, dn string) (err error) {
 	start := time.Now()
+
+	// Record operation completion on return
+	if l.perfMonitor != nil {
+		defer func() {
+			duration := time.Since(start)
+			resultCount := 0
+			if err == nil {
+				resultCount = 1
+			}
+			l.perfMonitor.RecordOperation(ctx, "DeleteUser", duration, false, err, resultCount)
+		}()
+	}
 	l.logger.Warn("user_delete_started",
 		slog.String("operation", "DeleteUser"),
 		slog.String("dn", dn))
@@ -1049,5 +1116,247 @@ func (l *LDAP) DeleteUserContext(ctx context.Context, dn string) error {
 		slog.String("dn", dn),
 		slog.Duration("duration", time.Since(start)))
 
+	// Clear cache entry for deleted user if caching is enabled
+	if l.config.EnableCache && l.cache != nil {
+		// Clear all possible cache keys for this user
+		l.cache.Delete(fmt.Sprintf("user:dn:%s", dn))
+	}
+
 	return nil
+}
+
+// BulkCreateUsers creates multiple users in LDAP using concurrent operations.
+//
+// Parameters:
+//   - users: Array of FullUser objects to create
+//   - password: Default password for all users (if empty, users will have no password)
+//
+// Returns:
+//   - []WorkResult[FullUser]: Results for each user creation attempt, including success/failure status
+//   - error: Critical error that prevented the operation from starting
+//
+// This method uses a worker pool to create users concurrently for improved performance.
+// Each user creation is attempted independently, so some may succeed while others fail.
+func (l *LDAP) BulkCreateUsers(users []FullUser, password string) ([]WorkResult[FullUser], error) {
+	return l.BulkCreateUsersContext(context.Background(), users, password, nil)
+}
+
+// BulkCreateUsersContext creates multiple users with context and configurable concurrency.
+//
+// Parameters:
+//   - ctx: Context for controlling the operation timeout and cancellation
+//   - users: Array of FullUser objects to create
+//   - password: Default password for all users
+//   - config: Optional worker pool configuration (uses defaults if nil)
+//
+// Returns:
+//   - []WorkResult[FullUser]: Results for each user creation attempt
+//   - error: Critical error that prevented the operation from starting
+func (l *LDAP) BulkCreateUsersContext(ctx context.Context, users []FullUser, password string, config *WorkerPoolConfig) ([]WorkResult[FullUser], error) {
+	if !l.config.EnableBulkOps {
+		return nil, fmt.Errorf("bulk operations are not enabled")
+	}
+
+	if config == nil {
+		config = DefaultWorkerPoolConfig()
+	}
+
+	// Record operation if metrics are enabled
+	start := time.Now()
+	if l.perfMonitor != nil {
+		defer func() {
+			duration := time.Since(start)
+			l.perfMonitor.RecordOperation(ctx, "BulkCreateUsers", duration, false, nil, len(users))
+		}()
+	}
+
+	// Create worker pool
+	pool := NewWorkerPool[FullUser](l, config)
+	defer pool.Close()
+
+	// Submit work items
+	for i, user := range users {
+		item := WorkItem[FullUser]{
+			ID:   fmt.Sprintf("user_%d_%s", i, user.CN),
+			Data: user,
+			Fn: func(ctx context.Context, client *LDAP, data FullUser) error {
+				_, err := client.CreateUserContext(ctx, data, password)
+				return err
+			},
+		}
+		if err := pool.Submit(item); err != nil {
+			return nil, fmt.Errorf("failed to submit user %s: %w", user.CN, err)
+		}
+	}
+
+	// Collect results
+	var results []WorkResult[FullUser]
+	resultsChan := pool.Results()
+	for result := range resultsChan {
+		results = append(results, result)
+	}
+
+	return results, nil
+}
+
+// UserModification represents a modification to apply to a user.
+type UserModification struct {
+	DN         string
+	Attributes map[string][]string
+}
+
+// BulkModifyUsers modifies multiple users in LDAP using concurrent operations.
+//
+// Parameters:
+//   - modifications: Array of UserModification objects describing the changes
+//
+// Returns:
+//   - []WorkResult[UserModification]: Results for each modification attempt
+//   - error: Critical error that prevented the operation from starting
+func (l *LDAP) BulkModifyUsers(modifications []UserModification) ([]WorkResult[UserModification], error) {
+	return l.BulkModifyUsersContext(context.Background(), modifications, nil)
+}
+
+// BulkModifyUsersContext modifies multiple users with context and configurable concurrency.
+//
+// Parameters:
+//   - ctx: Context for controlling the operation timeout and cancellation
+//   - modifications: Array of UserModification objects describing the changes
+//   - config: Optional worker pool configuration (uses defaults if nil)
+//
+// Returns:
+//   - []WorkResult[UserModification]: Results for each modification attempt
+//   - error: Critical error that prevented the operation from starting
+func (l *LDAP) BulkModifyUsersContext(ctx context.Context, modifications []UserModification, config *WorkerPoolConfig) ([]WorkResult[UserModification], error) {
+	if !l.config.EnableBulkOps {
+		return nil, fmt.Errorf("bulk operations are not enabled")
+	}
+
+	if config == nil {
+		config = DefaultWorkerPoolConfig()
+	}
+
+	// Record operation if metrics are enabled
+	start := time.Now()
+	if l.perfMonitor != nil {
+		defer func() {
+			duration := time.Since(start)
+			l.perfMonitor.RecordOperation(ctx, "BulkModifyUsers", duration, false, nil, len(modifications))
+		}()
+	}
+
+	// Create worker pool
+	pool := NewWorkerPool[UserModification](l, config)
+	defer pool.Close()
+
+	// Submit work items
+	for i, mod := range modifications {
+		item := WorkItem[UserModification]{
+			ID:   fmt.Sprintf("mod_%d_%s", i, mod.DN),
+			Data: mod,
+			Fn: func(ctx context.Context, client *LDAP, data UserModification) error {
+				conn, err := client.GetConnection()
+				if err != nil {
+					return err
+				}
+				defer conn.Close()
+
+				modReq := ldap.NewModifyRequest(data.DN, nil)
+				for attr, values := range data.Attributes {
+					modReq.Replace(attr, values)
+				}
+
+				err = conn.Modify(modReq)
+
+				// Clear cache for modified user
+				if err == nil && client.config.EnableCache && client.cache != nil {
+					client.cache.Delete(fmt.Sprintf("user:dn:%s", data.DN))
+				}
+
+				return err
+			},
+		}
+		if err := pool.Submit(item); err != nil {
+			return nil, fmt.Errorf("failed to submit modification for %s: %w", mod.DN, err)
+		}
+	}
+
+	// Collect results
+	var results []WorkResult[UserModification]
+	resultsChan := pool.Results()
+	for result := range resultsChan {
+		results = append(results, result)
+	}
+
+	return results, nil
+}
+
+// BulkDeleteUsers deletes multiple users from LDAP using concurrent operations.
+//
+// Parameters:
+//   - dns: Array of distinguished names to delete
+//
+// Returns:
+//   - []WorkResult[string]: Results for each deletion attempt
+//   - error: Critical error that prevented the operation from starting
+//
+// Warning: This operation is irreversible. Ensure you have proper backups before deletion.
+func (l *LDAP) BulkDeleteUsers(dns []string) ([]WorkResult[string], error) {
+	return l.BulkDeleteUsersContext(context.Background(), dns, nil)
+}
+
+// BulkDeleteUsersContext deletes multiple users with context and configurable concurrency.
+//
+// Parameters:
+//   - ctx: Context for controlling the operation timeout and cancellation
+//   - dns: Array of distinguished names to delete
+//   - config: Optional worker pool configuration (uses defaults if nil)
+//
+// Returns:
+//   - []WorkResult[string]: Results for each deletion attempt
+//   - error: Critical error that prevented the operation from starting
+func (l *LDAP) BulkDeleteUsersContext(ctx context.Context, dns []string, config *WorkerPoolConfig) ([]WorkResult[string], error) {
+	if !l.config.EnableBulkOps {
+		return nil, fmt.Errorf("bulk operations are not enabled")
+	}
+
+	if config == nil {
+		config = DefaultWorkerPoolConfig()
+	}
+
+	// Record operation if metrics are enabled
+	start := time.Now()
+	if l.perfMonitor != nil {
+		defer func() {
+			duration := time.Since(start)
+			l.perfMonitor.RecordOperation(ctx, "BulkDeleteUsers", duration, false, nil, len(dns))
+		}()
+	}
+
+	// Create worker pool
+	pool := NewWorkerPool[string](l, config)
+	defer pool.Close()
+
+	// Submit work items
+	for i, dn := range dns {
+		item := WorkItem[string]{
+			ID:   fmt.Sprintf("del_%d_%s", i, dn),
+			Data: dn,
+			Fn: func(ctx context.Context, client *LDAP, data string) error {
+				return client.DeleteUserContext(ctx, data)
+			},
+		}
+		if err := pool.Submit(item); err != nil {
+			return nil, fmt.Errorf("failed to submit deletion for %s: %w", dn, err)
+		}
+	}
+
+	// Collect results
+	var results []WorkResult[string]
+	resultsChan := pool.Results()
+	for result := range resultsChan {
+		results = append(results, result)
+	}
+
+	return results, nil
 }
