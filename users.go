@@ -1313,7 +1313,14 @@ func (l *LDAP) BulkModifyUsersContext(ctx context.Context, modifications []UserM
 				if err != nil {
 					return err
 				}
-				defer conn.Close()
+				defer func() {
+					if closeErr := conn.Close(); closeErr != nil {
+						client.logger.Debug("connection_close_error",
+							slog.String("operation", "BulkModifyUsers"),
+							slog.String("dn", data.DN),
+							slog.String("error", closeErr.Error()))
+					}
+				}()
 
 				modReq := ldap.NewModifyRequest(data.DN, nil)
 				for attr, values := range data.Attributes {
