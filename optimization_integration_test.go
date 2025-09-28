@@ -364,6 +364,119 @@ func (w *testLogWriter) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
+func TestCacheInvalidation(t *testing.T) {
+	tc := SetupTestContainer(t)
+	defer tc.Close(t)
+
+	t.Run("cache invalidation on delete", func(t *testing.T) {
+		config := tc.Config
+		config.EnableCache = true
+
+		client, err := New(config, tc.AdminUser, tc.AdminPass)
+		require.NoError(t, err)
+		defer client.Close()
+
+		// Create a test user with specific attributes
+		userDN := fmt.Sprintf("uid=cachetest,%s", tc.UsersOU)
+		addReq := ldap.NewAddRequest(userDN, nil)
+		addReq.Attribute("objectClass", []string{"inetOrgPerson", "organizationalPerson", "person", "top"})
+		addReq.Attribute("uid", []string{"cachetest"})
+		addReq.Attribute("cn", []string{"Cache Test User"})
+		addReq.Attribute("sn", []string{"Test"})
+		addReq.Attribute("mail", []string{"cachetest@example.com"})
+		addReq.Attribute("sAMAccountName", []string{"cachetest"})
+		addReq.Attribute("userPassword", []string{"password123"})
+
+		conn, err := client.GetConnection()
+		require.NoError(t, err)
+		err = conn.Add(addReq)
+		conn.Close()
+		require.NoError(t, err)
+
+		// Lookup by DN to populate cache
+		user1, err := client.FindUserByDN(userDN)
+		require.NoError(t, err)
+		require.NotNil(t, user1)
+
+		// Lookup by mail to populate cache
+		user2, err := client.FindUserByMail("cachetest@example.com")
+		require.NoError(t, err)
+		require.NotNil(t, user2)
+
+		// Lookup by SAMAccountName to populate cache
+		user3, err := client.FindUserBySAMAccountName("cachetest")
+		require.NoError(t, err)
+		require.NotNil(t, user3)
+
+		// Now delete the user using the LDAP client method which should invalidate all caches
+		err = client.DeleteUser(userDN)
+		require.NoError(t, err)
+
+		// Try to find user by all methods - should not find from cache (will get error from LDAP)
+		_, err = client.FindUserByDN(userDN)
+		assert.Error(t, err, "should not find deleted user by DN")
+
+		_, err = client.FindUserByMail("cachetest@example.com")
+		assert.Error(t, err, "should not find deleted user by mail")
+
+		_, err = client.FindUserBySAMAccountName("cachetest")
+		assert.Error(t, err, "should not find deleted user by SAMAccountName")
+	})
+
+	t.Run("cache invalidation on bulk modify", func(t *testing.T) {
+		config := tc.Config
+		config.EnableCache = true
+		config.EnableBulkOps = true
+
+		client, err := New(config, tc.AdminUser, tc.AdminPass)
+		require.NoError(t, err)
+		defer client.Close()
+
+		// Create a test user
+		userDN := fmt.Sprintf("uid=modifycache,%s", tc.UsersOU)
+		addReq := ldap.NewAddRequest(userDN, nil)
+		addReq.Attribute("objectClass", []string{"inetOrgPerson", "organizationalPerson", "person", "top"})
+		addReq.Attribute("uid", []string{"modifycache"})
+		addReq.Attribute("cn", []string{"Modify Cache User"})
+		addReq.Attribute("sn", []string{"Cache"})
+		addReq.Attribute("mail", []string{"modifycache@example.com"})
+		addReq.Attribute("sAMAccountName", []string{"modifycache"})
+		addReq.Attribute("userPassword", []string{"password123"})
+
+		conn, err := client.GetConnection()
+		require.NoError(t, err)
+		err = conn.Add(addReq)
+		conn.Close()
+		require.NoError(t, err)
+		defer client.DeleteUser(userDN)
+
+		// Lookup to populate cache
+		user1, err := client.FindUserByDN(userDN)
+		require.NoError(t, err)
+		require.Equal(t, "modifycache@example.com", user1.Mail)
+
+		// Modify user email using bulk operation
+		modifications := []UserModification{
+			{
+				DN: userDN,
+				Attributes: map[string][]string{
+					"mail": {"newmail@example.com"},
+				},
+			},
+		}
+
+		results, err := client.BulkModifyUsers(modifications)
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+		require.NoError(t, results[0].Error)
+
+		// Lookup again - should get new data, not cached
+		user2, err := client.FindUserByDN(userDN)
+		require.NoError(t, err)
+		assert.Equal(t, "newmail@example.com", user2.Mail, "should get updated email, not cached value")
+	})
+}
+
 func contains(s, substr string) bool {
 	if len(s) == 0 || len(substr) == 0 {
 		return false
