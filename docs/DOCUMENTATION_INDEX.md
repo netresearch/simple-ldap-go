@@ -15,6 +15,12 @@
 
 ## 📚 Documentation Structure
 
+### [📖 Knowledge Base](../KNOWLEDGE_BASE.md)
+- [Complete Project Overview](../KNOWLEDGE_BASE.md)
+- [Architecture Components](../KNOWLEDGE_BASE.md#architecture-components)
+- [Performance Optimizations](../KNOWLEDGE_BASE.md#performance-optimizations)
+- [Configuration Patterns](../KNOWLEDGE_BASE.md#configuration-patterns)
+
 ### [🚀 Quick Start](README.md)
 - [Installation](README.md#installation)
 - [Basic Usage](README.md#quick-start)
@@ -46,9 +52,12 @@
 
 ### [📘 Implementation Guides](#guides)
 - [Authentication Workflows](docs/AUTHENTICATION_GUIDE.md) - MFA, session management, security patterns
+- [Builder Patterns](docs/BUILDER_PATTERNS_GUIDE.md) - Fluent API, object construction, validation
 - [Connection Pooling](docs/CONNECTION_POOLING.md) - Pool configuration, monitoring, optimization
-- [Caching Strategies](docs/CACHING_GUIDE.md) - LRU implementation, TTL management, performance
+- [Caching Strategies](docs/CACHING_GUIDE.md) - LRU implementation, TTL management, key tracking
 - [Error Handling Patterns](docs/ERROR_HANDLING.md) - Error types, recovery patterns, best practices
+- [Iterator Patterns](docs/ITERATOR_PATTERNS_GUIDE.md) - Streaming data access, memory efficiency
+- [Performance Configuration](docs/PERFORMANCE_CONFIGURATION_GUIDE.md) - Metrics, optimization, monitoring
 - [Performance Tuning](docs/PERFORMANCE_TUNING.md) - Benchmarking, profiling, optimization techniques
 - [Security Implementation](docs/SECURITY_GUIDE.md) - Authentication, authorization, compliance
 - [Troubleshooting Guide](docs/TROUBLESHOOTING.md) - Common issues, diagnostics, debugging
