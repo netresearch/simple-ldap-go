@@ -5,6 +5,7 @@ package ldap
 import (
 	"context"
 	"errors"
+	"io"
 	"log/slog"
 	"strings"
 	"testing"
@@ -470,6 +471,7 @@ func BenchmarkRegressionCircuitBreaker(b *testing.B) {
 				Timeout:     30 * time.Second,
 			},
 		},
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), // Silent logger for benchmark
 	}
 
 	client, err := New(*config, "user", "pass")

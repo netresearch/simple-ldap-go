@@ -52,7 +52,7 @@ test-parallel: ## Run tests with maximum parallelization
 
 test-benchmark: ## Run benchmark tests
 	@echo "Running benchmark tests..."
-	go test -bench=. -benchmem -timeout=$(TIMEOUT_ALL) $(BENCHMARK_PATTERN) ./...
+	go test -bench=. -benchmem -short -timeout=$(TIMEOUT_ALL) $(BENCHMARK_PATTERN) ./...
 
 test-coverage: ## Run tests with coverage report
 	@echo "Running tests with coverage..."

@@ -6,6 +6,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -865,7 +867,9 @@ func BenchmarkLRUCacheSet(b *testing.B) {
 		MaxSize: 10000,
 	}
 
-	cache, err := NewLRUCache(config, nil)
+	// Use discard logger to eliminate logging noise in benchmarks
+	discardLogger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	cache, err := NewLRUCache(config, discardLogger)
 	require.NoError(b, err)
 	defer func() { _ = cache.Close() }()
 
@@ -889,7 +893,9 @@ func BenchmarkLRUCacheGet(b *testing.B) {
 		MaxSize: 10000,
 	}
 
-	cache, err := NewLRUCache(config, nil)
+	// Use discard logger to eliminate logging noise in benchmarks
+	discardLogger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	cache, err := NewLRUCache(config, discardLogger)
 	require.NoError(b, err)
 	defer func() { _ = cache.Close() }()
 
@@ -919,7 +925,9 @@ func BenchmarkCacheConcurrent(b *testing.B) {
 		MaxSize: 10000,
 	}
 
-	cache, err := NewLRUCache(config, nil)
+	// Use discard logger to eliminate logging noise in benchmarks
+	discardLogger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	cache, err := NewLRUCache(config, discardLogger)
 	require.NoError(b, err)
 	defer func() { _ = cache.Close() }()
 
