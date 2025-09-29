@@ -2,6 +2,13 @@
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/netresearch/simple-ldap-go.svg)](https://pkg.go.dev/github.com/netresearch/simple-ldap-go)
 [![Go Report Card](https://goreportcard.com/badge/github.com/netresearch/simple-ldap-go)](https://goreportcard.com/report/github.com/netresearch/simple-ldap-go)
+[![CI Status](https://github.com/netresearch/simple-ldap-go/actions/workflows/optimized-tests.yml/badge.svg)](https://github.com/netresearch/simple-ldap-go/actions/workflows/optimized-tests.yml)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/netresearch/simple-ldap-go)](https://go.dev/dl/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Latest Release](https://img.shields.io/github/v/release/netresearch/simple-ldap-go)](https://github.com/netresearch/simple-ldap-go/releases)
+[![Renovate enabled](https://img.shields.io/badge/renovate-enabled-brightgreen.svg)](https://renovatebot.com/)
+[![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://github.com/netresearch/simple-ldap-go/graphs/commit-activity)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/netresearch/simple-ldap-go/pulls)
 
 A simple Go library providing an easy-to-use wrapper around [go-ldap/ldap/v3](https://github.com/go-ldap/ldap) for common LDAP and Active Directory operations.
 
