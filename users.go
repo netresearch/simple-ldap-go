@@ -100,6 +100,41 @@ func getFirstNonEmptyAttribute(entry *ldap.Entry, attribute string) *string {
 	return nil
 }
 
+// IsMemberOf checks if the user is a member of the specified group.
+// The comparison is case-insensitive and handles whitespace normalization,
+// as LDAP distinguished names are case-insensitive according to RFC 4512.
+//
+// Parameters:
+//   - groupDN: The distinguished name of the group to check membership for
+//     (e.g., "CN=Admins,OU=Groups,DC=example,DC=com")
+//
+// Returns:
+//   - bool: true if the user is a direct member of the group, false otherwise
+//
+// Example:
+//
+//	if user.IsMemberOf("CN=Admins,OU=Groups,DC=example,DC=com") {
+//	    // User has admin privileges
+//	}
+//
+// Note: This method only checks direct group membership. For nested group
+// membership checking in Active Directory, use the LDAP_MATCHING_RULE_IN_CHAIN
+// filter with FindUserBySAMAccountName or similar methods.
+func (u *User) IsMemberOf(groupDN string) bool {
+	// Normalize the target group DN for comparison
+	normalizedTarget := strings.ToLower(strings.TrimSpace(groupDN))
+
+	// Check each group membership
+	for _, group := range u.Groups {
+		normalizedGroup := strings.ToLower(strings.TrimSpace(group))
+		if normalizedGroup == normalizedTarget {
+			return true
+		}
+	}
+
+	return false
+}
+
 // FindUserByDN retrieves a user by their distinguished name.
 //
 // Parameters:
@@ -417,6 +452,112 @@ func (l *LDAP) FindUserBySAMAccountNameContext(ctx context.Context, sAMAccountNa
 		slog.Duration("duration", time.Since(start)))
 
 	return
+}
+
+// FindUsersBySAMAccountNames retrieves multiple users by their Security Account Manager account names.
+// This is a convenience method for batch user lookups, commonly used in scenarios where operations
+// need to be performed on multiple users simultaneously (e.g., admin panels, bulk operations, reporting).
+//
+// Parameters:
+//   - sAMAccountNames: A slice of SAM account names to search for (e.g., ["jdoe", "asmith", "bjones"])
+//
+// Returns:
+//   - []*User: A slice of user objects for found users (may be shorter than input if some users don't exist)
+//   - error: Returns error only for system failures (connection errors, invalid configuration, etc.)
+//     Individual user lookup failures result in that user being omitted from the results
+//
+// Example:
+//
+//	// Lookup multiple users for batch operations
+//	names := []string{"admin", "jdoe", "asmith"}
+//	users, err := client.FindUsersBySAMAccountNames(names)
+//	if err != nil {
+//	    // Handle connection/system errors
+//	    log.Fatal(err)
+//	}
+//	// Users slice contains only found users (may be 0-3 users)
+//	for _, user := range users {
+//	    fmt.Printf("Found: %s (%s)\n", user.SAMAccountName, user.DN())
+//	}
+//
+// Note: This method returns partial results - if some users are not found, they are silently
+// omitted from the results. Check the length of returned slice against input to detect missing users.
+// For detailed error handling per user, use individual FindUserBySAMAccountName calls.
+func (l *LDAP) FindUsersBySAMAccountNames(sAMAccountNames []string) ([]*User, error) {
+	return l.FindUsersBySAMAccountNamesContext(context.Background(), sAMAccountNames)
+}
+
+// FindUsersBySAMAccountNamesContext retrieves multiple users by their Security Account Manager account names
+// with context support for timeout and cancellation control.
+//
+// Parameters:
+//   - ctx: Context for controlling the operation timeout and cancellation
+//   - sAMAccountNames: A slice of SAM account names to search for
+//
+// Returns:
+//   - []*User: A slice of user objects for found users
+//   - error: Returns error only for context cancellation or system failures
+//
+// This method looks up users sequentially. Individual lookup failures result in that user
+// being omitted from the results. The context can be used to set a timeout for the entire
+// operation or cancel it midway through.
+func (l *LDAP) FindUsersBySAMAccountNamesContext(ctx context.Context, sAMAccountNames []string) ([]*User, error) {
+	// Check for context cancellation at start
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	start := time.Now()
+
+	// Pre-allocate with capacity for potential matches
+	users := make([]*User, 0, len(sAMAccountNames))
+
+	// Track lookup statistics for logging
+	foundCount := 0
+	errorCount := 0
+
+	// Lookup each user sequentially
+	for _, sAMAccountName := range sAMAccountNames {
+		// Check context before each lookup
+		if err := ctx.Err(); err != nil {
+			// Return partial results with context cancellation error
+			return users, err
+		}
+
+		user, err := l.FindUserBySAMAccountNameContext(ctx, sAMAccountName)
+		if err != nil {
+			// Only system/connection errors should stop the batch operation
+			// User not found errors are expected and handled by omitting from results
+			if err == ErrUserNotFound || err == ErrSAMAccountNameDuplicated {
+				errorCount++
+				l.logger.Debug("batch_user_lookup_skipped",
+					slog.String("operation", "FindUsersBySAMAccountNames"),
+					slog.String("sam_account_name_masked", maskSensitiveData(sAMAccountName)),
+					slog.String("reason", err.Error()))
+				continue
+			}
+
+			// For other errors (connection, system), return partial results with error
+			l.logger.Warn("batch_user_lookup_error",
+				slog.String("operation", "FindUsersBySAMAccountNames"),
+				slog.String("sam_account_name_masked", maskSensitiveData(sAMAccountName)),
+				slog.Int("found_so_far", foundCount),
+				slog.String("error", err.Error()))
+			return users, err
+		}
+
+		users = append(users, user)
+		foundCount++
+	}
+
+	l.logger.Debug("batch_user_lookup_completed",
+		slog.String("operation", "FindUsersBySAMAccountNames"),
+		slog.Int("requested", len(sAMAccountNames)),
+		slog.Int("found", foundCount),
+		slog.Int("not_found", errorCount),
+		slog.Duration("duration", time.Since(start)))
+
+	return users, nil
 }
 
 // FindUserByMail retrieves a user by their email address.
