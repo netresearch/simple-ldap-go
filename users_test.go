@@ -1,8 +1,7 @@
-//go:build !integration
-
 package ldap
 
 import (
+	"os/exec"
 	"strings"
 	"testing"
 
@@ -512,6 +511,12 @@ func BenchmarkFindUserBySAMAccountName(b *testing.B) {
 	if testing.Short() {
 		b.Skip("Skipping integration benchmark in short mode")
 	}
+
+	// Skip if Docker not available (CI environment)
+	if _, err := exec.Command("docker", "info").CombinedOutput(); err != nil {
+		b.Skip("Docker not available, skipping integration benchmark")
+	}
+
 	tc := SetupTestContainer(&testing.T{})
 	defer tc.Close(&testing.T{})
 
@@ -531,6 +536,12 @@ func BenchmarkFindUsers(b *testing.B) {
 	if testing.Short() {
 		b.Skip("Skipping integration benchmark in short mode")
 	}
+
+	// Skip if Docker not available (CI environment)
+	if _, err := exec.Command("docker", "info").CombinedOutput(); err != nil {
+		b.Skip("Docker not available, skipping integration benchmark")
+	}
+
 	tc := SetupTestContainer(&testing.T{})
 	defer tc.Close(&testing.T{})
 

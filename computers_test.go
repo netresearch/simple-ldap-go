@@ -1,9 +1,8 @@
-//go:build !integration
-
 package ldap
 
 import (
 	"fmt"
+	"os/exec"
 	"strings"
 	"testing"
 
@@ -420,6 +419,12 @@ func BenchmarkFindComputerBySAMAccountName(b *testing.B) {
 	if testing.Short() {
 		b.Skip("Skipping integration benchmark in short mode")
 	}
+
+	// Skip if Docker not available (CI environment)
+	if _, err := exec.Command("docker", "info").CombinedOutput(); err != nil {
+		b.Skip("Docker not available, skipping integration benchmark")
+	}
+
 	tc := SetupTestContainer(&testing.T{})
 	defer tc.Close(&testing.T{})
 
@@ -439,6 +444,12 @@ func BenchmarkFindComputers(b *testing.B) {
 	if testing.Short() {
 		b.Skip("Skipping integration benchmark in short mode")
 	}
+
+	// Skip if Docker not available (CI environment)
+	if _, err := exec.Command("docker", "info").CombinedOutput(); err != nil {
+		b.Skip("Docker not available, skipping integration benchmark")
+	}
+
 	tc := SetupTestContainer(&testing.T{})
 	defer tc.Close(&testing.T{})
 

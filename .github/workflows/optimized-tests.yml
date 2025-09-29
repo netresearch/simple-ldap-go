@@ -123,8 +123,8 @@ jobs:
       run: go mod download
 
     - name: Run benchmark tests
-      run: make test-benchmark
-      timeout-minutes: 10
+      run: make test-benchmark-ci
+      timeout-minutes: 2
 
     - name: Upload benchmark results
       uses: actions/upload-artifact@v4

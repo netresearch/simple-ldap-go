@@ -50,9 +50,19 @@ test-parallel: ## Run tests with maximum parallelization
 	@echo "Running tests with optimized parallelization..."
 	go test $(TEST_FLAGS) -timeout=$(TIMEOUT_ALL) -parallel=8 ./...
 
-test-benchmark: ## Run benchmark tests
-	@echo "Running benchmark tests..."
-	go test -bench=. -benchmem -short -timeout=$(TIMEOUT_ALL) $(BENCHMARK_PATTERN) ./...
+test-benchmark-ci: ## Fast benchmarks for CI (no Docker required, 60s max)
+	@echo "Running CI-optimized benchmark tests..."
+	go test -bench=. -benchmem -short -benchtime=100ms -timeout=60s -run="^Benchmark" ./...
+
+test-benchmark-fast: ## Quick benchmarks for development (30s max)
+	@echo "Running fast benchmark tests..."
+	go test -bench=. -benchmem -short -benchtime=10ms -timeout=30s -run="^Benchmark" ./...
+
+test-benchmark-full: ## Full benchmarks with Docker containers (300s max)
+	@echo "Running full benchmark tests (requires Docker)..."
+	go test -bench=. -benchmem -timeout=$(TIMEOUT_ALL) -run="^Benchmark" ./...
+
+test-benchmark: test-benchmark-ci ## Default to CI-optimized benchmarks
 
 test-coverage: ## Run tests with coverage report
 	@echo "Running tests with coverage..."
