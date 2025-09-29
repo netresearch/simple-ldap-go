@@ -6,6 +6,7 @@
 - [User Operations](#user-operations)
 - [Group Operations](#group-operations)
 - [Computer Operations](#computer-operations)
+- [Cache Management API](#cache-management-api)
 - [Builders](#builders)
 - [Infrastructure](#infrastructure)
 - [Error Types](#error-types)
@@ -19,9 +20,9 @@
 
 #### `New`
 ```go
-func New(config Config, user, password string) (*LDAP, error)
+func New(config Config, username, password string, opts ...Option) (*LDAP, error)
 ```
-Creates a standard LDAP client with the provided configuration and credentials.
+Creates a standard LDAP client with the provided configuration and credentials. *File: client.go:60*
 
 The LDAP client automatically enables optimizations based on the configuration:
 - Connection pooling when `config.PoolSize > 1`
@@ -148,6 +149,18 @@ func (l *LDAP) DeleteUserContext(ctx context.Context, dn string) error
 ```
 Deletes a user account by DN.
 
+#### `ModifyUser` / `ModifyUserContext`
+```go
+func (l *LDAP) ModifyUser(dn string, attributes map[string][]string) error
+func (l *LDAP) ModifyUserContext(ctx context.Context, dn string, attributes map[string][]string) error
+```
+Modifies attributes of an existing user in the directory. *File: users.go:1084-1098*
+
+| Method | Description | Context Support | File Reference |
+|--------|------------|-----------------|----------------|
+| `ModifyUser` | Modify user attributes | No | users.go:1084 |
+| `ModifyUserContext` | Modify with context support | Yes | users.go:1098 |
+
 ### Group Membership
 
 #### `AddUserToGroup` / `AddUserToGroupContext`
@@ -211,6 +224,45 @@ func (l *LDAP) FindComputers() ([]Computer, error)
 func (l *LDAP) FindComputersContext(ctx context.Context) ([]Computer, error)
 ```
 Retrieves all computers from the directory.
+
+---
+
+## Cache Management API
+
+The cache management functions provide efficient key tracking and invalidation capabilities for cache optimization.
+
+### Cache Key Management
+
+#### `RegisterCacheKey`
+```go
+func (c *LRUCache) RegisterCacheKey(primaryKey string, cacheKey string)
+```
+Registers a cache key with its primary identifier for efficient invalidation without needing to fetch the cached object. *File: cache.go:858*
+
+#### `InvalidateByPrimaryKey`
+```go
+func (c *LRUCache) InvalidateByPrimaryKey(primaryKey string) int
+```
+Invalidates all cache entries related to a primary key. Returns the number of cache keys deleted. *File: cache.go:892*
+
+#### `SetWithPrimaryKey`
+```go
+func (c *LRUCache) SetWithPrimaryKey(cacheKey string, value interface{}, ttl time.Duration, primaryKey string) error
+```
+Stores a value in cache and registers it with a primary key for efficient future invalidation. *File: cache.go:934*
+
+#### `GetRelatedKeys`
+```go
+func (c *LRUCache) GetRelatedKeys(primaryKey string) []string
+```
+Returns all cache keys associated with a primary key. *File: cache.go:947*
+
+| Method | Description | Context Support | File Reference |
+|--------|------------|-----------------|----------------|
+| `RegisterCacheKey` | Register cache key with primary key | No | cache.go:858 |
+| `InvalidateByPrimaryKey` | Invalidate by primary key | No | cache.go:892 |
+| `SetWithPrimaryKey` | Set with primary key tracking | No | cache.go:934 |
+| `GetRelatedKeys` | Get all related cache keys | No | cache.go:947 |
 
 ---
 
