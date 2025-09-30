@@ -70,14 +70,23 @@ type PoolStats struct {
 	ConnectionsClosed int64
 }
 
+// ConnectionCredentials stores authentication information for a pooled connection.
+// This enables per-user connection tracking and credential-aware connection reuse
+// in multi-user scenarios (e.g., web applications, multi-tenant systems).
+type ConnectionCredentials struct {
+	DN       string // Distinguished Name for LDAP bind
+	Password string // Password for LDAP bind
+}
+
 // pooledConnection wraps an LDAP connection with metadata for pool management
 type pooledConnection struct {
-	conn       *ldap.Conn
-	createdAt  time.Time
-	lastUsed   time.Time
-	usageCount int64
-	isHealthy  bool
-	inUse      bool
+	conn        *ldap.Conn
+	createdAt   time.Time
+	lastUsed    time.Time
+	usageCount  int64
+	isHealthy   bool
+	inUse       bool
+	credentials *ConnectionCredentials // Tracks connection credentials for multi-user pooling
 }
 
 // ConnectionPool manages a pool of LDAP connections with health monitoring and lifecycle management
@@ -282,6 +291,265 @@ func (p *ConnectionPool) Put(conn *ldap.Conn) error {
 		atomic.AddInt32(&p.stats.ActiveConnections, -1)
 		return nil
 	}
+}
+
+// GetWithCredentials returns a connection from the pool authenticated with specific credentials.
+// This method enables per-user connection pooling in multi-user scenarios where different
+// users need separate authenticated connections.
+//
+// The pool will:
+// - Reuse existing connections with matching credentials
+// - Create new connections when no matching credentials found
+// - Prevent credential mixing for security
+//
+// Use cases:
+// - Web applications with per-user LDAP operations
+// - Multi-tenant systems
+// - Delegated operations on behalf of authenticated users
+//
+// Example:
+//
+//	// User A's connection
+//	connA, err := pool.GetWithCredentials(ctx, "cn=userA,dc=example,dc=com", "passwordA")
+//	if err != nil {
+//	    return err
+//	}
+//	defer pool.Put(connA)
+//
+//	// User B's connection (different connection from User A)
+//	connB, err := pool.GetWithCredentials(ctx, "cn=userB,dc=example,dc=com", "passwordB")
+//	if err != nil {
+//	    return err
+//	}
+//	defer pool.Put(connB)
+func (p *ConnectionPool) GetWithCredentials(ctx context.Context, dn, password string) (*ldap.Conn, error) {
+	p.mu.RLock()
+	if p.closed {
+		p.mu.RUnlock()
+		return nil, ErrPoolClosed
+	}
+	p.mu.RUnlock()
+
+	creds := &ConnectionCredentials{
+		DN:       dn,
+		Password: password,
+	}
+
+	// Try to get connection with timeout
+	timeoutCtx, cancel := context.WithTimeout(ctx, p.config.GetTimeout)
+	defer cancel()
+
+	// Try to find an available connection with matching credentials
+	for {
+		select {
+		case conn := <-p.available:
+			if conn != nil && p.canReuseConnection(conn, creds) {
+				conn.inUse = true
+				conn.lastUsed = time.Now()
+				atomic.AddInt64(&conn.usageCount, 1)
+				atomic.AddInt32(&p.stats.ActiveConnections, 1)
+				atomic.AddInt32(&p.stats.IdleConnections, -1)
+				atomic.AddInt64(&p.stats.PoolHits, 1)
+
+				// Add to connection map for tracking
+				p.connMapMu.Lock()
+				p.connMap[conn.conn] = conn
+				p.connMapMu.Unlock()
+
+				p.logger.Debug("connection_retrieved_with_credentials",
+					slog.String("dn", dn),
+					slog.Time("created_at", conn.createdAt),
+					slog.Int64("usage_count", conn.usageCount))
+
+				return conn.conn, nil
+			}
+			// Connection doesn't match credentials, close it and continue searching
+			p.closeConnection(conn)
+			atomic.AddInt32(&p.stats.IdleConnections, -1)
+
+		case <-timeoutCtx.Done():
+			// Timeout or context cancelled, try to create new connection
+			p.mu.RLock()
+			totalConns := atomic.LoadInt32(&p.stats.TotalConnections)
+			canCreate := int(totalConns) < p.config.MaxConnections
+			p.mu.RUnlock()
+
+			if canCreate {
+				// Create new connection with credentials
+				conn, err := p.createConnectionWithCredentials(ctx, creds)
+				if err != nil {
+					atomic.AddInt64(&p.stats.PoolMisses, 1)
+					return nil, err
+				}
+				return conn, nil
+			}
+
+			return nil, ErrPoolExhausted
+
+		default:
+			// No available connections, try to create new one
+			p.mu.RLock()
+			totalConns := atomic.LoadInt32(&p.stats.TotalConnections)
+			canCreate := int(totalConns) < p.config.MaxConnections
+			p.mu.RUnlock()
+
+			if canCreate {
+				conn, err := p.createConnectionWithCredentials(ctx, creds)
+				if err != nil {
+					atomic.AddInt64(&p.stats.PoolMisses, 1)
+					return nil, err
+				}
+				return conn, nil
+			}
+
+			// Pool exhausted, wait a bit and retry
+			select {
+			case <-timeoutCtx.Done():
+				return nil, ErrPoolExhausted
+			case <-time.After(10 * time.Millisecond):
+				// Continue loop to retry
+			}
+		}
+	}
+}
+
+// canReuseConnection determines if a connection can be reused for the given credentials.
+// A connection can be reused if:
+// - It's healthy
+// - It hasn't exceeded MaxIdleTime
+// - Credentials match (or both are nil for readonly connections)
+func (p *ConnectionPool) canReuseConnection(conn *pooledConnection, creds *ConnectionCredentials) bool {
+	// Check health status
+	if !conn.isHealthy {
+		return false
+	}
+
+	now := time.Now()
+
+	// Check idle time expiry
+	if now.Sub(conn.lastUsed) > p.config.MaxIdleTime {
+		return false
+	}
+
+	// Check credential matching
+	if conn.credentials != nil && creds != nil {
+		// Both have credentials - must match exactly
+		return conn.credentials.DN == creds.DN &&
+			conn.credentials.Password == creds.Password
+	}
+
+	// Allow reuse only if both are nil (readonly connections)
+	// This prevents mixing readonly and authenticated connections
+	return conn.credentials == nil && creds == nil
+}
+
+// createConnectionWithCredentials creates a new LDAP connection with specific credentials
+func (p *ConnectionPool) createConnectionWithCredentials(ctx context.Context, creds *ConnectionCredentials) (*ldap.Conn, error) {
+	// Check if we've reached max connections
+	p.mu.RLock()
+	currentTotal := len(p.connections)
+	p.mu.RUnlock()
+
+	if currentTotal >= p.config.MaxConnections {
+		atomic.AddInt64(&p.stats.PoolMisses, 1)
+		return nil, ErrPoolExhausted
+	}
+
+	// Create connection with timeout
+	connCtx, cancel := context.WithTimeout(ctx, p.config.ConnectionTimeout)
+	defer cancel()
+
+	start := time.Now()
+	p.logger.Debug("creating_connection_with_credentials",
+		slog.String("server", p.ldapConfig.Server),
+		slog.String("dn", creds.DN))
+
+	dialOpts := make([]ldap.DialOpt, 0)
+	if p.ldapConfig.DialOptions != nil {
+		dialOpts = p.ldapConfig.DialOptions
+	}
+
+	// Check for context cancellation before dialing
+	select {
+	case <-connCtx.Done():
+		return nil, connCtx.Err()
+	default:
+	}
+
+	conn, err := ldap.DialURL(p.ldapConfig.Server, dialOpts...)
+	if err != nil {
+		p.logger.Error("connection_dial_failed",
+			slog.String("server", p.ldapConfig.Server),
+			slog.String("error", err.Error()),
+			slog.Duration("duration", time.Since(start)))
+		return nil, err
+	}
+
+	// Check for context cancellation before binding
+	select {
+	case <-connCtx.Done():
+		if closeErr := conn.Close(); closeErr != nil {
+			p.logger.Debug("connection_close_error",
+				slog.String("operation", "createConnectionWithCredentials"),
+				slog.String("error", closeErr.Error()))
+		}
+		return nil, connCtx.Err()
+	default:
+	}
+
+	// Bind with provided credentials (or pool credentials if nil)
+	bindDN := p.user
+	bindPassword := p.password
+	if creds != nil && creds.DN != "" {
+		bindDN = creds.DN
+		bindPassword = creds.Password
+	}
+
+	if err = conn.Bind(bindDN, bindPassword); err != nil {
+		if closeErr := conn.Close(); closeErr != nil {
+			p.logger.Debug("connection_close_error",
+				slog.String("operation", "createConnectionWithCredentials"),
+				slog.String("error", closeErr.Error()))
+		}
+		p.logger.Error("connection_bind_failed",
+			slog.String("server", p.ldapConfig.Server),
+			slog.String("dn", bindDN),
+			slog.String("error", err.Error()),
+			slog.Duration("duration", time.Since(start)))
+		return nil, err
+	}
+
+	// Create pooled connection wrapper
+	pooledConn := &pooledConnection{
+		conn:        conn,
+		credentials: creds,
+		createdAt:   time.Now(),
+		lastUsed:    time.Now(),
+		isHealthy:   true,
+		inUse:       true,
+		usageCount:  1,
+	}
+
+	// Track connection
+	p.mu.Lock()
+	p.connections = append(p.connections, pooledConn)
+	p.mu.Unlock()
+
+	atomic.AddInt32(&p.stats.TotalConnections, 1)
+	atomic.AddInt32(&p.stats.ActiveConnections, 1)
+	atomic.AddInt64(&p.stats.ConnectionsCreated, 1)
+	atomic.AddInt64(&p.stats.PoolMisses, 1)
+
+	// Add to connection map for tracking
+	p.connMapMu.Lock()
+	p.connMap[conn] = pooledConn
+	p.connMapMu.Unlock()
+
+	p.logger.Debug("connection_created_with_credentials",
+		slog.String("dn", bindDN),
+		slog.Duration("duration", time.Since(start)))
+
+	return conn, nil
 }
 
 // Stats returns current pool statistics
