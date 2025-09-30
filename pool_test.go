@@ -1125,3 +1125,226 @@ func BenchmarkPoolInitialization(b *testing.B) {
 		_ = client
 	}
 }
+
+// TestConnectionPool_GetWithCredentials tests credential-aware connection pooling
+func TestConnectionPool_GetWithCredentials(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	poolConfig, ldapConfig, user, password, logger := setupPoolTestConfig()
+	if ldapConfig.Server == "" || user == "" || password == "" {
+		t.Skip("LDAP test environment not configured")
+	}
+
+	pool, err := NewConnectionPool(poolConfig, ldapConfig, user, password, logger)
+	require.NoError(t, err)
+	defer func() { _ = pool.Close() }()
+
+	ctx := context.Background()
+
+	t.Run("CredentialIsolation", func(t *testing.T) {
+		// Get connection with user A credentials
+		userADN := user
+		userAPassword := password
+		connA1, err := pool.GetWithCredentials(ctx, userADN, userAPassword)
+		require.NoError(t, err)
+		require.NotNil(t, connA1)
+
+		// Track connection A
+		pool.connMapMu.Lock()
+		pooledA1 := pool.connMap[connA1]
+		pool.connMapMu.Unlock()
+		require.NotNil(t, pooledA1)
+
+		// Return connection A
+		err = pool.Put(connA1)
+		require.NoError(t, err)
+
+		// Get connection with user B credentials (different from A)
+		userBDN := "cn=differentuser,dc=example,dc=com"
+		userBPassword := "differentpassword"
+		connB, err := pool.GetWithCredentials(ctx, userBDN, userBPassword)
+
+		// This may fail if userB doesn't exist, which is expected
+		if err != nil {
+			// Expected - different credentials may not authenticate
+			t.Logf("User B authentication failed (expected): %v", err)
+			return
+		}
+
+		// If it succeeded, verify it's a different connection
+		pool.connMapMu.Lock()
+		pooledB := pool.connMap[connB]
+		pool.connMapMu.Unlock()
+
+		if pooledB != nil && pooledA1 != nil {
+			assert.NotEqual(t, pooledA1, pooledB, "Different credentials should use different connections")
+		}
+
+		_ = pool.Put(connB)
+	})
+
+	t.Run("CredentialReuse", func(t *testing.T) {
+		// Get connection with specific credentials
+		userDN := user
+		userPassword := password
+
+		conn1, err := pool.GetWithCredentials(ctx, userDN, userPassword)
+		require.NoError(t, err)
+		require.NotNil(t, conn1)
+
+		// Track first connection
+		pool.connMapMu.Lock()
+		pooled1 := pool.connMap[conn1]
+		pool.connMapMu.Unlock()
+		require.NotNil(t, pooled1)
+		firstCreatedAt := pooled1.createdAt
+
+		// Return connection
+		err = pool.Put(conn1)
+		require.NoError(t, err)
+
+		// Small delay to ensure Put completes
+		time.Sleep(10 * time.Millisecond)
+
+		// Get connection again with same credentials
+		conn2, err := pool.GetWithCredentials(ctx, userDN, userPassword)
+		require.NoError(t, err)
+		require.NotNil(t, conn2)
+
+		// Track second connection
+		pool.connMapMu.Lock()
+		pooled2 := pool.connMap[conn2]
+		pool.connMapMu.Unlock()
+		require.NotNil(t, pooled2)
+
+		// Verify connection was reused (same createdAt time)
+		assert.Equal(t, firstCreatedAt, pooled2.createdAt, "Same credentials should reuse connection")
+
+		// Verify stats show reuse
+		stats := pool.Stats()
+		assert.Greater(t, stats.PoolHits, int64(0), "Should have pool hits from reuse")
+
+		_ = pool.Put(conn2)
+	})
+
+	t.Run("ConcurrentMultiUser", func(t *testing.T) {
+		// Test concurrent access with same credentials
+		var wg sync.WaitGroup
+		numGoroutines := 10
+		numOpsPerGoroutine := 20
+
+		errors := make(chan error, numGoroutines*numOpsPerGoroutine)
+
+		for i := 0; i < numGoroutines; i++ {
+			wg.Add(1)
+			go func(id int) {
+				defer wg.Done()
+
+				for j := 0; j < numOpsPerGoroutine; j++ {
+					conn, err := pool.GetWithCredentials(ctx, user, password)
+					if err != nil {
+						errors <- err
+						return
+					}
+
+					// Simulate work
+					time.Sleep(1 * time.Millisecond)
+
+					if err := pool.Put(conn); err != nil {
+						errors <- err
+						return
+					}
+				}
+			}(i)
+		}
+
+		wg.Wait()
+		close(errors)
+
+		// Check for errors
+		var errCount int
+		for err := range errors {
+			t.Errorf("Concurrent operation error: %v", err)
+			errCount++
+		}
+
+		assert.Equal(t, 0, errCount, "Should have no errors in concurrent operations")
+
+		// Verify pool stats
+		stats := pool.Stats()
+		assert.Greater(t, stats.PoolHits, int64(0), "Should have pool hits from concurrent operations")
+		assert.Equal(t, int32(0), stats.ActiveConnections, "All connections should be returned")
+	})
+
+	t.Run("BackwardCompatibility", func(t *testing.T) {
+		// Verify existing Get() method still works
+		conn, err := pool.Get(ctx)
+		require.NoError(t, err)
+		require.NotNil(t, conn)
+
+		// Verify it's a pooled connection
+		pool.connMapMu.Lock()
+		pooled := pool.connMap[conn]
+		pool.connMapMu.Unlock()
+		require.NotNil(t, pooled)
+
+		// Verify credentials are nil (default pool behavior)
+		assert.Nil(t, pooled.credentials, "Get() should use nil credentials")
+
+		err = pool.Put(conn)
+		require.NoError(t, err)
+
+		// Get again and verify reuse works
+		conn2, err := pool.Get(ctx)
+		require.NoError(t, err)
+		require.NotNil(t, conn2)
+
+		err = pool.Put(conn2)
+		require.NoError(t, err)
+	})
+}
+
+// BenchmarkConnectionPool_GetWithCredentials benchmarks credential-aware pooling
+func BenchmarkConnectionPool_GetWithCredentials(b *testing.B) {
+	if testing.Short() {
+		b.Skip("Skipping integration benchmark in short mode")
+	}
+
+	poolConfig, ldapConfig, user, password, logger := setupPoolTestConfig()
+	if ldapConfig.Server == "" || user == "" || password == "" {
+		b.Skip("LDAP test environment not configured")
+	}
+
+	pool, err := NewConnectionPool(poolConfig, ldapConfig, user, password, logger)
+	require.NoError(b, err)
+	defer func() { _ = pool.Close() }()
+
+	ctx := context.Background()
+
+	b.Run("SingleUser", func(b *testing.B) {
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			conn, err := pool.GetWithCredentials(ctx, user, password)
+			if err != nil {
+				b.Fatalf("GetWithCredentials failed: %v", err)
+			}
+			_ = pool.Put(conn)
+		}
+
+		stats := pool.Stats()
+		b.ReportMetric(float64(stats.PoolHits)/float64(stats.PoolHits+stats.PoolMisses)*100, "reuse_%")
+	})
+
+	b.Run("Baseline_Get", func(b *testing.B) {
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			conn, err := pool.Get(ctx)
+			if err != nil {
+				b.Fatalf("Get failed: %v", err)
+			}
+			_ = pool.Put(conn)
+		}
+	})
+}
