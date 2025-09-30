@@ -214,6 +214,11 @@ func (c *GenericLRUCache[T]) Set(key string, value T, ttl time.Duration) error {
 		c.recordSetTime(time.Since(start))
 	}()
 
+	// Use config TTL if ttl is not specified
+	if ttl <= 0 {
+		ttl = c.config.TTL
+	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -348,6 +353,11 @@ func (c *GenericLRUCache[T]) GetWithRefresh(key string, refreshFunc func() (T, e
 func (c *GenericLRUCache[T]) SetNegative(key string, ttl time.Duration) error {
 	if !c.config.Enabled {
 		return ErrCacheDisabled
+	}
+
+	// Use config negative TTL if ttl is not specified
+	if ttl <= 0 {
+		ttl = c.config.NegativeCacheTTL
 	}
 
 	c.mu.Lock()
