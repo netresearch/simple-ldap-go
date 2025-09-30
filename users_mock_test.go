@@ -59,6 +59,19 @@ func CreateTestGroup(cn, desc string, members []string) *Group {
 	return group
 }
 
+// CreateTestComputer creates a test Computer object
+func CreateTestComputer(cn, sam string, enabled bool) *Computer {
+	computer := &Computer{
+		SAMAccountName: sam,
+		Enabled:        enabled,
+	}
+	computer.Object = Object{
+		cn: cn,
+		dn: "cn=" + cn + ",ou=computers,dc=example,dc=com",
+	}
+	return computer
+}
+
 // TestUserOperationsWithMock tests user operations using mock connection
 func TestUserOperationsWithMock(t *testing.T) {
 	t.Run("FindUserByDN", func(t *testing.T) {
