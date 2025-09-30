@@ -213,7 +213,7 @@ func (c *IndexedUserCache) Set(key string, value *User, ttl time.Duration) error
 // Automatically removes DN and SAMAccountName index entries.
 func (c *IndexedUserCache) Delete(key string) bool {
 	// Get the value to clean up indexes
-	value, found := c.GenericLRUCache.Get(key)
+	value, found := c.Get(key)
 
 	if found && value != nil {
 		c.indexMu.Lock()
@@ -264,7 +264,7 @@ func (c *IndexedUserCache) FindByDN(dn string) (*User, bool) {
 		return nil, false
 	}
 
-	return c.GenericLRUCache.Get(cacheKey)
+	return c.Get(cacheKey)
 }
 
 // FindBySAMAccountName finds a User by SAMAccountName with O(1) lookup.
@@ -292,7 +292,7 @@ func (c *IndexedUserCache) FindBySAMAccountName(samAccountName string) (*User, b
 		return nil, false
 	}
 
-	return c.GenericLRUCache.Get(cacheKey)
+	return c.Get(cacheKey)
 }
 
 // IndexedGroupCache methods
