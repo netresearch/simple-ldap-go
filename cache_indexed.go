@@ -317,7 +317,7 @@ func (c *IndexedGroupCache) Set(key string, value *Group, ttl time.Duration) err
 // Delete removes a Group from the cache and updates indexes
 func (c *IndexedGroupCache) Delete(key string) bool {
 	// Get the value to clean up indexes
-	value, found := c.GenericLRUCache.Get(key)
+	value, found := c.Get(key)
 
 	if found && value != nil {
 		c.indexMu.Lock()
@@ -354,7 +354,7 @@ func (c *IndexedGroupCache) FindByDN(dn string) (*Group, bool) {
 		return nil, false
 	}
 
-	return c.GenericLRUCache.Get(cacheKey)
+	return c.Get(cacheKey)
 }
 
 // IndexedComputerCache methods
@@ -382,7 +382,7 @@ func (c *IndexedComputerCache) Set(key string, value *Computer, ttl time.Duratio
 // Delete removes a Computer from the cache and updates indexes
 func (c *IndexedComputerCache) Delete(key string) bool {
 	// Get the value to clean up indexes
-	value, found := c.GenericLRUCache.Get(key)
+	value, found := c.Get(key)
 
 	if found && value != nil {
 		c.indexMu.Lock()
@@ -423,7 +423,7 @@ func (c *IndexedComputerCache) FindByDN(dn string) (*Computer, bool) {
 		return nil, false
 	}
 
-	return c.GenericLRUCache.Get(cacheKey)
+	return c.Get(cacheKey)
 }
 
 // FindBySAMAccountName finds a Computer by SAMAccountName with O(1) lookup
@@ -440,5 +440,5 @@ func (c *IndexedComputerCache) FindBySAMAccountName(samAccountName string) (*Com
 		return nil, false
 	}
 
-	return c.GenericLRUCache.Get(cacheKey)
+	return c.Get(cacheKey)
 }
