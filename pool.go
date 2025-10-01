@@ -619,12 +619,22 @@ closeDirect:
 // warmPool pre-populates the pool with minimum connections
 func (p *ConnectionPool) warmPool(ctx context.Context) error {
 	for i := range p.config.MinConnections {
-		_, err := p.createConnection(ctx)
+		conn, err := p.createConnection(ctx)
 		if err != nil {
 			p.logger.Error("pool_warm_connection_failed",
 				slog.Int("attempt", i+1),
 				slog.String("error", err.Error()))
 			return err
+		}
+
+		// Return the connection to the pool to make it available for use.
+		// Without this, warmed connections remain marked as inUse=true and are never
+		// added to the available channel, causing all Get() calls to timeout.
+		if err := p.Put(conn); err != nil {
+			p.logger.Error("pool_warm_put_failed",
+				slog.Int("attempt", i+1),
+				slog.String("error", err.Error()))
+			// Continue warming pool even if Put fails
 		}
 	}
 
