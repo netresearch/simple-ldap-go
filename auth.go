@@ -95,7 +95,13 @@ func (l *LDAP) CheckPasswordForSAMAccountNameContext(ctx context.Context, sAMAcc
 	if err != nil {
 		return nil, connectionError("SAM account", "authentication", err)
 	}
-	defer func() { _ = c.Close() }()
+	defer func() {
+		if releaseErr := l.ReleaseConnection(c); releaseErr != nil {
+			l.logger.Debug("connection_close_error",
+				slog.String("operation", "CheckPasswordForSAMAccountName"),
+				slog.String("error", releaseErr.Error()))
+		}
+	}()
 
 	// Check for context cancellation before user lookup
 	select {
@@ -252,7 +258,13 @@ func (l *LDAP) CheckPasswordForDNContext(ctx context.Context, dn, password strin
 	if err != nil {
 		return nil, connectionError("DN", "authentication", err)
 	}
-	defer func() { _ = c.Close() }()
+	defer func() {
+		if releaseErr := l.ReleaseConnection(c); releaseErr != nil {
+			l.logger.Debug("connection_close_error",
+				slog.String("operation", "CheckPasswordForDN"),
+				slog.String("error", releaseErr.Error()))
+		}
+	}()
 
 	// Check for context cancellation before user lookup
 	select {
@@ -468,7 +480,13 @@ func (l *LDAP) ChangePasswordForSAMAccountNameContext(ctx context.Context, sAMAc
 	if err != nil {
 		return connectionError("SAM account", "password change", err)
 	}
-	defer func() { _ = c.Close() }()
+	defer func() {
+		if releaseErr := l.ReleaseConnection(c); releaseErr != nil {
+			l.logger.Debug("connection_close_error",
+				slog.String("operation", "ChangePasswordForSAMAccountName"),
+				slog.String("error", releaseErr.Error()))
+		}
+	}()
 
 	// Create modify request for password change
 	userDN := user.DN()
