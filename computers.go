@@ -88,10 +88,10 @@ func (l *LDAP) FindComputerByDNContext(ctx context.Context, dn string) (computer
 		return nil, fmt.Errorf("failed to get connection for computer DN search: %w", err)
 	}
 	defer func() {
-		if closeErr := c.Close(); closeErr != nil {
+		if releaseErr := l.ReleaseConnection(c); releaseErr != nil {
 			l.logger.Debug("connection_close_error",
 				slog.String("operation", "FindComputerByDN"),
-				slog.String("error", closeErr.Error()))
+				slog.String("error", releaseErr.Error()))
 		}
 	}()
 
@@ -239,10 +239,10 @@ func (l *LDAP) FindComputerBySAMAccountNameContext(ctx context.Context, sAMAccou
 		return nil, err
 	}
 	defer func() {
-		if closeErr := c.Close(); closeErr != nil {
+		if releaseErr := l.ReleaseConnection(c); releaseErr != nil {
 			l.logger.Debug("connection_close_error",
 				slog.String("operation", "FindComputerBySAMAccountName"),
-				slog.String("error", closeErr.Error()))
+				slog.String("error", releaseErr.Error()))
 		}
 	}()
 
@@ -378,10 +378,10 @@ func (l *LDAP) FindComputersContext(ctx context.Context) (computers []Computer, 
 		return nil, err
 	}
 	defer func() {
-		if closeErr := c.Close(); closeErr != nil {
+		if releaseErr := l.ReleaseConnection(c); releaseErr != nil {
 			l.logger.Debug("connection_close_error",
 				slog.String("operation", "FindComputers"),
-				slog.String("error", closeErr.Error()))
+				slog.String("error", releaseErr.Error()))
 		}
 	}()
 

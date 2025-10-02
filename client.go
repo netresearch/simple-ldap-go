@@ -418,6 +418,52 @@ func (l *LDAP) WithCredentials(dn, password string) (*LDAP, error) {
 	return New(*l.config, dn, password)
 }
 
+// ReleaseConnection properly returns a connection to the pool or closes it if no pool exists.
+// This method should be used in defer statements instead of directly calling conn.Close()
+// to ensure proper connection lifecycle management with connection pools.
+//
+// Parameters:
+//   - conn: The LDAP connection to release
+//
+// Returns:
+//   - error: Any error encountered during release/close
+//
+// Example:
+//
+//	conn, err := l.GetConnectionContext(ctx)
+//	if err != nil {
+//	    return err
+//	}
+//	defer l.ReleaseConnection(conn)
+func (l *LDAP) ReleaseConnection(conn *ldap.Conn) error {
+	if conn == nil {
+		return nil
+	}
+
+	// If connection pool exists, return connection to pool
+	if l.connPool != nil {
+		if err := l.connPool.Put(conn); err != nil {
+			l.logger.Debug("connection_pool_return_error",
+				slog.String("error", err.Error()))
+			// If Put fails, close the connection directly
+			if closeErr := conn.Close(); closeErr != nil {
+				return fmt.Errorf("failed to return to pool and close: %v, %v", err, closeErr)
+			}
+			return err
+		}
+		return nil
+	}
+
+	// No pool exists, close connection directly
+	if err := conn.Close(); err != nil {
+		l.logger.Debug("connection_close_error",
+			slog.String("error", err.Error()))
+		return err
+	}
+
+	return nil
+}
+
 // Close closes the LDAP client and cleans up resources.
 // This method properly closes connection pools, caches, and other resources.
 //

@@ -335,11 +335,11 @@ func (l *LDAP) FindUserBySAMAccountNameContext(ctx context.Context, sAMAccountNa
 		return nil, connectionError("SAM account", "search", err)
 	}
 	defer func() {
-		if closeErr := c.Close(); closeErr != nil {
+		if releaseErr := l.ReleaseConnection(c); releaseErr != nil {
 			l.logger.Debug("connection_close_error",
 				slog.String("operation", "FindUserBySAMAccountName"),
 				slog.String("sam_account_name", sAMAccountName),
-				slog.String("error", closeErr.Error()))
+				slog.String("error", releaseErr.Error()))
 		}
 	}()
 
@@ -629,10 +629,10 @@ func (l *LDAP) FindUserByMailContext(ctx context.Context, mail string) (user *Us
 		return nil, err
 	}
 	defer func() {
-		if closeErr := c.Close(); closeErr != nil {
+		if releaseErr := l.ReleaseConnection(c); releaseErr != nil {
 			l.logger.Debug("connection_close_error",
 				slog.String("operation", "FindUserByMail"),
-				slog.String("error", closeErr.Error()))
+				slog.String("error", releaseErr.Error()))
 		}
 	}()
 
@@ -786,10 +786,10 @@ func (l *LDAP) FindUsersContext(ctx context.Context) (users []User, err error) {
 		return nil, err
 	}
 	defer func() {
-		if closeErr := c.Close(); closeErr != nil {
+		if releaseErr := l.ReleaseConnection(c); releaseErr != nil {
 			l.logger.Debug("connection_close_error",
 				slog.String("operation", "FindUserByMail"),
-				slog.String("error", closeErr.Error()))
+				slog.String("error", releaseErr.Error()))
 		}
 	}()
 
@@ -897,10 +897,10 @@ func (l *LDAP) AddUserToGroupContext(ctx context.Context, dn, groupDN string) er
 		return err
 	}
 	defer func() {
-		if closeErr := c.Close(); closeErr != nil {
+		if releaseErr := l.ReleaseConnection(c); releaseErr != nil {
 			l.logger.Debug("connection_close_error",
 				slog.String("operation", "FindUserByMail"),
-				slog.String("error", closeErr.Error()))
+				slog.String("error", releaseErr.Error()))
 		}
 	}()
 
@@ -976,10 +976,10 @@ func (l *LDAP) RemoveUserFromGroupContext(ctx context.Context, dn, groupDN strin
 		return err
 	}
 	defer func() {
-		if closeErr := c.Close(); closeErr != nil {
+		if releaseErr := l.ReleaseConnection(c); releaseErr != nil {
 			l.logger.Debug("connection_close_error",
 				slog.String("operation", "FindUserByMail"),
-				slog.String("error", closeErr.Error()))
+				slog.String("error", releaseErr.Error()))
 		}
 	}()
 
@@ -1127,10 +1127,10 @@ func (l *LDAP) CreateUserContext(ctx context.Context, user FullUser, password st
 		return "", err
 	}
 	defer func() {
-		if closeErr := c.Close(); closeErr != nil {
+		if releaseErr := l.ReleaseConnection(c); releaseErr != nil {
 			l.logger.Debug("connection_close_error",
 				slog.String("operation", "FindUserByMail"),
-				slog.String("error", closeErr.Error()))
+				slog.String("error", releaseErr.Error()))
 		}
 	}()
 
@@ -1271,11 +1271,11 @@ func (l *LDAP) ModifyUserContext(ctx context.Context, dn string, attributes map[
 		return connectionError("modify", "user", err)
 	}
 	defer func() {
-		if closeErr := c.Close(); closeErr != nil {
+		if releaseErr := l.ReleaseConnection(c); releaseErr != nil {
 			l.logger.Debug("connection_close_error",
 				slog.String("operation", "ModifyUser"),
 				slog.String("dn", dn),
-				slog.String("error", closeErr.Error()))
+				slog.String("error", releaseErr.Error()))
 		}
 	}()
 
@@ -1373,10 +1373,10 @@ func (l *LDAP) DeleteUserContext(ctx context.Context, dn string) (err error) {
 		return err
 	}
 	defer func() {
-		if closeErr := c.Close(); closeErr != nil {
+		if releaseErr := l.ReleaseConnection(c); releaseErr != nil {
 			l.logger.Debug("connection_close_error",
 				slog.String("operation", "FindUserByMail"),
-				slog.String("error", closeErr.Error()))
+				slog.String("error", releaseErr.Error()))
 		}
 	}()
 
@@ -1564,11 +1564,11 @@ func (l *LDAP) BulkModifyUsersContext(ctx context.Context, modifications []UserM
 					return err
 				}
 				defer func() {
-					if closeErr := conn.Close(); closeErr != nil {
+					if releaseErr := client.ReleaseConnection(conn); releaseErr != nil {
 						client.logger.Debug("connection_close_error",
 							slog.String("operation", "BulkModifyUsers"),
 							slog.String("dn", data.DN),
-							slog.String("error", closeErr.Error()))
+							slog.String("error", releaseErr.Error()))
 					}
 				}()
 
