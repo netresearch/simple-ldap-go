@@ -3,7 +3,7 @@ module github.com/netresearch/simple-ldap-go
 go 1.24.0
 
 require (
-	github.com/go-ldap/ldap/v3 v3.4.11
+	github.com/go-ldap/ldap/v3 v3.4.12
 	golang.org/x/text v0.29.0
 )
 
