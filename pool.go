@@ -3,6 +3,7 @@ package ldap
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"sync"
 	"sync/atomic"
@@ -129,7 +130,7 @@ type ConnectionPool struct {
 
 	// Connection tracking for proper cleanup
 	connMap   map[*ldap.Conn]*pooledConnection
-	connMapMu sync.Mutex
+	connMapMu sync.RWMutex
 }
 
 // NewConnectionPool creates a new connection pool with the specified configuration
