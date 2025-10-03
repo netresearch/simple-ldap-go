@@ -32,10 +32,10 @@ func (l *LDAP) findByDNContext(ctx context.Context, dn string, params dnSearchPa
 		return nil, fmt.Errorf("failed to get connection for %s search: %w", params.logPrefix[:len(params.logPrefix)-1], err)
 	}
 	defer func() {
-		if closeErr := c.Close(); closeErr != nil {
-			l.logger.Debug("connection_close_error",
+		if releaseErr := l.ReleaseConnection(c); releaseErr != nil {
+			l.logger.Debug("connection_release_error",
 				slog.String("operation", params.logPrefix),
-				slog.String("error", closeErr.Error()))
+				slog.String("error", releaseErr.Error()))
 		}
 	}()
 
