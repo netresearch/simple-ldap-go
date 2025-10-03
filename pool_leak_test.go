@@ -14,7 +14,16 @@ func TestFindGroupsContextNoLeak(t *testing.T) {
 	}
 
 	ldapClient := setupTestLDAP(t)
-	defer ldapClient.Close()
+	defer func() {
+		if err := ldapClient.Close(); err != nil {
+			t.Logf("Failed to close LDAP client: %v", err)
+		}
+	}()
+
+	// Skip if no LDAP server available
+	if ldapClient.connPool == nil {
+		t.Skip("LDAP server not available for testing")
+	}
 
 	// Call FindGroups multiple times (simulating cache refresh)
 	iterations := 10
@@ -54,7 +63,16 @@ func TestFindByDNContextNoLeak(t *testing.T) {
 	}
 
 	ldapClient := setupTestLDAP(t)
-	defer ldapClient.Close()
+	defer func() {
+		if err := ldapClient.Close(); err != nil {
+			t.Logf("Failed to close LDAP client: %v", err)
+		}
+	}()
+
+	// Skip if no LDAP server available
+	if ldapClient.connPool == nil {
+		t.Skip("LDAP server not available for testing")
+	}
 
 	// First find a group to get a valid DN
 	groups, err := ldapClient.FindGroups()
@@ -108,7 +126,16 @@ func TestSelfHealingPoolDetectsLeaks(t *testing.T) {
 	config.LeakEvictionThreshold = 1 * time.Second
 
 	ldapClient := setupTestLDAPWithConfig(t, config)
-	defer ldapClient.Close()
+	defer func() {
+		if err := ldapClient.Close(); err != nil {
+			t.Logf("Failed to close LDAP client: %v", err)
+		}
+	}()
+
+	// Skip if no LDAP server available
+	if ldapClient.connPool == nil {
+		t.Skip("LDAP server not available for testing")
+	}
 
 	// Deliberately leak connections by not calling Put()
 	ctx := context.Background()
@@ -173,7 +200,16 @@ func TestSelfHealingDisabled(t *testing.T) {
 	config.LeakEvictionThreshold = 1 * time.Second
 
 	ldapClient := setupTestLDAPWithConfig(t, config)
-	defer ldapClient.Close()
+	defer func() {
+		if err := ldapClient.Close(); err != nil {
+			t.Logf("Failed to close LDAP client: %v", err)
+		}
+	}()
+
+	// Skip if no LDAP server available
+	if ldapClient.connPool == nil {
+		t.Skip("LDAP server not available for testing")
+	}
 
 	// Deliberately leak a connection
 	ctx := context.Background()
@@ -214,7 +250,16 @@ func TestConcurrentFindGroupsNoLeak(t *testing.T) {
 	}
 
 	ldapClient := setupTestLDAP(t)
-	defer ldapClient.Close()
+	defer func() {
+		if err := ldapClient.Close(); err != nil {
+			t.Logf("Failed to close LDAP client: %v", err)
+		}
+	}()
+
+	// Skip if no LDAP server available
+	if ldapClient.connPool == nil {
+		t.Skip("LDAP server not available for testing")
+	}
 
 	// Run concurrent FindGroups operations
 	concurrency := 10
