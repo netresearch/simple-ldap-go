@@ -189,10 +189,10 @@ func (l *LDAP) FindGroupsContext(ctx context.Context) (groups []Group, err error
 		return nil, err
 	}
 	defer func() {
-		if err := c.Close(); err != nil {
+		if releaseErr := l.ReleaseConnection(c); releaseErr != nil {
 			l.logger.Debug("connection_close_error",
 				slog.String("operation", "FindGroups"),
-				slog.String("error", err.Error()))
+				slog.String("error", releaseErr.Error()))
 		}
 	}()
 
