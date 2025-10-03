@@ -16,9 +16,6 @@ func TestFindGroupsContextNoLeak(t *testing.T) {
 	ldapClient := setupTestLDAP(t)
 	defer ldapClient.Close()
 
-	// Get initial stats
-	initialStats := ldapClient.pool.Stats()
-
 	// Call FindGroups multiple times (simulating cache refresh)
 	iterations := 10
 	for i := 0; i < iterations; i++ {
@@ -32,7 +29,7 @@ func TestFindGroupsContextNoLeak(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Check stats - no active connections should remain
-	finalStats := ldapClient.pool.Stats()
+	finalStats := ldapClient.connPool.Stats()
 	
 	if finalStats.ActiveConnections > 0 {
 		t.Errorf("Connection leak detected: %d active connections remain after FindGroups calls",
@@ -64,10 +61,7 @@ func TestFindByDNContextNoLeak(t *testing.T) {
 	if err != nil || len(groups) == 0 {
 		t.Skip("No groups available for DN search test")
 	}
-	testDN := groups[0].DN
-
-	// Get initial stats
-	initialStats := ldapClient.pool.Stats()
+	testDN := groups[0].DN()
 
 	// Call FindGroupByDN multiple times
 	iterations := 10
@@ -82,7 +76,7 @@ func TestFindByDNContextNoLeak(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Check stats - no active connections should remain
-	finalStats := ldapClient.pool.Stats()
+	finalStats := ldapClient.connPool.Stats()
 	
 	if finalStats.ActiveConnections > 0 {
 		t.Errorf("Connection leak detected: %d active connections remain after FindGroupByDN calls",
@@ -121,7 +115,7 @@ func TestSelfHealingPoolDetectsLeaks(t *testing.T) {
 	leakedCount := 3
 
 	for i := 0; i < leakedCount; i++ {
-		conn, err := ldapClient.pool.Get(ctx)
+		conn, err := ldapClient.connPool.Get(ctx)
 		if err != nil {
 			t.Fatalf("Failed to get connection %d: %v", i, err)
 		}
@@ -130,7 +124,7 @@ func TestSelfHealingPoolDetectsLeaks(t *testing.T) {
 	}
 
 	// Verify connections are marked as active (leaked)
-	stats := ldapClient.pool.Stats()
+	stats := ldapClient.connPool.Stats()
 	if stats.ActiveConnections != int32(leakedCount) {
 		t.Errorf("Expected %d active connections, got %d", leakedCount, stats.ActiveConnections)
 	}
@@ -140,7 +134,7 @@ func TestSelfHealingPoolDetectsLeaks(t *testing.T) {
 	time.Sleep(config.LeakEvictionThreshold + 500*time.Millisecond)
 
 	// Check that self-healing recovered the leaked connections
-	finalStats := ldapClient.pool.Stats()
+	finalStats := ldapClient.connPool.Stats()
 	
 	if finalStats.LeakedConnections != int64(leakedCount) {
 		t.Errorf("Expected %d leaked connections detected, got %d",
@@ -183,7 +177,7 @@ func TestSelfHealingDisabled(t *testing.T) {
 
 	// Deliberately leak a connection
 	ctx := context.Background()
-	conn, err := ldapClient.pool.Get(ctx)
+	conn, err := ldapClient.connPool.Get(ctx)
 	if err != nil {
 		t.Fatalf("Failed to get connection: %v", err)
 	}
@@ -193,7 +187,7 @@ func TestSelfHealingDisabled(t *testing.T) {
 	time.Sleep(config.LeakEvictionThreshold + 500*time.Millisecond)
 
 	// Verify NO self-healing occurred
-	stats := ldapClient.pool.Stats()
+	stats := ldapClient.connPool.Stats()
 	
 	if stats.LeakedConnections != 0 {
 		t.Errorf("Expected 0 leaked connections (self-healing disabled), got %d",
@@ -246,7 +240,7 @@ func TestConcurrentFindGroupsNoLeak(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 
 	// Verify no leaks under concurrent load
-	stats := ldapClient.pool.Stats()
+	stats := ldapClient.connPool.Stats()
 	
 	if stats.ActiveConnections > 0 {
 		t.Errorf("Connection leak under concurrent load: %d active connections remain", 
@@ -271,17 +265,17 @@ func setupTestLDAP(t *testing.T) *LDAP {
 func setupTestLDAPWithConfig(t *testing.T, poolConfig *PoolConfig) *LDAP {
 	// Use environment variables or test config for LDAP connection
 	// This assumes LDAP_TEST_SERVER, LDAP_TEST_PORT, etc. are set
-	cfg := &Config{
-		Server:   getEnvOrDefault("LDAP_TEST_SERVER", "localhost"),
-		Port:     getEnvOrDefaultInt("LDAP_TEST_PORT", 389),
-		BaseDN:   getEnvOrDefault("LDAP_TEST_BASEDN", "dc=example,dc=com"),
-		BindDN:   getEnvOrDefault("LDAP_TEST_BINDDN", "cn=admin,dc=example,dc=com"),
-		Password: getEnvOrDefault("LDAP_TEST_PASSWORD", "admin"),
-		UseSSL:   false,
-		PoolConfig: poolConfig,
+	cfg := Config{
+		Server: getEnvOrDefault("LDAP_TEST_SERVER", "localhost"),
+		Port:   getEnvOrDefaultInt("LDAP_TEST_PORT", 389),
+		BaseDN: getEnvOrDefault("LDAP_TEST_BASEDN", "dc=example,dc=com"),
+		Pool:   poolConfig,
 	}
 
-	ldapClient, err := New(cfg)
+	username := getEnvOrDefault("LDAP_TEST_BINDDN", "cn=admin,dc=example,dc=com")
+	password := getEnvOrDefault("LDAP_TEST_PASSWORD", "admin")
+
+	ldapClient, err := New(cfg, username, password)
 	if err != nil {
 		t.Fatalf("Failed to create LDAP client: %v", err)
 	}
