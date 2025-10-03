@@ -34,17 +34,28 @@ type PoolConfig struct {
 	ConnectionTimeout time.Duration
 	// GetTimeout is the timeout for getting a connection from the pool (default: 10s)
 	GetTimeout time.Duration
+
+	// Self-healing configuration
+	// EnableSelfHealing enables automatic leak detection and recovery (default: true)
+	EnableSelfHealing bool
+	// LeakDetectionThreshold is the duration after which a connection is suspected as leaked (default: 5min)
+	LeakDetectionThreshold time.Duration
+	// LeakEvictionThreshold is the duration after which a leaked connection is force-evicted (default: 10min)
+	LeakEvictionThreshold time.Duration
 }
 
 // DefaultPoolConfig returns a PoolConfig with sensible defaults
 func DefaultPoolConfig() *PoolConfig {
 	return &PoolConfig{
-		MaxConnections:      10,
-		MinConnections:      2,
-		MaxIdleTime:         5 * time.Minute,
-		HealthCheckInterval: 30 * time.Second,
-		ConnectionTimeout:   30 * time.Second,
-		GetTimeout:          10 * time.Second,
+		MaxConnections:         10,
+		MinConnections:         2,
+		MaxIdleTime:            5 * time.Minute,
+		HealthCheckInterval:    30 * time.Second,
+		ConnectionTimeout:      30 * time.Second,
+		GetTimeout:             10 * time.Second,
+		EnableSelfHealing:      true,
+		LeakDetectionThreshold: 5 * time.Minute,
+		LeakEvictionThreshold:  10 * time.Minute,
 	}
 }
 
@@ -68,6 +79,10 @@ type PoolStats struct {
 	ConnectionsCreated int64
 	// ConnectionsClosed is the total number of connections closed
 	ConnectionsClosed int64
+	// LeakedConnections is the number of leaked connections detected and evicted
+	LeakedConnections int64
+	// SelfHealingEvents is the number of self-healing recovery operations
+	SelfHealingEvents int64
 }
 
 // ConnectionCredentials stores authentication information for a pooled connection.
@@ -80,13 +95,14 @@ type ConnectionCredentials struct {
 
 // pooledConnection wraps an LDAP connection with metadata for pool management
 type pooledConnection struct {
-	conn        *ldap.Conn
-	createdAt   time.Time
-	lastUsed    time.Time
-	usageCount  int64
-	isHealthy   bool
-	inUse       bool
-	credentials *ConnectionCredentials // Tracks connection credentials for multi-user pooling
+	conn         *ldap.Conn
+	createdAt    time.Time
+	lastUsed     time.Time
+	checkedOutAt time.Time                  // Time when connection was marked as in-use (for leak detection)
+	usageCount   int64
+	isHealthy    bool
+	inUse        bool
+	credentials  *ConnectionCredentials // Tracks connection credentials for multi-user pooling
 }
 
 // ConnectionPool manages a pool of LDAP connections with health monitoring and lifecycle management
@@ -196,8 +212,10 @@ func (p *ConnectionPool) Get(ctx context.Context) (*ldap.Conn, error) {
 	select {
 	case conn := <-p.available:
 		if conn != nil && p.isConnectionHealthy(conn) {
+			now := time.Now()
 			conn.inUse = true
-			conn.lastUsed = time.Now()
+			conn.lastUsed = now
+			conn.checkedOutAt = now
 			atomic.AddInt64(&conn.usageCount, 1)
 			atomic.AddInt32(&p.stats.ActiveConnections, 1)
 			atomic.AddInt32(&p.stats.IdleConnections, -1)
@@ -344,8 +362,10 @@ func (p *ConnectionPool) GetWithCredentials(ctx context.Context, dn, password st
 		select {
 		case conn := <-p.available:
 			if conn != nil && p.canReuseConnection(conn, creds) {
+				now := time.Now()
 				conn.inUse = true
-				conn.lastUsed = time.Now()
+				conn.lastUsed = now
+				conn.checkedOutAt = now
 				atomic.AddInt64(&conn.usageCount, 1)
 				atomic.AddInt32(&p.stats.ActiveConnections, 1)
 				atomic.AddInt32(&p.stats.IdleConnections, -1)
@@ -870,6 +890,26 @@ func (p *ConnectionPool) startBackgroundTasks() {
 			}
 		}
 	}()
+
+	// Leak monitoring routine for self-healing
+	if p.config.EnableSelfHealing {
+		p.wg.Add(1)
+		go func() {
+			defer p.wg.Done()
+			// Run leak detection every half of the detection threshold to catch leaks early
+			ticker := time.NewTicker(p.config.LeakDetectionThreshold / 2)
+			defer ticker.Stop()
+
+			for {
+				select {
+				case <-ticker.C:
+					p.monitorLeaks()
+				case <-p.cleanupStop: // Reuse cleanup stop channel
+					return
+				}
+			}
+		}()
+	}
 }
 
 // performHealthChecks checks health of idle connections
@@ -972,5 +1012,146 @@ func (p *ConnectionPool) cleanupIdleConnections() {
 		p.logger.Debug("idle_connections_cleaned",
 			slog.Int("cleaned_up", cleanedUp),
 			slog.Int("remaining_total", int(atomic.LoadInt32(&p.stats.TotalConnections))))
+	}
+}
+
+// detectLeakedConnections scans the connection map for connections that have been checked out for too long
+// Returns a list of connections that are suspected or confirmed leaks based on thresholds
+func (p *ConnectionPool) detectLeakedConnections() []*pooledConnection {
+	if !p.config.EnableSelfHealing {
+		return nil
+	}
+
+	p.connMapMu.RLock()
+	defer p.connMapMu.RUnlock()
+
+	var leaked []*pooledConnection
+	now := time.Now()
+
+	for _, conn := range p.connMap {
+		if !conn.inUse {
+			continue // Skip idle connections
+		}
+
+		timeCheckedOut := now.Sub(conn.checkedOutAt)
+
+		// Check if connection has been checked out longer than eviction threshold
+		if timeCheckedOut > p.config.LeakEvictionThreshold {
+			leaked = append(leaked, conn)
+			p.logger.Warn("connection_leak_detected",
+				slog.String("connection_id", fmt.Sprintf("%p", conn.conn)),
+				slog.Duration("checked_out_duration", timeCheckedOut),
+				slog.Duration("threshold", p.config.LeakEvictionThreshold),
+				slog.String("action", "force_eviction"))
+		} else if timeCheckedOut > p.config.LeakDetectionThreshold {
+			// Log warning for suspected leaks (between detection and eviction threshold)
+			p.logger.Warn("connection_leak_suspected",
+				slog.String("connection_id", fmt.Sprintf("%p", conn.conn)),
+				slog.Duration("checked_out_duration", timeCheckedOut),
+				slog.Duration("detection_threshold", p.config.LeakDetectionThreshold),
+				slog.Duration("eviction_threshold", p.config.LeakEvictionThreshold))
+		}
+	}
+
+	return leaked
+}
+
+// recoverFromLeak handles a leaked connection by force-closing it and creating a replacement
+// This allows the pool to self-heal when connections are not properly returned
+func (p *ConnectionPool) recoverFromLeak(conn *pooledConnection) error {
+	p.connMapMu.Lock()
+	delete(p.connMap, conn.conn)
+	p.connMapMu.Unlock()
+
+	// Force close the leaked connection
+	if conn.conn != nil {
+		if err := conn.conn.Close(); err != nil {
+			p.logger.Debug("leaked_connection_close_error",
+				slog.String("connection_id", fmt.Sprintf("%p", conn.conn)),
+				slog.String("error", err.Error()))
+		}
+	}
+
+	// Update metrics
+	atomic.AddInt64(&p.stats.LeakedConnections, 1)
+	atomic.AddInt64(&p.stats.SelfHealingEvents, 1)
+	atomic.AddInt32(&p.stats.ActiveConnections, -1)
+
+	// Remove from connections slice
+	p.mu.Lock()
+	for i, c := range p.connections {
+		if c == conn {
+			p.connections = append(p.connections[:i], p.connections[i+1:]...)
+			break
+		}
+	}
+	currentTotal := len(p.connections)
+	p.mu.Unlock()
+
+	// Try to create a replacement connection if we're below max
+	if currentTotal < p.config.MaxConnections {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		newConn, err := p.createConnection(ctx)
+		if err != nil {
+			p.logger.Error("self_healing_replacement_failed",
+				slog.String("error", err.Error()))
+			return err
+		}
+
+		newPooledConn := &pooledConnection{
+			conn:      newConn,
+			createdAt: time.Now(),
+			lastUsed:  time.Now(),
+			isHealthy: true,
+			inUse:     false,
+		}
+
+		p.mu.Lock()
+		p.connections = append(p.connections, newPooledConn)
+		p.mu.Unlock()
+
+		// Return the new connection to the available pool
+		select {
+		case p.available <- newPooledConn:
+			atomic.AddInt32(&p.stats.IdleConnections, 1)
+			p.logger.Info("self_healing_replacement_created",
+				slog.String("new_connection_id", fmt.Sprintf("%p", newConn)))
+		default:
+			// Pool is full, close the new connection
+			if err := newConn.Close(); err != nil {
+				p.logger.Debug("replacement_connection_close_error",
+					slog.String("error", err.Error()))
+			}
+		}
+	}
+
+	p.logger.Info("leak_recovery_completed",
+		slog.String("leaked_connection_id", fmt.Sprintf("%p", conn.conn)))
+
+	return nil
+}
+
+// monitorLeaks runs periodically to detect and recover from connection leaks
+func (p *ConnectionPool) monitorLeaks() {
+	if !p.config.EnableSelfHealing {
+		return
+	}
+
+	leaked := p.detectLeakedConnections()
+	if len(leaked) == 0 {
+		return
+	}
+
+	p.logger.Warn("leak_monitor_found_leaks",
+		slog.Int("count", len(leaked)))
+
+	for _, conn := range leaked {
+		if err := p.recoverFromLeak(conn); err != nil {
+			p.logger.Error("leak_recovery_failed",
+				slog.String("connection_id", fmt.Sprintf("%p", conn.conn)),
+				slog.String("error", err.Error()))
+		}
 	}
 }
