@@ -101,7 +101,7 @@ user, err := client.CheckPasswordForSAMAccountName("username", "password")
 - 👥 **User Management** - Type-safe user operations with automatic attribute mapping and validation
 - 🏢 **Group Operations** - Simplified group queries and membership management across AD and OpenLDAP
 - 💻 **Computer Management** - Active Directory computer object support with automatic schema detection
-- 🔑 **Password Management** - Secure password changes with automatic LDAPS enforcement and policy validation
+- 🔑 **Password Management** - Secure password changes and admin resets with automatic LDAPS enforcement and policy validation
 - 🛡️ **Active Directory Support** - Native AD features like SAMAccountName, UPN, and nested group resolution
 - ⚡ **Connection Pooling** - Automatic connection management with health checks, retry logic, and resource cleanup
 - 🎯 **Smart Caching** - Configurable caching layer that reduces server load for repeated queries
@@ -158,7 +158,7 @@ func main() {
 Comprehensive examples are available in the [examples](examples/) directory:
 
 - **[Basic Usage](examples/basic-usage/)** - Finding users, groups, and computers
-- **[Authentication](examples/authentication/)** - User authentication and password changes  
+- **[Authentication](examples/authentication/)** - User authentication, password changes, and admin resets  
 - **[User Management](examples/user-management/)** - Creating, updating, and managing users
 
 ## API Reference
@@ -205,6 +205,10 @@ err := client.DeleteUser("cn=John Doe,ou=Users,dc=example,dc=com")
 group, err := client.FindGroupByDNContext(ctx, "cn=Admins,dc=example,dc=com")
 // Caching happens automatically if config.EnableCache is true
 err := client.AddUserToGroup(userDN, groupDN)
+
+// Password management
+err := client.ChangePasswordForSAMAccountName("jdoe", "oldPass", "newPass")
+err := client.ResetPasswordForSAMAccountName("jdoe", "newPass") // Admin reset
 ```
 
 See the [Go Reference](https://pkg.go.dev/github.com/netresearch/simple-ldap-go) for complete API documentation.
