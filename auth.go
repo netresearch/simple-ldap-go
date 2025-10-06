@@ -520,3 +520,127 @@ func (l *LDAP) ChangePasswordForSAMAccountNameContext(ctx context.Context, sAMAc
 
 	return nil
 }
+
+// ResetPasswordForSAMAccountName performs an administrative password reset for a user.
+// This method does NOT require the old password and is intended for administrative password reset operations.
+//
+// Parameters:
+//   - sAMAccountName: The Security Account Manager account name of the user
+//   - newPassword: The new password to set
+//
+// Returns:
+//   - error: ErrActiveDirectoryMustBeLDAPS if trying to reset AD passwords over unencrypted connection,
+//     ErrUserNotFound if user doesn't exist, or any other LDAP operation error
+//
+// Requirements:
+//   - For Active Directory servers, LDAPS (SSL/TLS) connection is mandatory
+//   - The service account must have "Reset password" permission on the target user object
+//   - New password must meet the domain's password policy requirements
+//
+// Security Notes:
+//   - This is an administrative operation that bypasses old password verification
+//   - Requires elevated LDAP permissions (Reset password permission in AD)
+//   - Should only be used for password reset workflows, not regular password changes
+//   - Best practice: Use a dedicated service account with minimal permissions (only password reset)
+//
+// The password reset uses the Microsoft-specific unicodePwd attribute with proper UTF-16LE encoding.
+// Reference: https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-adts/6e803168-f140-4d23-b2d3-c3a8ab5917d2
+func (l *LDAP) ResetPasswordForSAMAccountName(sAMAccountName, newPassword string) error {
+	return l.ResetPasswordForSAMAccountNameContext(context.Background(), sAMAccountName, newPassword)
+}
+
+// ResetPasswordForSAMAccountNameContext performs an administrative password reset with context support.
+func (l *LDAP) ResetPasswordForSAMAccountNameContext(ctx context.Context, sAMAccountName, newPassword string) error {
+	start := time.Now()
+
+	// Encode new password for LDAP (UTF-16LE with quotes)
+	// For admin reset, we don't need SecureCredential validation - just encoding
+	newEncoded, err := encodePassword(newPassword)
+	if err != nil {
+		return fmt.Errorf("failed to encode new password: %w", err)
+	}
+
+	// Mask sensitive data for logging
+	maskedUsername := maskSensitiveData(sAMAccountName)
+
+	l.logger.Info("password_reset_attempt",
+		slog.String("operation", "ResetPasswordForSAMAccountName"),
+		slog.String("username_masked", maskedUsername))
+
+	// Security check: Active Directory requires LDAPS for password operations
+	if l.config.IsActiveDirectory && !strings.HasPrefix(l.config.Server, "ldaps://") {
+		l.logger.Error("password_reset_requires_ldaps",
+			slog.String("operation", "ResetPasswordForSAMAccountName"),
+			slog.String("username_masked", maskedUsername),
+			slog.String("server", l.config.Server))
+		return ErrActiveDirectoryMustBeLDAPS
+	}
+
+	// Check for context cancellation before starting
+	select {
+	case <-ctx.Done():
+		l.logger.Debug("password_reset_cancelled_before_start",
+			slog.String("username_masked", maskedUsername),
+			slog.String("error", ctx.Err().Error()))
+		return fmt.Errorf("password reset cancelled for user %s: %w", sAMAccountName, WrapLDAPError("ResetPasswordForSAMAccountName", l.config.Server, ctx.Err()))
+	default:
+	}
+
+	// Find the user first
+	user, err := l.FindUserBySAMAccountNameContext(ctx, sAMAccountName)
+	if err != nil {
+		l.logger.Error("password_reset_user_not_found",
+			slog.String("operation", "ResetPasswordForSAMAccountName"),
+			slog.String("username_masked", maskedUsername),
+			slog.String("error", err.Error()),
+			slog.Duration("duration", time.Since(start)))
+		return fmt.Errorf("failed to find user %s for password reset: %w", sAMAccountName, err)
+	}
+
+	// Check for context cancellation before LDAP operation
+	select {
+	case <-ctx.Done():
+		l.logger.Debug("password_reset_cancelled_before_ldap_op",
+			slog.String("username_masked", maskedUsername),
+			slog.String("error", ctx.Err().Error()))
+		return fmt.Errorf("password reset cancelled for user %s: %w", sAMAccountName, WrapLDAPError("ResetPasswordForSAMAccountName", l.config.Server, ctx.Err()))
+	default:
+	}
+
+	// Get connection with context
+	c, err := l.GetConnectionContext(ctx)
+	if err != nil {
+		return connectionError("SAM account", "password reset", err)
+	}
+	defer func() { _ = c.Close() }()
+
+	// Create modify request - REPLACE operation for administrative reset
+	// This is different from password change which uses DELETE+ADD
+	userDN := user.DN()
+	modifyRequest := ldap.NewModifyRequest(userDN, nil)
+	modifyRequest.Replace("unicodePwd", []string{newEncoded})
+
+	// Execute modify operation
+	err = c.Modify(modifyRequest)
+	if err != nil {
+		l.logger.Error("password_reset_modify_failed",
+			slog.String("operation", "ResetPasswordForSAMAccountName"),
+			slog.String("username_masked", maskedUsername),
+			slog.String("dn", userDN),
+			slog.String("error", err.Error()),
+			slog.Duration("duration", time.Since(start)))
+
+		ldapErr := NewLDAPError("ResetPasswordForSAMAccountName", l.config.Server, err).
+			WithDN(userDN).WithContext("samAccountName", sAMAccountName)
+
+		return fmt.Errorf("failed to reset password for user %s: %w", sAMAccountName, ldapErr)
+	}
+
+	l.logger.Info("password_reset_successful",
+		slog.String("operation", "ResetPasswordForSAMAccountName"),
+		slog.String("username_masked", maskedUsername),
+		slog.String("dn", userDN),
+		slog.Duration("duration", time.Since(start)))
+
+	return nil
+}
