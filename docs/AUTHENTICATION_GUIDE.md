@@ -137,43 +137,40 @@ err := client.ChangePasswordForSAMAccountNameContext(
 
 ### Password Reset (Admin)
 
+Administrative password reset is used for password recovery workflows where users have forgotten their credentials.
+
 ```go
-func resetUserPassword(client *ldap.LDAP, username, newPassword string) error {
-    ctx := context.Background()
-
-    // Find user
-    user, err := client.FindUserBySAMAccountNameContext(ctx, username)
-    if err != nil {
-        return fmt.Errorf("user not found: %w", err)
-    }
-
-    // Admin reset (requires appropriate permissions)
-    // Note: This is a simplified example - actual implementation depends on directory
-    conn, err := client.GetConnectionContext(ctx)
-    if err != nil {
-        return err
-    }
-    defer conn.Close()
-
-    // Encode password for Active Directory
-    encodedPassword := encodePassword(newPassword)
-
-    modify := ldap.NewModifyRequest(user.DN())
-    modify.Replace("unicodePwd", []string{encodedPassword})
-
-    return conn.Modify(modify)
+// Reset password without requiring old password (admin operation)
+err := client.ResetPasswordForSAMAccountName("username", "newPassword123!")
+if err != nil {
+    log.Printf("Password reset failed: %v", err)
+    return err
 }
 
-func encodePassword(password string) string {
-    // Convert to UTF-16LE and add quotes for AD
-    utf16 := utf16.Encode([]rune("\"" + password + "\""))
-    buf := make([]byte, len(utf16)*2)
-    for i, r := range utf16 {
-        binary.LittleEndian.PutUint16(buf[i*2:], r)
-    }
-    return string(buf)
+// With context support
+ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+defer cancel()
+
+err := client.ResetPasswordForSAMAccountNameContext(ctx, "username", "newPassword123!")
+if err != nil {
+    log.Printf("Password reset failed: %v", err)
+    return err
 }
 ```
+
+**Requirements:**
+- **Active Directory**: Service account must have "Reset password" permission on user objects
+- **OpenLDAP**: Service account needs write access to `userPassword` attribute
+- **Connection**: Must use LDAPS (`ldaps://`) for security
+- **Best Practice**: Use dedicated service account with minimal permissions
+
+**Key Differences from ChangePassword:**
+- No old password required (administrative bypass)
+- Uses LDAP REPLACE operation instead of DELETE+ADD
+- Requires elevated directory permissions
+- Intended for password recovery workflows only
+
+Reference: [Microsoft Active Directory Password Reset](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-adts/6e803168-f140-4d23-b2d3-c3a8ab5917d2)
 
 ## Security Considerations
 
