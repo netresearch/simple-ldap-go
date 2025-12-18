@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [ main, develop ]
 
+permissions:
+  contents: read
+
 jobs:
   # Fast unit tests that run on every commit
   unit-tests:
@@ -17,15 +20,15 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v6
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6
 
     - name: Set up Go
-      uses: actions/setup-go@v6
+      uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v6
       with:
         go-version: ${{ matrix.go-version }}
 
     - name: Cache Go modules
-      uses: actions/cache@v5
+      uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v5
       with:
         path: ~/go/pkg/mod
         key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
@@ -40,7 +43,7 @@ jobs:
       timeout-minutes: 5
 
     - name: Upload unit test results
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@ea165f2b701d6c302279da409f630232b04f9a37 # v6
       if: always()
       with:
         name: unit-test-results-${{ matrix.go-version }}
@@ -59,15 +62,15 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v6
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6
 
     - name: Set up Go
-      uses: actions/setup-go@v6
+      uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v6
       with:
         go-version: ${{ matrix.go-version }}
 
     - name: Cache Go modules
-      uses: actions/cache@v5
+      uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v5
       with:
         path: ~/go/pkg/mod
         key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
@@ -89,7 +92,7 @@ jobs:
         CI: true
 
     - name: Upload integration test results
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@ea165f2b701d6c302279da409f630232b04f9a37 # v6
       if: always()
       with:
         name: integration-test-results-${{ matrix.go-version }}
@@ -106,15 +109,15 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v6
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6
 
     - name: Set up Go
-      uses: actions/setup-go@v6
+      uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v6
       with:
         go-version: '1.25'
 
     - name: Cache Go modules
-      uses: actions/cache@v5
+      uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v5
       with:
         path: ~/go/pkg/mod
         key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
@@ -127,7 +130,7 @@ jobs:
       timeout-minutes: 2
 
     - name: Upload benchmark results
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@ea165f2b701d6c302279da409f630232b04f9a37 # v6
       with:
         name: benchmark-results
         path: |
@@ -142,15 +145,15 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v6
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6
 
     - name: Set up Go
-      uses: actions/setup-go@v6
+      uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v6
       with:
         go-version: '1.25'
 
     - name: Install golangci-lint
-      uses: golangci/golangci-lint-action@v9
+      uses: golangci/golangci-lint-action@a7ac525e458f0e5408c816b7e6c220e0c6f2a64b # v9
       with:
         version: v2.5.0
         args: --timeout=10m
@@ -184,13 +187,15 @@ jobs:
     name: Coverage Report
     runs-on: ubuntu-latest
     needs: [unit-tests, integration-tests]
+    permissions:
+      contents: read
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v6
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6
 
     - name: Set up Go
-      uses: actions/setup-go@v6
+      uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v6
       with:
         go-version: '1.25'
 
@@ -202,14 +207,14 @@ jobs:
       timeout-minutes: 12
 
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v5
+      uses: codecov/codecov-action@015f24e6818733317a2da2edd6290ab26238649a # v5
       with:
         file: ./coverage.out
         flags: unittests
         name: codecov-umbrella
 
     - name: Upload coverage results
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@ea165f2b701d6c302279da409f630232b04f9a37 # v6
       with:
         name: coverage-report
         path: |
@@ -228,10 +233,10 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v6
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6
 
     - name: Set up Go
-      uses: actions/setup-go@v6
+      uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v6
       with:
         go-version: ${{ matrix.go-version }}
 
@@ -243,7 +248,7 @@ jobs:
       timeout-minutes: 15
 
     - name: Upload test results
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@ea165f2b701d6c302279da409f630232b04f9a37 # v6
       if: always()
       with:
         name: full-test-results-${{ matrix.os }}-go${{ matrix.go-version }}

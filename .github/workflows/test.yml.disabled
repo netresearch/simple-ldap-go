@@ -4,15 +4,18 @@ name: Run tests
 
 on: [push, pull_request]
 
+permissions:
+  contents: read
+
 jobs:
   release:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v3
 
       - name: Setup Go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v2
         with:
           go-version: 1.20
 
