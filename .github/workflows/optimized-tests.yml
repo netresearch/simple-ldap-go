@@ -43,7 +43,7 @@ jobs:
       timeout-minutes: 5
 
     - name: Upload unit test results
-      uses: actions/upload-artifact@ea165f2b701d6c302279da409f630232b04f9a37 # v6
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
       if: always()
       with:
         name: unit-test-results-${{ matrix.go-version }}
@@ -92,7 +92,7 @@ jobs:
         CI: true
 
     - name: Upload integration test results
-      uses: actions/upload-artifact@ea165f2b701d6c302279da409f630232b04f9a37 # v6
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
       if: always()
       with:
         name: integration-test-results-${{ matrix.go-version }}
@@ -130,7 +130,7 @@ jobs:
       timeout-minutes: 2
 
     - name: Upload benchmark results
-      uses: actions/upload-artifact@ea165f2b701d6c302279da409f630232b04f9a37 # v6
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
       with:
         name: benchmark-results
         path: |
@@ -153,7 +153,7 @@ jobs:
         go-version: '1.25'
 
     - name: Install golangci-lint
-      uses: golangci/golangci-lint-action@a7ac525e458f0e5408c816b7e6c220e0c6f2a64b # v9
+      uses: golangci/golangci-lint-action@55c2c1448f86e01eaae002a5a3a9624417608d84 # v6
       with:
         version: v2.5.0
         args: --timeout=10m
@@ -214,7 +214,7 @@ jobs:
         name: codecov-umbrella
 
     - name: Upload coverage results
-      uses: actions/upload-artifact@ea165f2b701d6c302279da409f630232b04f9a37 # v6
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
       with:
         name: coverage-report
         path: |
@@ -248,7 +248,7 @@ jobs:
       timeout-minutes: 15
 
     - name: Upload test results
-      uses: actions/upload-artifact@ea165f2b701d6c302279da409f630232b04f9a37 # v6
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
       if: always()
       with:
         name: full-test-results-${{ matrix.os }}-go${{ matrix.go-version }}
