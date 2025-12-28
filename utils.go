@@ -93,6 +93,34 @@ func parseObjectEnabled(userAccountControl string) (bool, error) {
 	return !isDisabled, nil
 }
 
+// parseLastLogonTimestamp parses an Active Directory lastLogonTimestamp attribute value.
+// Active Directory stores lastLogonTimestamp as the number of 100-nanosecond intervals
+// since January 1, 1601 UTC.
+//
+// Parameters:
+//   - value: The lastLogonTimestamp attribute value as a string (decimal representation)
+//
+// Returns:
+//   - int64: The timestamp as Unix timestamp in seconds, or 0 if parsing fails or value is empty
+func parseLastLogonTimestamp(value string) int64 {
+	if value == "" || value == "0" {
+		return 0
+	}
+
+	// Parse the FILETIME value
+	filetime, err := strconv.ParseInt(value, 10, 64)
+	if err != nil || filetime <= 0 {
+		return 0
+	}
+
+	// AD FILETIME is 100-nanosecond intervals since January 1, 1601 UTC
+	// We need to convert to Unix timestamp (seconds since January 1, 1970)
+	// Difference between 1601 and 1970 in 100-nanosecond intervals: 116444736000000000
+	const epochDiff int64 = 116444736000000000
+	unixNano := (filetime - epochDiff) * 100
+	return unixNano / 1e9 // Convert to seconds
+}
+
 // convertAccountExpires converts a Go time.Time to Active Directory accountExpires format.
 // Active Directory stores accountExpires as the number of 100-nanosecond intervals since January 1, 1601 UTC.
 // A nil time represents "never expires" and returns the maximum possible value.
