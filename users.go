@@ -28,7 +28,7 @@ var (
 	accountExpiresNever uint64 = 0x7FFFFFFFFFFFFFFF
 
 	// userFields contains the standard LDAP attributes retrieved for user objects.
-	userFields = []string{"memberOf", "cn", "sAMAccountName", "mail", "userAccountControl", "description"}
+	userFields = []string{"memberOf", "cn", "sAMAccountName", "mail", "userAccountControl", "description", "lastLogonTimestamp"}
 )
 
 // User represents an LDAP user object with common attributes.
@@ -42,6 +42,8 @@ type User struct {
 	Description string
 	// Mail contains the user's email address (nil if not set).
 	Mail *string
+	// LastLogon contains the timestamp of the last logon (from lastLogonTimestamp, replicated).
+	LastLogon int64
 	// Groups contains a list of distinguished names (DNs) of groups the user belongs to.
 	Groups []string
 }
@@ -78,6 +80,7 @@ func userFromEntry(entry *ldap.Entry) (*User, error) {
 		SAMAccountName: samAccountName,
 		Description:    entry.GetAttributeValue("description"),
 		Mail:           mail,
+		LastLogon:      parseLastLogonTimestamp(entry.GetAttributeValue("lastLogonTimestamp")),
 		Groups:         entry.GetAttributeValues("memberOf"),
 	}, nil
 }
