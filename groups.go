@@ -16,8 +16,12 @@ var ErrGroupNotFound = errors.New("group not found")
 // Group represents an LDAP group object with its members.
 type Group struct {
 	Object
+	// Description contains the group's description or notes.
+	Description string
 	// Members contains a list of distinguished names (DNs) of group members.
 	Members []string
+	// MemberOf contains a list of distinguished names (DNs) of parent groups.
+	MemberOf []string
 }
 
 // FullGroup represents a complete LDAP group object for creation and modification operations.
@@ -99,7 +103,7 @@ func (l *LDAP) FindGroupByDNContext(ctx context.Context, dn string) (group *Grou
 	params := dnSearchParams{
 		operation:   "FindGroupByDN",
 		filter:      "(|(objectClass=group)(objectClass=groupOfNames))",
-		attributes:  []string{"cn", "member"},
+		attributes:  []string{"cn", "description", "member", "memberOf"},
 		notFoundErr: ErrGroupNotFound,
 		logPrefix:   "group_",
 	}
@@ -127,8 +131,10 @@ func (l *LDAP) FindGroupByDNContext(ctx context.Context, dn string) (group *Grou
 	}
 
 	group = &Group{
-		Object:  objectFromEntry(r.Entries[0]),
-		Members: r.Entries[0].GetAttributeValues("member"),
+		Object:      objectFromEntry(r.Entries[0]),
+		Description: r.Entries[0].GetAttributeValue("description"),
+		Members:     r.Entries[0].GetAttributeValues("member"),
+		MemberOf:    r.Entries[0].GetAttributeValues("memberOf"),
 	}
 
 	// Store in cache if enabled
@@ -215,7 +221,7 @@ func (l *LDAP) FindGroupsContext(ctx context.Context) (groups []Group, err error
 		Scope:        ldap.ScopeWholeSubtree,
 		DerefAliases: ldap.NeverDerefAliases,
 		Filter:       filter,
-		Attributes:   []string{"cn", "member"},
+		Attributes:   []string{"cn", "description", "member", "memberOf"},
 	})
 	if err != nil {
 		l.logger.Error("group_list_search_failed",
@@ -241,8 +247,10 @@ func (l *LDAP) FindGroupsContext(ctx context.Context) (groups []Group, err error
 
 		members := entry.GetAttributeValues("member")
 		group := Group{
-			Object:  objectFromEntry(entry),
-			Members: members,
+			Object:      objectFromEntry(entry),
+			Description: entry.GetAttributeValue("description"),
+			Members:     members,
+			MemberOf:    entry.GetAttributeValues("memberOf"),
 		}
 
 		groups = append(groups, group)
