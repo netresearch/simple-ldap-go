@@ -20,10 +20,18 @@ type Computer struct {
 	SAMAccountName string
 	// Enabled indicates whether the computer account is enabled (not disabled by userAccountControl).
 	Enabled bool
+	// Description contains the computer's description or notes.
+	Description string
+	// DNSHostName is the fully qualified DNS hostname of the computer.
+	DNSHostName string
 	// OS contains the operating system name from the operatingSystem attribute.
 	OS string
 	// OSVersion contains the operating system version from the operatingSystemVersion attribute.
 	OSVersion string
+	// ServicePack contains the service pack information from operatingSystemServicePack.
+	ServicePack string
+	// LastLogon contains the timestamp of the last logon (from lastLogonTimestamp, replicated).
+	LastLogon int64
 	// Groups contains a list of distinguished names (DNs) of groups the computer belongs to.
 	Groups []string
 }
@@ -116,7 +124,7 @@ func (l *LDAP) FindComputerByDNContext(ctx context.Context, dn string) (computer
 		Scope:        ldap.ScopeBaseObject,
 		DerefAliases: ldap.NeverDerefAliases,
 		Filter:       filter,
-		Attributes:   []string{"memberOf", "cn", "sAMAccountName", "userAccountControl", "operatingSystem", "operatingSystemVersion", "description"},
+		Attributes:   []string{"memberOf", "cn", "sAMAccountName", "userAccountControl", "operatingSystem", "operatingSystemVersion", "operatingSystemServicePack", "description", "dNSHostName", "lastLogonTimestamp"},
 	})
 	if err != nil {
 		// If LDAP error indicates object not found, return ErrComputerNotFound
@@ -181,8 +189,12 @@ func (l *LDAP) FindComputerByDNContext(ctx context.Context, dn string) (computer
 		Object:         objectFromEntry(r.Entries[0]),
 		SAMAccountName: samAccountName,
 		Enabled:        enabled,
+		Description:    r.Entries[0].GetAttributeValue("description"),
+		DNSHostName:    r.Entries[0].GetAttributeValue("dNSHostName"),
 		OS:             r.Entries[0].GetAttributeValue("operatingSystem"),
 		OSVersion:      r.Entries[0].GetAttributeValue("operatingSystemVersion"),
+		ServicePack:    r.Entries[0].GetAttributeValue("operatingSystemServicePack"),
+		LastLogon:      parseLastLogonTimestamp(r.Entries[0].GetAttributeValue("lastLogonTimestamp")),
 		Groups:         r.Entries[0].GetAttributeValues("memberOf"),
 	}
 
@@ -267,7 +279,7 @@ func (l *LDAP) FindComputerBySAMAccountNameContext(ctx context.Context, sAMAccou
 		Scope:        ldap.ScopeWholeSubtree,
 		DerefAliases: ldap.NeverDerefAliases,
 		Filter:       filter,
-		Attributes:   []string{"memberOf", "cn", "sAMAccountName", "userAccountControl", "operatingSystem", "operatingSystemVersion", "description"},
+		Attributes:   []string{"memberOf", "cn", "sAMAccountName", "userAccountControl", "operatingSystem", "operatingSystemVersion", "operatingSystemServicePack", "description", "dNSHostName", "lastLogonTimestamp"},
 	})
 	if err != nil {
 		l.logger.Error("computer_search_by_sam_account_failed",
@@ -324,8 +336,12 @@ func (l *LDAP) FindComputerBySAMAccountNameContext(ctx context.Context, sAMAccou
 		Object:         objectFromEntry(r.Entries[0]),
 		SAMAccountName: samAccountName,
 		Enabled:        enabled,
+		Description:    r.Entries[0].GetAttributeValue("description"),
+		DNSHostName:    r.Entries[0].GetAttributeValue("dNSHostName"),
 		OS:             r.Entries[0].GetAttributeValue("operatingSystem"),
 		OSVersion:      r.Entries[0].GetAttributeValue("operatingSystemVersion"),
+		ServicePack:    r.Entries[0].GetAttributeValue("operatingSystemServicePack"),
+		LastLogon:      parseLastLogonTimestamp(r.Entries[0].GetAttributeValue("lastLogonTimestamp")),
 		Groups:         r.Entries[0].GetAttributeValues("memberOf"),
 	}
 
@@ -404,7 +420,7 @@ func (l *LDAP) FindComputersContext(ctx context.Context) (computers []Computer, 
 		Scope:        ldap.ScopeWholeSubtree,
 		DerefAliases: ldap.NeverDerefAliases,
 		Filter:       filter,
-		Attributes:   []string{"cn", "memberOf", "sAMAccountName", "userAccountControl", "operatingSystem", "operatingSystemVersion"},
+		Attributes:   []string{"cn", "memberOf", "sAMAccountName", "userAccountControl", "operatingSystem", "operatingSystemVersion", "operatingSystemServicePack", "description", "dNSHostName", "lastLogonTimestamp"},
 	})
 	if err != nil {
 		l.logger.Error("computer_list_search_failed",
@@ -454,8 +470,12 @@ func (l *LDAP) FindComputersContext(ctx context.Context) (computers []Computer, 
 			Object:         objectFromEntry(entry),
 			SAMAccountName: samAccountName,
 			Enabled:        enabled,
+			Description:    entry.GetAttributeValue("description"),
+			DNSHostName:    entry.GetAttributeValue("dNSHostName"),
 			OS:             entry.GetAttributeValue("operatingSystem"),
 			OSVersion:      entry.GetAttributeValue("operatingSystemVersion"),
+			ServicePack:    entry.GetAttributeValue("operatingSystemServicePack"),
+			LastLogon:      parseLastLogonTimestamp(entry.GetAttributeValue("lastLogonTimestamp")),
 			Groups:         entry.GetAttributeValues("memberOf"),
 		}
 
