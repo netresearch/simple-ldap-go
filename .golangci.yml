@@ -1,0 +1,26 @@
+# golangci-lint configuration for simple-ldap-go library
+# Configuration format for golangci-lint v2.5+
+
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+  modules-download-mode: readonly
+
+output:
+  formats:
+    text:
+      path: stdout
+      print-linter-name: true
+      print-issued-lines: true
+
+linters:
+  # Use standard set of linters
+  default: standard
+  disable:
+    - funlen # Some functions require more lines for LDAP operations
+
+issues:
+  max-issues-per-linter: 50
+  max-same-issues: 10
