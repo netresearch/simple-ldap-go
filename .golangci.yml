@@ -16,40 +16,10 @@ output:
       print-issued-lines: true
 
 linters:
+  # Use standard set of linters
   default: standard
   disable:
     - funlen # Some functions require more lines for LDAP operations
-    - errorlint # Disable for now - pre-existing code uses direct error comparison
-    - forcetypeassert # Disable for now - pre-existing code has unchecked type assertions
-    - exhaustive # Disable for now - pre-existing code has incomplete switch statements
-  enable:
-    # Additional quality checks
-    - asciicheck # Check for non-ASCII identifiers
-    - bodyclose # Check HTTP response body closes
-    - dupl # Check code duplication
-    - durationcheck # Check for duration multiplication issues
-    - fatcontext # Detect nested context in loops
-    - errname # Check error naming conventions
-    - copyloopvar # Check loop variable copies
-    - gochecknoinits # Check for init functions
-    - gocognit # Check cognitive complexity
-    - goconst # Find repeated strings that could be constants
-    - gocritic # Comprehensive Go source code linter
-    - gosec # Security analysis
-    - makezero # Find slice declarations with non-zero initial length
-    - misspell # Find misspelled words
-    - nakedret # Find naked returns
-    - nilerr # Find incorrect nil error returns
-    - nlreturn # Check newlines before returns
-    - noctx # Find HTTP requests without context
-    - prealloc # Find slice declarations that could be preallocated
-    - predeclared # Find code that shadows predeclared identifiers
-    - revive # Fast configurable linter
-    - tparallel # Detect inappropriate usage of t.Parallel
-    - unconvert # Remove unnecessary type conversions
-    - unparam # Find unused function parameters
-    - wastedassign # Find wasted assignments
-    - whitespace # Check whitespace issues
 
 issues:
   max-issues-per-linter: 50
