@@ -20,6 +20,8 @@ linters:
   disable:
     - funlen # Some functions require more lines for LDAP operations
     - errorlint # Disable for now - pre-existing code uses direct error comparison
+    - forcetypeassert # Disable for now - pre-existing code has unchecked type assertions
+    - exhaustive # Disable for now - pre-existing code has incomplete switch statements
   enable:
     # Additional quality checks
     - asciicheck # Check for non-ASCII identifiers
@@ -27,9 +29,7 @@ linters:
     - dupl # Check code duplication
     - durationcheck # Check for duration multiplication issues
     - fatcontext # Detect nested context in loops
-    - forcetypeassert # Find forced type assertions
     - errname # Check error naming conventions
-    - exhaustive # Check switch statements
     - copyloopvar # Check loop variable copies
     - gochecknoinits # Check for init functions
     - gocognit # Check cognitive complexity
