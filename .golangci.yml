@@ -1,0 +1,160 @@
+# golangci-lint configuration for simple-ldap-go library
+# Comprehensive static analysis and linting configuration
+
+version: 2
+
+run:
+  timeout: 5m
+  tests: true
+  modules-download-mode: readonly
+
+output:
+  formats:
+    colored-line-number:
+      path: stdout
+  print-issued-lines: true
+  print-linter-name: true
+
+linters-settings:
+  # Cyclomatic complexity
+  cyclop:
+    max-complexity: 20
+    package-average: 10.0
+    skip-tests: true
+
+  # Duplicate code detection
+  dupl:
+    threshold: 100
+
+  # Error handling
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+
+  # Function length
+  funlen:
+    lines: 100
+    statements: 90
+
+  # Cognitive complexity
+  gocognit:
+    min-complexity: 20
+
+  # Line length
+  lll:
+    line-length: 120
+
+  # Misspelled words
+  misspell:
+    locale: US
+
+  # Naked returns
+  nakedret:
+    max-func-lines: 30
+
+  # Dead code
+  unused:
+    check-exported: false
+
+  # Import ordering
+  goimports:
+    local-prefixes: github.com/netresearch/simple-ldap-go
+
+  # Security
+  gosec:
+    severity: medium
+    confidence: medium
+
+  # Code simplification
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - experimental
+      - opinionated
+      - performance
+      - style
+    disabled-checks:
+      - whyNoLint
+      - hugeParam
+
+linters:
+  disable:
+    - funlen # Some functions require more lines for LDAP operations
+
+  enable:
+    # Enabled by default
+    - errcheck # Check error handling
+    - govet # Go vet
+    - ineffassign # Detect ineffectual assignments
+    - staticcheck # Staticcheck analysis
+    - unused # Find unused code
+
+    # Additional quality checks
+    - asciicheck # Check for non-ASCII identifiers
+    - bodyclose # Check HTTP response body closes
+    - dupl # Check code duplication
+    - durationcheck # Check for duration multiplication issues
+    - fatcontext # Detect nested context in loops
+    - forcetypeassert # Find forced type assertions
+    - errname # Check error naming conventions
+    - errorlint # Find error handling issues
+    - exhaustive # Check switch statements
+    - copyloopvar # Check loop variable copies
+    - gochecknoinits # Check for init functions
+    - gocognit # Check cognitive complexity
+    - goconst # Find repeated strings that could be constants
+    - gocritic # Comprehensive Go source code linter
+    - gosec # Security analysis
+    - lll # Check line length
+    - makezero # Find slice declarations with non-zero initial length
+    - misspell # Find misspelled words
+    - nakedret # Find naked returns
+    - nilerr # Find incorrect nil error returns
+    - nlreturn # Check newlines before returns
+    - noctx # Find HTTP requests without context
+    - prealloc # Find slice declarations that could be preallocated
+    - predeclared # Find code that shadows predeclared identifiers
+    - revive # Fast configurable linter
+    - tparallel # Detect inappropriate usage of t.Parallel
+    - unconvert # Remove unnecessary type conversions
+    - unparam # Find unused function parameters
+    - wastedassign # Find wasted assignments
+    - whitespace # Check whitespace issues
+
+issues:
+  exclude-use-default: false
+  exclude-dirs:
+    - vendor
+    - testdata
+  exclude-rules:
+    # Disable specific linters for test files
+    - path: _test\.go
+      linters:
+        - funlen
+        - gocognit
+        - gosec
+        - cyclop
+        - dupl
+
+    # Allow long lines in generated code
+    - source: "^//go:generate"
+      linters:
+        - lll
+
+    # Ignore complexity in example files
+    - path: example.*\.go
+      linters:
+        - gocognit
+        - cyclop
+
+  # Maximum issues count per one linter
+  max-issues-per-linter: 50
+
+  # Maximum count of issues with the same text
+  max-same-issues: 10
+
+  # Show only new issues created after git revision
+  new: false
+
+  # Fix found issues (if supported by linter)
+  fix: false
