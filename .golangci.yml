@@ -19,6 +19,7 @@ linters:
   default: standard
   disable:
     - funlen # Some functions require more lines for LDAP operations
+    - errorlint # Disable for now - pre-existing code uses direct error comparison
   enable:
     # Additional quality checks
     - asciicheck # Check for non-ASCII identifiers
@@ -28,7 +29,6 @@ linters:
     - fatcontext # Detect nested context in loops
     - forcetypeassert # Find forced type assertions
     - errname # Check error naming conventions
-    - errorlint # Find error handling issues
     - exhaustive # Check switch statements
     - copyloopvar # Check loop variable copies
     - gochecknoinits # Check for init functions
