@@ -52,9 +52,5 @@ linters:
     - whitespace # Check whitespace issues
 
 issues:
-  exclude-dirs:
-    - vendor
-    - testdata
-  exclude-generated: strict
   max-issues-per-linter: 50
   max-same-issues: 10
