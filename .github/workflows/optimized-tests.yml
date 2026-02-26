@@ -43,7 +43,7 @@ jobs:
       timeout-minutes: 5
 
     - name: Upload unit test results
-      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
       if: always()
       with:
         name: unit-test-results-${{ matrix.go-version }}
@@ -92,7 +92,7 @@ jobs:
         CI: true
 
     - name: Upload integration test results
-      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
       if: always()
       with:
         name: integration-test-results-${{ matrix.go-version }}
@@ -130,7 +130,7 @@ jobs:
       timeout-minutes: 2
 
     - name: Upload benchmark results
-      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
       with:
         name: benchmark-results
         path: |
@@ -215,7 +215,7 @@ jobs:
         name: codecov-umbrella
 
     - name: Upload coverage results
-      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
       with:
         name: coverage-report
         path: |
@@ -249,7 +249,7 @@ jobs:
       timeout-minutes: 15
 
     - name: Upload test results
-      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
       if: always()
       with:
         name: full-test-results-${{ matrix.os }}-go${{ matrix.go-version }}
