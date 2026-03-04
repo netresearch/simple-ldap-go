@@ -390,7 +390,7 @@ func BenchmarkObjectDN(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = obj.DN()
 	}
 }
@@ -402,7 +402,7 @@ func BenchmarkObjectCN(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = obj.CN()
 	}
 }
@@ -419,7 +419,7 @@ func BenchmarkObjectFromEntry(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = objectFromEntry(entry)
 	}
 }

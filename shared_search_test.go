@@ -193,10 +193,9 @@ func TestFindByDNContext(t *testing.T) {
 
 		// Test with custom params
 		customParams := dnSearchParams{
-			operation:   "FindComputerByDN",
-			filter:      "(objectClass=computer)",
-			attributes:  []string{"cn", "dNSHostName", "operatingSystem"},
-			notFoundErr: errors.New("computer not found"),
+			operation:  "FindComputerByDN",
+			filter:     "(objectClass=computer)",
+			attributes: []string{"cn", "dNSHostName", "operatingSystem"},
 		}
 
 		assert.Equal(t, "FindComputerByDN", customParams.operation)
@@ -323,8 +322,6 @@ func TestSharedSearchIntegration(t *testing.T) {
 		// This test verifies that user search would use the shared function
 		// with appropriate parameters
 		userParams := dnSearchParams{
-			operation:   "FindUserByDN",
-			filter:      "(objectClass=user)",
 			attributes:  []string{"cn", "sAMAccountName", "mail", "description", "userAccountControl", "memberOf"},
 			notFoundErr: ErrUserNotFound,
 		}
@@ -338,11 +335,8 @@ func TestSharedSearchIntegration(t *testing.T) {
 		// This test verifies that group search would use the shared function
 		// with appropriate parameters
 		groupParams := dnSearchParams{
-			operation:   "FindGroupByDN",
-			filter:      "(objectClass=group)",
 			attributes:  []string{"cn", "member", "description"},
 			notFoundErr: ErrGroupNotFound,
-			logPrefix:   "group_",
 		}
 
 		assert.Contains(t, groupParams.attributes, "member")

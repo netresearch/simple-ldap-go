@@ -366,7 +366,7 @@ func BenchmarkNewConnection(b *testing.B) {
 	defer tc.Close(&testing.T{})
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		client, err := New(tc.Config, tc.AdminUser, tc.AdminPass)
 		if err != nil {
 			b.Fatal(err)
@@ -385,7 +385,7 @@ func BenchmarkGetConnection(b *testing.B) {
 	client := tc.GetLDAPClient(&testing.T{})
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		conn, err := client.GetConnection()
 		if err != nil {
 			b.Fatal(err)
@@ -805,7 +805,7 @@ func TestConnectionConcurrency(t *testing.T) {
 	numGoroutines := 10
 	errChan := make(chan error, numGoroutines)
 
-	for i := 0; i < numGoroutines; i++ {
+	for range numGoroutines {
 		go func() {
 			ctx := context.Background()
 			conn, err := client.GetConnectionContext(ctx)
@@ -817,7 +817,7 @@ func TestConnectionConcurrency(t *testing.T) {
 	}
 
 	// Collect results
-	for i := 0; i < numGoroutines; i++ {
+	for range numGoroutines {
 		err := <-errChan
 		// Should get consistent error for example server
 		assert.Error(t, err)

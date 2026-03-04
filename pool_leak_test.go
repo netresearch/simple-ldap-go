@@ -27,7 +27,7 @@ func TestFindGroupsContextNoLeak(t *testing.T) {
 
 	// Call FindGroups multiple times (simulating cache refresh)
 	iterations := 10
-	for i := 0; i < iterations; i++ {
+	for i := range iterations {
 		_, err := ldapClient.FindGroupsContext(context.Background())
 		if err != nil {
 			t.Fatalf("FindGroups iteration %d failed: %v", i, err)
@@ -83,7 +83,7 @@ func TestFindByDNContextNoLeak(t *testing.T) {
 
 	// Call FindGroupByDN multiple times
 	iterations := 10
-	for i := 0; i < iterations; i++ {
+	for i := range iterations {
 		_, err := ldapClient.FindGroupByDNContext(context.Background(), testDN)
 		if err != nil {
 			t.Fatalf("FindGroupByDN iteration %d failed: %v", i, err)
@@ -141,7 +141,7 @@ func TestSelfHealingPoolDetectsLeaks(t *testing.T) {
 	ctx := context.Background()
 	leakedCount := 3
 
-	for i := 0; i < leakedCount; i++ {
+	for i := range leakedCount {
 		conn, err := ldapClient.connPool.Get(ctx)
 		if err != nil {
 			t.Fatalf("Failed to get connection %d: %v", i, err)

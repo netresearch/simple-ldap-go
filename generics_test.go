@@ -304,7 +304,7 @@ func TestCreateGenericFunction(t *testing.T) {
 			cn: "test",
 		}
 
-		dn, err := Create[*MockLDAPObject](ctx, client, obj)
+		dn, err := Create(ctx, client, obj)
 		assert.Error(t, err)
 		assert.Empty(t, dn)
 		assert.Contains(t, err.Error(), "does not implement Creatable interface")
@@ -327,7 +327,7 @@ func TestCreateGenericFunction(t *testing.T) {
 			},
 		}
 
-		dn, err := Create[*MockCreatableLDAPObject](ctx, client, obj)
+		dn, err := Create(ctx, client, obj)
 		assert.Error(t, err)
 		assert.Empty(t, dn)
 		assert.Contains(t, err.Error(), "object validation failed")
@@ -352,7 +352,7 @@ func TestModifyGenericFunction(t *testing.T) {
 		}
 
 		changes := map[string][]string{"cn": {"new name"}}
-		err := Modify[*MockLDAPObject](ctx, client, obj, changes)
+		err := Modify(ctx, client, obj, changes)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "does not implement Modifiable interface")
 	})
@@ -378,7 +378,7 @@ func TestModifyGenericFunction(t *testing.T) {
 			"nonExistentAttr": {"value"}, // Not in modifiable attributes
 		}
 
-		err := Modify[*MockModifiableLDAPObject](ctx, client, obj, changes)
+		err := Modify(ctx, client, obj, changes)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "attribute nonExistentAttr is not modifiable")
 	})
@@ -502,7 +502,7 @@ func TestBatchOperation(t *testing.T) {
 		}
 
 		ctx := context.Background()
-		results, err := BatchProcess[*MockLDAPObject](ctx, client, operations)
+		results, err := BatchProcess(ctx, client, operations)
 
 		require.NoError(t, err)
 		require.Len(t, results, 1)

@@ -243,7 +243,7 @@ func TestRegressionCircuitBreakerRaceCondition(t *testing.T) {
 
 		// Trigger failures concurrently
 		errChan := make(chan error, 10)
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			go func() {
 				err := cb.Execute(func() error {
 					return errors.New("fail")
@@ -253,7 +253,7 @@ func TestRegressionCircuitBreakerRaceCondition(t *testing.T) {
 		}
 
 		// Collect results
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			<-errChan
 		}
 
@@ -280,7 +280,7 @@ func TestRegressionCircuitBreakerRaceCondition(t *testing.T) {
 
 		// Read state concurrently
 		stateChan := make(chan CircuitBreakerState, 100)
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			go func() {
 				state := CircuitBreakerState(cb.state.Load())
 				stateChan <- state
@@ -288,7 +288,7 @@ func TestRegressionCircuitBreakerRaceCondition(t *testing.T) {
 		}
 
 		// All reads should succeed without race
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			state := <-stateChan
 			assert.Contains(t, []CircuitBreakerState{
 				StateCircuitClosed,
