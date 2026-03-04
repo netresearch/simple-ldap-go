@@ -328,12 +328,12 @@ func setupTestLDAPWithConfig(t *testing.T, poolConfig *PoolConfig) *LDAP {
 	return ldapClient
 }
 
-func getEnvOrDefault(key, defaultValue string) string {
+func getEnvOrDefault(_, defaultValue string) string {
 	// Simple helper - in real tests you'd use os.Getenv
 	return defaultValue
 }
 
-func getEnvOrDefaultInt(key string, defaultValue int) int {
+func getEnvOrDefaultInt(_ string, defaultValue int) int {
 	// Simple helper - in real tests you'd use os.Getenv and strconv
 	return defaultValue
 }

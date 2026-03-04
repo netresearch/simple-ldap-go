@@ -31,10 +31,7 @@ func TestRegressionPoolConnPoolFieldName(t *testing.T) {
 
 		// Create client with reflection to check field
 		client := &LDAP{
-			config:   config,
-			user:     "test",
-			password: "test",
-			logger:   slog.Default(),
+			config: config,
 		}
 
 		// Field should be accessible as connPool, not pool

@@ -641,10 +641,7 @@ func TestConnectionFieldName(t *testing.T) {
 
 		// Skip actual initialization for real server
 		client2 := &LDAP{
-			config:   config2,
-			user:     "test",
-			password: "test",
-			logger:   slog.Default(),
+			config: config2,
 		}
 
 		// Field should be accessible

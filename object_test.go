@@ -238,7 +238,6 @@ func TestObjectInheritance(t *testing.T) {
 			SAMAccountName: entry.GetAttributeValue("sAMAccountName"),
 			OS:             entry.GetAttributeValue("operatingSystem"),
 			OSVersion:      entry.GetAttributeValue("operatingSystemVersion"),
-			Enabled:        true,
 		}
 
 		// Test that Computer can access Object methods

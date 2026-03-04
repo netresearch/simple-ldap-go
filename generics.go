@@ -481,15 +481,15 @@ func BatchProcess[T LDAPObject](ctx context.Context, l *LDAP, operations []Batch
 
 		switch op.Operation {
 		case "create":
-			dn, err := Create[T](ctx, l, op.Object)
+			dn, err := Create(ctx, l, op.Object)
 			result.DN = dn
 			result.Error = err
 
 		case "modify":
-			result.Error = Modify[T](ctx, l, op.Object, op.Changes)
+			result.Error = Modify(ctx, l, op.Object, op.Changes)
 
 		case "delete":
-			result.Error = Delete[T](ctx, l, op.Object)
+			result.Error = Delete(ctx, l, op.Object)
 
 		default:
 			result.Error = fmt.Errorf("unknown operation: %s", op.Operation)
@@ -528,7 +528,7 @@ func NewOperationPipeline[T LDAPObject](ctx context.Context, l *LDAP) *Operation
 // Create adds a create operation to the pipeline.
 func (p *OperationPipeline[T]) Create(obj T) *OperationPipeline[T] {
 	if len(p.errors) == 0 { // Only proceed if no previous errors
-		_, err := Create[T](p.ctx, p.client, obj)
+		_, err := Create(p.ctx, p.client, obj)
 		if err != nil {
 			p.errors = append(p.errors, fmt.Errorf("create failed: %w", err))
 		}
@@ -539,7 +539,7 @@ func (p *OperationPipeline[T]) Create(obj T) *OperationPipeline[T] {
 // Modify adds a modify operation to the pipeline.
 func (p *OperationPipeline[T]) Modify(obj T, changes map[string][]string) *OperationPipeline[T] {
 	if len(p.errors) == 0 { // Only proceed if no previous errors
-		err := Modify[T](p.ctx, p.client, obj, changes)
+		err := Modify(p.ctx, p.client, obj, changes)
 		if err != nil {
 			p.errors = append(p.errors, fmt.Errorf("modify failed: %w", err))
 		}
@@ -550,7 +550,7 @@ func (p *OperationPipeline[T]) Modify(obj T, changes map[string][]string) *Opera
 // Delete adds a delete operation to the pipeline.
 func (p *OperationPipeline[T]) Delete(obj T) *OperationPipeline[T] {
 	if len(p.errors) == 0 { // Only proceed if no previous errors
-		err := Delete[T](p.ctx, p.client, obj)
+		err := Delete(p.ctx, p.client, obj)
 		if err != nil {
 			p.errors = append(p.errors, fmt.Errorf("delete failed: %w", err))
 		}
