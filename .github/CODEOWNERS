@@ -5,6 +5,3 @@
 
 # Default owners for everything in the repository
 * @CybotTM
-
-# CI/CD changes need maintainer approval
-.github/ @CybotTM
