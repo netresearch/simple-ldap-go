@@ -1081,7 +1081,7 @@ func CreateSecureTLSConfig(cfg *TLSConfig) *tls.Config {
 		}
 	}
 
-	tlsConfig := &tls.Config{
+	tlsConfig := &tls.Config{ // #nosec G402 -- InsecureSkipVerify is user-configurable
 		MinVersion:         cfg.MinVersion,
 		MaxVersion:         cfg.MaxVersion,
 		CipherSuites:       cfg.CipherSuites,
