@@ -311,7 +311,7 @@ func BenchmarkFindByDNContext(b *testing.B) {
 	ctx := context.Background()
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, _ = client.findByDNContext(ctx, "cn=admin,ou=users,dc=example,dc=com", params)
 	}
 }
@@ -321,26 +321,26 @@ func TestSharedSearchIntegration(t *testing.T) {
 	t.Run("user search uses shared function", func(t *testing.T) {
 		// This test verifies that user search would use the shared function
 		// with appropriate parameters
-		userParams := dnSearchParams{
+		params := dnSearchParams{
 			attributes:  []string{"cn", "sAMAccountName", "mail", "description", "userAccountControl", "memberOf"},
 			notFoundErr: ErrUserNotFound,
 		}
 
-		assert.Contains(t, userParams.attributes, "sAMAccountName")
-		assert.Contains(t, userParams.attributes, "userAccountControl")
-		assert.Equal(t, ErrUserNotFound, userParams.notFoundErr)
+		assert.Contains(t, params.attributes, "sAMAccountName")
+		assert.Contains(t, params.attributes, "userAccountControl")
+		assert.Equal(t, ErrUserNotFound, params.notFoundErr)
 	})
 
 	t.Run("group search uses shared function", func(t *testing.T) {
 		// This test verifies that group search would use the shared function
 		// with appropriate parameters
-		groupParams := dnSearchParams{
+		params := dnSearchParams{
 			attributes:  []string{"cn", "member", "description"},
 			notFoundErr: ErrGroupNotFound,
 		}
 
-		assert.Contains(t, groupParams.attributes, "member")
-		assert.NotContains(t, groupParams.attributes, "sAMAccountName")
-		assert.Equal(t, ErrGroupNotFound, groupParams.notFoundErr)
+		assert.Contains(t, params.attributes, "member")
+		assert.NotContains(t, params.attributes, "sAMAccountName")
+		assert.Equal(t, ErrGroupNotFound, params.notFoundErr)
 	})
 }

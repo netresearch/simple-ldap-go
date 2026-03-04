@@ -266,11 +266,11 @@ func TestConcurrentFindGroupsNoLeak(t *testing.T) {
 	iterations := 5
 	var wg sync.WaitGroup
 
-	for i := 0; i < concurrency; i++ {
+	for i := range concurrency {
 		wg.Add(1)
 		go func(workerID int) {
 			defer wg.Done()
-			for j := 0; j < iterations; j++ {
+			for j := range iterations {
 				_, err := ldapClient.FindGroupsContext(context.Background())
 				if err != nil {
 					t.Errorf("Worker %d iteration %d failed: %v", workerID, j, err)

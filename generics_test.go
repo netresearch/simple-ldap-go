@@ -280,7 +280,7 @@ func TestSearchGenericFunction(t *testing.T) {
 		assert.Equal(t, "*ldap.MockSearchableLDAPObject", objType.String())
 
 		// Test that we can create a new instance
-		if objType.Kind() == reflect.Ptr {
+		if objType.Kind() == reflect.Pointer {
 			newObj := reflect.New(objType.Elem()).Interface()
 			assert.NotNil(t, newObj)
 		}
@@ -444,7 +444,7 @@ func TestFindByDNGenericFunction(t *testing.T) {
 		assert.NotNil(t, objType)
 
 		// Test that we can create an instance for interface checking
-		if objType.Kind() == reflect.Ptr {
+		if objType.Kind() == reflect.Pointer {
 			newInstance := reflect.New(objType.Elem()).Interface()
 			_, implementsSearchable := newInstance.(interface {
 				GetSearchAttributes() []string
@@ -700,13 +700,12 @@ func TestGenericTypeSafety(t *testing.T) {
 
 	t.Run("reflection-based type checking", func(t *testing.T) {
 		// Test type reflection works as expected
-		var mockObj *MockLDAPObject
-		objType := reflect.TypeOf(mockObj)
+		objType := reflect.PointerTo(reflect.TypeFor[MockLDAPObject]())
 		assert.NotNil(t, objType)
 		assert.Equal(t, "*ldap.MockLDAPObject", objType.String())
 
 		// Test pointer type handling
-		if objType.Kind() == reflect.Ptr {
+		if objType.Kind() == reflect.Pointer {
 			elemType := objType.Elem()
 			assert.Equal(t, "ldap.MockLDAPObject", elemType.String())
 		}
@@ -770,9 +769,9 @@ func BenchmarkGenericOperations(b *testing.B) {
 		var obj *MockSearchableLDAPObject
 
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			objType := reflect.TypeOf(obj)
-			if objType != nil && objType.Kind() == reflect.Ptr {
+			if objType != nil && objType.Kind() == reflect.Pointer {
 				_ = reflect.New(objType.Elem()).Interface()
 			}
 		}
