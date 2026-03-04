@@ -307,6 +307,7 @@ func TestCreateSecureTLSConfig(t *testing.T) {
 	tlsConfig := CreateSecureTLSConfig(cfg)
 	if tlsConfig == nil {
 		t.Fatal("Expected TLS config to be created")
+		return
 	}
 
 	if tlsConfig.MinVersion != tls.VersionTLS12 {

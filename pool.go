@@ -99,7 +99,7 @@ type pooledConnection struct {
 	conn         *ldap.Conn
 	createdAt    time.Time
 	lastUsed     time.Time
-	checkedOutAt time.Time                  // Time when connection was marked as in-use (for leak detection)
+	checkedOutAt time.Time // Time when connection was marked as in-use (for leak detection)
 	usageCount   int64
 	isHealthy    bool
 	inUse        bool

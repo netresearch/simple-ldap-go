@@ -39,7 +39,7 @@ func TestFindGroupsContextNoLeak(t *testing.T) {
 
 	// Check stats - no active connections should remain
 	finalStats := ldapClient.connPool.Stats()
-	
+
 	if finalStats.ActiveConnections > 0 {
 		t.Errorf("Connection leak detected: %d active connections remain after FindGroups calls",
 			finalStats.ActiveConnections)
@@ -95,7 +95,7 @@ func TestFindByDNContextNoLeak(t *testing.T) {
 
 	// Check stats - no active connections should remain
 	finalStats := ldapClient.connPool.Stats()
-	
+
 	if finalStats.ActiveConnections > 0 {
 		t.Errorf("Connection leak detected: %d active connections remain after FindGroupByDN calls",
 			finalStats.ActiveConnections)
@@ -162,7 +162,7 @@ func TestSelfHealingPoolDetectsLeaks(t *testing.T) {
 
 	// Check that self-healing recovered the leaked connections
 	finalStats := ldapClient.connPool.Stats()
-	
+
 	if finalStats.LeakedConnections != int64(leakedCount) {
 		t.Errorf("Expected %d leaked connections detected, got %d",
 			leakedCount, finalStats.LeakedConnections)
@@ -224,7 +224,7 @@ func TestSelfHealingDisabled(t *testing.T) {
 
 	// Verify NO self-healing occurred
 	stats := ldapClient.connPool.Stats()
-	
+
 	if stats.LeakedConnections != 0 {
 		t.Errorf("Expected 0 leaked connections (self-healing disabled), got %d",
 			stats.LeakedConnections)
@@ -286,9 +286,9 @@ func TestConcurrentFindGroupsNoLeak(t *testing.T) {
 
 	// Verify no leaks under concurrent load
 	stats := ldapClient.connPool.Stats()
-	
+
 	if stats.ActiveConnections > 0 {
-		t.Errorf("Connection leak under concurrent load: %d active connections remain", 
+		t.Errorf("Connection leak under concurrent load: %d active connections remain",
 			stats.ActiveConnections)
 	}
 

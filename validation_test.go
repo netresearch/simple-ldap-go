@@ -519,6 +519,7 @@ func TestValidationResult(t *testing.T) {
 
 		if result == nil {
 			t.Fatal("Result should not be nil")
+			return
 		}
 
 		if result.Errors == nil {

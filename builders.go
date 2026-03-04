@@ -580,9 +580,9 @@ func (b *QueryBuilder) FilterByObjectClass(objectClass string) *QueryBuilder {
 		b.filter.Reset()
 		b.filter.WriteString("(&")
 		b.filter.WriteString(existing)
-		b.filter.WriteString(fmt.Sprintf("(objectClass=%s))", objectClass))
+		fmt.Fprintf(&b.filter, "(objectClass=%s))", objectClass)
 	} else {
-		b.filter.WriteString(fmt.Sprintf("(objectClass=%s)", objectClass))
+		fmt.Fprintf(&b.filter, "(objectClass=%s)", objectClass)
 	}
 
 	return b
@@ -601,9 +601,9 @@ func (b *QueryBuilder) FilterByAttribute(attribute, value string) *QueryBuilder 
 		b.filter.Reset()
 		b.filter.WriteString("(&")
 		b.filter.WriteString(existing)
-		b.filter.WriteString(fmt.Sprintf("(%s=%s))", attribute, value))
+		fmt.Fprintf(&b.filter, "(%s=%s))", attribute, value)
 	} else {
-		b.filter.WriteString(fmt.Sprintf("(%s=%s)", attribute, value))
+		fmt.Fprintf(&b.filter, "(%s=%s)", attribute, value)
 	}
 
 	return b
