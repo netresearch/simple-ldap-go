@@ -29,7 +29,7 @@ func demonstrateStructuredLogging() {
 	}
 
 	// Example 2: Text structured logging to file with different log level
-	logFile, err := os.OpenFile("ldap.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	logFile, err := os.OpenFile("ldap.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
 	if err != nil {
 		slog.Error("Failed to open log file", slog.String("error", err.Error()))
 		return
