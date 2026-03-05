@@ -16,6 +16,7 @@ const workerResultTimeout = time.Second
 
 // WorkerPool provides a worker pool pattern for concurrent LDAP operations.
 // This pattern is useful for bulk operations like creating multiple users or processing search results.
+// WorkerPool is safe for concurrent use by multiple goroutines.
 type WorkerPool[T any] struct {
 	workerCount int
 	workChan    chan WorkItem[T]
@@ -351,7 +352,6 @@ func (p *Pipeline[T, U]) Output() <-chan U {
 
 // Start begins processing the pipeline.
 func (p *Pipeline[T, U]) Start() {
-	defer close(p.output)
 	defer close(p.errorChan)
 
 	if len(p.stages) == 0 {
