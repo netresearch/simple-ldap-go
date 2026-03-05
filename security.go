@@ -10,10 +10,22 @@ import (
 	"net/mail"
 	"net/url"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
 	"unicode"
+)
+
+// Package-level compiled replacer to avoid per-call allocation
+var (
+	ldapFilterReplacer = strings.NewReplacer(
+		"\\", "\\5c",
+		"*", "\\2a",
+		"(", "\\28",
+		")", "\\29",
+		"\x00", "\\00",
+	)
 )
 
 // SecureCredential provides secure handling of authentication credentials with memory protection
@@ -223,16 +235,7 @@ func ValidateLDAPFilter(filter string) (string, error) {
 
 // EscapeFilterValue escapes special characters in LDAP filter values
 func EscapeFilterValue(value string) string {
-	// LDAP filter special characters that need escaping
-	replacer := strings.NewReplacer(
-		"\\", "\\5c",
-		"*", "\\2a",
-		"(", "\\28",
-		")", "\\29",
-		"\x00", "\\00",
-	)
-
-	return replacer.Replace(value)
+	return ldapFilterReplacer.Replace(value)
 }
 
 // ValidateSAMAccountName validates sAMAccountName format
@@ -261,14 +264,9 @@ func ValidateSAMAccountName(sam string) error {
 		}
 	}
 
-	// Cannot start with a number
+	// Cannot start with a number (this also covers "all digits" since all-digit strings start with a digit)
 	if len(sam) > 0 && sam[0] >= '0' && sam[0] <= '9' {
 		return fmt.Errorf("sAMAccountName cannot start with a number")
-	}
-
-	// Cannot be only numbers
-	if regexp.MustCompile(`^[0-9]+$`).MatchString(sam) {
-		return fmt.Errorf("sAMAccountName cannot consist only of numbers")
 	}
 
 	// Cannot start or end with space or period
@@ -467,7 +465,12 @@ func (sc *SecureCredential) Clone() (*SecureCredential, error) {
 	sc.mutex.RLock()
 	defer sc.mutex.RUnlock()
 
-	username, password := sc.GetCredentials()
+	if sc.expired || (!sc.expiry.IsZero() && time.Now().After(sc.expiry)) {
+		return nil, fmt.Errorf("cannot clone expired credentials")
+	}
+
+	username := string(sc.username)
+	password := string(sc.password)
 	return NewSecureCredentialSimple(username, password)
 }
 
@@ -609,12 +612,13 @@ type RateLimiterMetrics struct {
 
 // RateLimiter provides authentication rate limiting functionality
 type RateLimiter struct {
-	config   *RateLimiterConfig
-	entries  map[string]*RateLimiterEntry
-	metrics  *RateLimiterMetrics
-	mutex    sync.RWMutex
-	logger   *slog.Logger
-	stopChan chan struct{}
+	config    *RateLimiterConfig
+	entries   map[string]*RateLimiterEntry
+	metrics   *RateLimiterMetrics
+	mutex     sync.RWMutex
+	logger    *slog.Logger
+	stopChan  chan struct{}
+	closeOnce sync.Once
 }
 
 // NewRateLimiter creates a new rate limiter with the given configuration
@@ -759,9 +763,12 @@ func (rl *RateLimiter) Reset() {
 	rl.logger.Info("rate_limiter_reset")
 }
 
-// Close stops the rate limiter and cleanup routines
+// Close stops the rate limiter and cleanup routines.
+// Safe to call multiple times.
 func (rl *RateLimiter) Close() {
-	close(rl.stopChan)
+	rl.closeOnce.Do(func() {
+		close(rl.stopChan)
+	})
 	rl.logger.Debug("rate_limiter_stopped")
 }
 
@@ -804,19 +811,15 @@ func (rl *RateLimiter) cleanup() {
 			entry *RateLimiterEntry
 		}
 
-		var sortedEntries []entryWithID
+		sortedEntries := make([]entryWithID, 0, len(rl.entries))
 		for id, entry := range rl.entries {
 			sortedEntries = append(sortedEntries, entryWithID{id, entry})
 		}
 
 		// Sort by last attempt time (oldest first)
-		for i := 0; i < len(sortedEntries)-1; i++ {
-			for j := i + 1; j < len(sortedEntries); j++ {
-				if sortedEntries[i].entry.LastAttempt.After(sortedEntries[j].entry.LastAttempt) {
-					sortedEntries[i], sortedEntries[j] = sortedEntries[j], sortedEntries[i]
-				}
-			}
-		}
+		sort.Slice(sortedEntries, func(i, j int) bool {
+			return sortedEntries[i].entry.LastAttempt.Before(sortedEntries[j].entry.LastAttempt)
+		})
 
 		// Remove oldest entries
 		toRemove := len(rl.entries) - rl.config.MaxEntries

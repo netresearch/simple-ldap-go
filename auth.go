@@ -612,7 +612,7 @@ func (l *LDAP) ResetPasswordForSAMAccountNameContext(ctx context.Context, sAMAcc
 	if err != nil {
 		return connectionError("SAM account", "password reset", err)
 	}
-	defer func() { _ = c.Close() }()
+	defer func() { _ = l.ReleaseConnection(c) }()
 
 	// Create modify request - REPLACE operation for administrative reset
 	// This is different from password change which uses DELETE+ADD

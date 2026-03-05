@@ -106,7 +106,8 @@ type pooledConnection struct {
 	credentials  *ConnectionCredentials // Tracks connection credentials for multi-user pooling
 }
 
-// ConnectionPool manages a pool of LDAP connections with health monitoring and lifecycle management
+// ConnectionPool manages a pool of LDAP connections with health monitoring and lifecycle management.
+// ConnectionPool is safe for concurrent use by multiple goroutines.
 type ConnectionPool struct {
 	config     *PoolConfig
 	ldapConfig Config

@@ -295,6 +295,13 @@ func TestValidator_ValidateAttribute(t *testing.T) {
 			expectWarn:  false,
 		},
 		{
+			name:        "Invalid postal code",
+			attrName:    "postalCode",
+			attrValue:   "!!!invalid",
+			expectValid: false,
+			expectWarn:  false,
+		},
+		{
 			name:        "Valid user account control",
 			attrName:    "userAccountControl",
 			attrValue:   "512",

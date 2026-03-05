@@ -18,6 +18,16 @@ const (
 	MaxValueLength = 8192
 )
 
+// Package-level compiled regex patterns to avoid per-call allocation
+var (
+	reEmailFormat    = regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
+	reDateFormat     = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
+	reDateTimeFormat = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}`)
+	reAlphaNumDot    = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
+	rePhoneNumber    = regexp.MustCompile(`^\+?[0-9\s\-\.\(\)]+$`)
+	rePostalCode     = regexp.MustCompile(`^[0-9A-Za-z\s\-]+$`)
+)
+
 // Note: MaxFilterLength and MaxDNLength are defined in security.go
 
 // PasswordAnalysis contains analysis results for password strength
@@ -89,7 +99,7 @@ type ThreatContext struct {
 	RiskScore float64 `json:"risk_score"`
 
 	// Additional metadata about the threat
-	Metadata map[string]interface{} `json:"metadata,omitempty"`
+	Metadata map[string]any `json:"metadata,omitempty"`
 }
 
 // ValidationResult contains the result of input validation
@@ -99,7 +109,7 @@ type ValidationResult struct {
 	Warnings        []string               `json:"warnings"`
 	Errors          []string               `json:"errors"`
 	ThreatContext   *ThreatContext         `json:"threat_context,omitempty"`
-	Metadata        map[string]interface{} `json:"metadata"`
+	Metadata        map[string]any `json:"metadata"`
 }
 
 // Validator provides comprehensive input validation for LDAP operations
@@ -150,7 +160,7 @@ func (v *Validator) ValidateDN(dn string) *ValidationResult {
 		Valid:    true,
 		Warnings: []string{},
 		Errors:   []string{},
-		Metadata: make(map[string]interface{}),
+		Metadata: make(map[string]any),
 	}
 
 	// Check length
@@ -218,7 +228,7 @@ func (v *Validator) ValidateFilter(filter string) *ValidationResult {
 		Valid:    true,
 		Warnings: []string{},
 		Errors:   []string{},
-		Metadata: make(map[string]interface{}),
+		Metadata: make(map[string]any),
 	}
 
 	// Check length
@@ -286,7 +296,7 @@ func (v *Validator) ValidateCredentials(username, password string) *ValidationRe
 		Valid:    true,
 		Warnings: []string{},
 		Errors:   []string{},
-		Metadata: make(map[string]interface{}),
+		Metadata: make(map[string]any),
 	}
 
 	// Validate username
@@ -368,7 +378,7 @@ func (v *Validator) ValidateAttribute(attributeName, attributeValue string) *Val
 		Valid:    true,
 		Warnings: []string{},
 		Errors:   []string{},
-		Metadata: make(map[string]interface{}),
+		Metadata: make(map[string]any),
 	}
 
 	// Check attribute name length
@@ -453,7 +463,7 @@ func (v *Validator) ValidateValue(value string) *ValidationResult {
 		Valid:    true,
 		Warnings: []string{},
 		Errors:   []string{},
-		Metadata: make(map[string]interface{}),
+		Metadata: make(map[string]any),
 	}
 
 	// Check length
@@ -499,7 +509,7 @@ func (v *Validator) detectThreats(input string) *ThreatContext {
 		DetectedThreats:   []string{},
 		Confidence:        0.0,
 		RecommendedAction: "allow",
-		Metadata:          make(map[string]interface{}),
+		Metadata:          make(map[string]any),
 	}
 
 	lowercaseInput := strings.ToLower(input)
@@ -571,7 +581,7 @@ func (v *Validator) detectInjectionThreats(input string) *ThreatContext {
 		DetectedThreats:   []string{},
 		Confidence:        0.0,
 		RecommendedAction: "allow",
-		Metadata:          make(map[string]interface{}),
+		Metadata:          make(map[string]any),
 	}
 
 	lowercaseInput := strings.ToLower(input)
@@ -689,8 +699,7 @@ func ValidateIPAddress(ip string) bool {
 
 // ValidateEmailFormat validates an email address format
 func ValidateEmailFormat(email string) bool {
-	emailRegex := regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
-	return emailRegex.MatchString(email)
+	return reEmailFormat.MatchString(email)
 }
 
 // SanitizeDN sanitizes a DN by removing or escaping dangerous characters
@@ -870,12 +879,12 @@ func (v *Validator) detectValueType(value string) string {
 	}
 
 	// Check for date (ISO format)
-	if matched, _ := regexp.MatchString(`^\d{4}-\d{2}-\d{2}$`, value); matched {
+	if reDateFormat.MatchString(value) {
 		return "date"
 	}
 
 	// Check for datetime (ISO format)
-	if matched, _ := regexp.MatchString(`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}`, value); matched {
+	if reDateTimeFormat.MatchString(value) {
 		return "datetime"
 	}
 
@@ -894,19 +903,19 @@ func (v *Validator) validateSpecificAttributeValue(attrName, attrValue string, r
 		}
 	case "samaccountname":
 		// SAM account name validation
-		if matched, _ := regexp.MatchString(`^[a-zA-Z0-9._-]+$`, attrValue); !matched {
+		if !reAlphaNumDot.MatchString(attrValue) {
 			result.Valid = false
 			result.Errors = append(result.Errors, "Invalid SAM account name format")
 		}
 	case "telephonenumber":
 		// Phone number validation (basic)
-		if matched, _ := regexp.MatchString(`^\+?[0-9\s\-\.\(\)]+$`, attrValue); !matched {
+		if !rePhoneNumber.MatchString(attrValue) {
 			result.Valid = false
 			result.Errors = append(result.Errors, "Invalid phone number format")
 		}
 	case "postalcode":
 		// Postal code validation (basic)
-		if matched, _ := regexp.MatchString(`^[0-9A-Za-z\s\-]+$`, attrValue); !matched {
+		if !rePostalCode.MatchString(attrValue) {
 			result.Valid = false
 			result.Errors = append(result.Errors, "Invalid postal code format")
 		}

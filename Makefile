@@ -26,7 +26,7 @@ help: ## Show this help message
 
 test-fast: ## Run only fast unit tests (no containers)
 	@echo "Running fast unit tests..."
-	go test $(TEST_FLAGS) -short -timeout=$(TIMEOUT_UNIT) -parallel=$(PARALLEL) ./...
+	go test $(TEST_FLAGS) -short -timeout=$(TIMEOUT_UNIT) -parallel=$(PARALLEL) -coverprofile=coverage-unit.out ./...
 
 test-unit: ## Run all unit tests
 	@echo "Running unit tests..."
@@ -40,7 +40,7 @@ test-integration: ## Run integration tests (requires Docker)
 test-integration-parallel: ## Run integration tests with optimized parallelization
 	@echo "Running optimized integration tests..."
 	@echo "⚠️  Using shared containers for faster execution"
-	go test $(TEST_FLAGS) -timeout=$(TIMEOUT_INTEGRATION) -parallel=2 $(INTEGRATION_PATTERN) ./...
+	go test $(TEST_FLAGS) -timeout=$(TIMEOUT_INTEGRATION) -parallel=2 -coverprofile=coverage-integration.out $(INTEGRATION_PATTERN) ./...
 
 test-all: ## Run all tests (unit + integration)
 	@echo "Running all tests..."
@@ -163,7 +163,7 @@ qa-full: qa test-all ## Run full quality assurance including all tests
 clean: ## Clean up build artifacts and test files
 	@echo "Cleaning up..."
 	go clean -testcache
-	rm -f coverage.out coverage.html
+	rm -f coverage.out coverage-unit.out coverage-integration.out coverage.html
 	@$(MAKE) docker-clean
 
 # Time-based test targets

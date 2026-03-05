@@ -36,15 +36,15 @@ func NewTestLogBuffer(level slog.Level) *TestLogBuffer {
 }
 
 // GetLogEntries parses JSON log entries from the buffer
-func (tlb *TestLogBuffer) GetLogEntries() []map[string]interface{} {
+func (tlb *TestLogBuffer) GetLogEntries() []map[string]any {
 	lines := strings.Split(strings.TrimSpace(tlb.buf.String()), "\n")
-	var entries []map[string]interface{}
+	var entries []map[string]any
 
 	for _, line := range lines {
 		if line == "" {
 			continue
 		}
-		var entry map[string]interface{}
+		var entry map[string]any
 		if err := json.Unmarshal([]byte(line), &entry); err == nil {
 			entries = append(entries, entry)
 		}
@@ -182,7 +182,7 @@ func TestAuthenticationLogging(t *testing.T) {
 	entries := testBuf.GetLogEntries()
 
 	// Should have initialization and connection attempt logs
-	var initLog, connLog, errorLog map[string]interface{}
+	var initLog, connLog, errorLog map[string]any
 	for _, entry := range entries {
 		switch entry["msg"] {
 		case "ldap_client_initializing":
@@ -279,7 +279,7 @@ func TestPerformanceLogging(t *testing.T) {
 	entries := testBuf.GetLogEntries()
 
 	// Find error log with duration
-	var errorLog map[string]interface{}
+	var errorLog map[string]any
 	for _, entry := range entries {
 		if strings.Contains(fmt.Sprintf("%v", entry["msg"]), "failed") && entry["duration"] != nil {
 			errorLog = entry

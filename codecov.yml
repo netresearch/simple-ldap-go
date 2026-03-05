@@ -1,0 +1,68 @@
+codecov:
+  require_ci_to_pass: true
+  # Wait for all uploads before evaluating status
+  notify:
+    after_n_builds: 3
+
+ignore:
+  - "examples/**"
+  - "testutil/**"
+  - "docs/**"
+
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 5%
+        # Informational until codecov.yml is on default branch and
+        # after_n_builds takes effect
+        informational: true
+    patch:
+      default:
+        target: auto
+
+flags:
+  unit:
+    paths:
+      - "**/*.go"
+    carryforward: true
+  integration:
+    paths:
+      - "**/*.go"
+    carryforward: true
+  unittests:
+    paths:
+      - "**/*.go"
+    carryforward: true
+
+component_management:
+  individual_components:
+    - component_id: core
+      name: Core Library
+      paths:
+        - client.go
+        - users.go
+        - groups.go
+        - computers.go
+        - auth.go
+        - generics.go
+        - iterators.go
+    - component_id: security
+      name: Security
+      paths:
+        - security.go
+        - validation.go
+    - component_id: performance
+      name: Performance
+      paths:
+        - cache.go
+        - cache_indexed.go
+        - pool.go
+        - concurrency.go
+        - resilience.go
+        - performance.go
+    - component_id: builders
+      name: Query Builders
+      paths:
+        - builders.go

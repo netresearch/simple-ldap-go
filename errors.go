@@ -1,6 +1,7 @@
 package ldap
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -24,7 +25,7 @@ type LDAPError struct {
 	// Err is the underlying error
 	Err error
 	// Context contains additional context information for debugging
-	Context map[string]interface{}
+	Context map[string]any
 	// mu protects the Context map for thread-safe operations
 	mu sync.RWMutex
 	// Timestamp indicates when the error occurred
@@ -71,7 +72,7 @@ func NewLDAPError(op, server string, err error) *LDAPError {
 		Op:        op,
 		Server:    server,
 		Err:       err,
-		Context:   make(map[string]interface{}),
+		Context:   make(map[string]any),
 		Timestamp: time.Now(),
 	}
 }
@@ -90,7 +91,7 @@ func (e *LDAPError) WithCode(code int) *LDAPError {
 
 // WithContext adds additional context information to the error.
 // This method is thread-safe.
-func (e *LDAPError) WithContext(key string, value interface{}) *LDAPError {
+func (e *LDAPError) WithContext(key string, value any) *LDAPError {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.Context[key] = value
@@ -106,10 +107,10 @@ func WrapLDAPError(op, server string, err error) error {
 	}
 
 	// Handle context errors
-	if errors.Is(err, ErrContextCancelled) || fmt.Sprintf("%v", err) == "context canceled" {
+	if errors.Is(err, ErrContextCancelled) || errors.Is(err, context.Canceled) {
 		return fmt.Errorf("%s: %w", op, ErrContextCancelled)
 	}
-	if errors.Is(err, ErrContextDeadlineExceeded) || fmt.Sprintf("%v", err) == "context deadline exceeded" {
+	if errors.Is(err, ErrContextDeadlineExceeded) || errors.Is(err, context.DeadlineExceeded) {
 		return fmt.Errorf("%s: %w", op, ErrContextDeadlineExceeded)
 	}
 
@@ -148,7 +149,7 @@ func classifyLDAPError(op, server string, ldapErr *ldap.Error) error {
 
 // GetErrorContext extracts context information from an error.
 // Returns nil if the error doesn't contain context information.
-func GetErrorContext(err error) map[string]interface{} {
+func GetErrorContext(err error) map[string]any {
 	var enhancedErr *LDAPError
 	if !errors.As(err, &enhancedErr) {
 		return nil
@@ -158,7 +159,7 @@ func GetErrorContext(err error) map[string]interface{} {
 	defer enhancedErr.mu.RUnlock()
 
 	// Return a copy to prevent external modification
-	contextCopy := make(map[string]interface{})
+	contextCopy := make(map[string]any)
 	for k, v := range enhancedErr.Context {
 		contextCopy[k] = v
 	}
@@ -398,7 +399,7 @@ func IsRetryable(err error) bool {
 // ValidationError represents input validation errors with field-specific details.
 type ValidationError struct {
 	Field   string
-	Value   interface{}
+	Value   any
 	Message string
 	Code    string
 }
@@ -410,7 +411,7 @@ func (v *ValidationError) Error() string {
 }
 
 // NewValidationError creates a new validation error.
-func NewValidationError(field string, value interface{}, message, code string) *ValidationError {
+func NewValidationError(field string, value any, message, code string) *ValidationError {
 	return &ValidationError{
 		Field:   field,
 		Value:   value,
@@ -449,32 +450,9 @@ func (m *MultiError) Error() string {
 	return fmt.Sprintf("multiple errors: %s", strings.Join(msgs, "; "))
 }
 
-// Unwrap returns the first error for compatibility with errors.Is/As.
-func (m *MultiError) Unwrap() error {
-	if len(m.Errors) == 0 {
-		return nil
-	}
-	return m.Errors[0]
-}
-
-// Is implements error matching for all contained errors.
-func (m *MultiError) Is(target error) bool {
-	for _, err := range m.Errors {
-		if errors.Is(err, target) {
-			return true
-		}
-	}
-	return false
-}
-
-// As implements error type matching for all contained errors.
-func (m *MultiError) As(target interface{}) bool {
-	for _, err := range m.Errors {
-		if errors.As(err, target) {
-			return true
-		}
-	}
-	return false
+// Unwrap returns all contained errors for compatibility with errors.Is/As (Go 1.20+).
+func (m *MultiError) Unwrap() []error {
+	return m.Errors
 }
 
 // Add appends an error to the multi-error.
@@ -499,7 +477,7 @@ func NewMultiError(errors ...error) *MultiError {
 }
 
 // maskContextValue masks sensitive context values based on the key name
-func maskContextValue(key string, value interface{}) interface{} {
+func maskContextValue(key string, value any) any {
 	// List of context keys that contain sensitive information
 	sensitiveKeys := map[string]bool{
 		"samAccountName":    true,
@@ -562,6 +540,10 @@ func (e *CircuitBreakerError) Error() string {
 	return fmt.Sprintf("circuit breaker %s, failures: %d", e.State, e.Failures)
 }
 
+func (e *CircuitBreakerError) Unwrap() error {
+	return nil
+}
+
 // TimeoutError with constructor expected by resilience.go
 type TimeoutError struct {
 	Operation     string
@@ -572,6 +554,10 @@ type TimeoutError struct {
 
 func (e *TimeoutError) Error() string {
 	return fmt.Sprintf("operation %s timed out after %v (timeout: %v)", e.Operation, e.Duration, e.TimeoutPeriod)
+}
+
+func (e *TimeoutError) Unwrap() error {
+	return e.Err
 }
 
 func (e *TimeoutError) Timeout() bool {
@@ -606,6 +592,10 @@ type ResourceExhaustionError struct {
 
 func (e *ResourceExhaustionError) Error() string {
 	return fmt.Sprintf("resource %s exhausted: %d/%d, action: %s", e.Resource, e.Current, e.Limit, e.Action)
+}
+
+func (e *ResourceExhaustionError) Unwrap() error {
+	return nil
 }
 
 func (e *ResourceExhaustionError) Temporary() bool {

@@ -21,10 +21,10 @@ func (l *LDAP) SearchIter(ctx context.Context, searchRequest *ldap.SearchRequest
 			return
 		}
 		defer func() {
-			if closeErr := conn.Close(); closeErr != nil {
-				l.logger.Debug("connection_close_error",
+			if releaseErr := l.ReleaseConnection(conn); releaseErr != nil {
+				l.logger.Debug("connection_release_error",
 					slog.String("operation", "SearchIter"),
-					slog.String("error", closeErr.Error()))
+					slog.String("error", releaseErr.Error()))
 			}
 		}()
 
@@ -66,10 +66,10 @@ func (l *LDAP) SearchPagedIter(ctx context.Context, searchRequest *ldap.SearchRe
 			return
 		}
 		defer func() {
-			if closeErr := conn.Close(); closeErr != nil {
-				l.logger.Debug("connection_close_error",
+			if releaseErr := l.ReleaseConnection(conn); releaseErr != nil {
+				l.logger.Debug("connection_release_error",
 					slog.String("operation", "SearchPagedIter"),
-					slog.String("error", closeErr.Error()))
+					slog.String("error", releaseErr.Error()))
 			}
 		}()
 

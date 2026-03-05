@@ -131,10 +131,6 @@ func parseLastLogonTimestamp(value string) int64 {
 // Returns:
 //   - string: The accountExpires value in Active Directory format
 func convertAccountExpires(target *time.Time) string {
-	// Constants defined in users.go
-	const accountExpiresNever uint64 = 0x7FFFFFFFFFFFFFFF
-	var accountExpiresBase = time.Date(1601, 1, 1, 0, 0, 0, 0, time.UTC)
-
 	if target == nil {
 		// Account never expires
 		return fmt.Sprintf("%d", accountExpiresNever)
