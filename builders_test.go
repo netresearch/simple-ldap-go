@@ -516,6 +516,55 @@ func TestBuilderDefaultValues(t *testing.T) {
 }
 
 // TestBuilderErrorMessages tests error message quality
+func TestQueryBuilderFilterInjection(t *testing.T) {
+	t.Run("ObjectClass filter escapes special characters", func(t *testing.T) {
+		filter, err := NewQueryBuilder().
+			FilterByObjectClass("user)(|(cn=*))").
+			BuildFilter()
+		assert.NoError(t, err)
+		assert.NotContains(t, filter, ")(|(cn=*")
+		assert.Contains(t, filter, "\\29") // escaped ')'
+	})
+
+	t.Run("Attribute filter escapes special characters", func(t *testing.T) {
+		filter, err := NewQueryBuilder().
+			FilterByAttribute("cn", "admin)(|(objectClass=*))").
+			BuildFilter()
+		assert.NoError(t, err)
+		assert.NotContains(t, filter, ")(|(objectClass=*")
+		assert.Contains(t, filter, "\\29") // escaped ')'
+	})
+
+	t.Run("null byte injection is escaped", func(t *testing.T) {
+		filter, err := NewQueryBuilder().
+			FilterByAttribute("cn", "admin\x00injected").
+			BuildFilter()
+		assert.NoError(t, err)
+		assert.NotContains(t, filter, "\x00")
+		assert.Contains(t, filter, "\\00")
+	})
+
+	t.Run("asterisk wildcard injection is escaped", func(t *testing.T) {
+		filter, err := NewQueryBuilder().
+			FilterByAttribute("cn", "*").
+			BuildFilter()
+		assert.NoError(t, err)
+		assert.NotContains(t, filter, "(cn=*)")
+		assert.Contains(t, filter, "\\2a") // escaped '*'
+	})
+
+	t.Run("combined filters escape properly", func(t *testing.T) {
+		filter, err := NewQueryBuilder().
+			FilterByObjectClass("user").
+			FilterByAttribute("cn", "test(value)").
+			BuildFilter()
+		assert.NoError(t, err)
+		assert.Contains(t, filter, "(objectClass=user)")
+		assert.Contains(t, filter, "\\28") // escaped '('
+		assert.Contains(t, filter, "\\29") // escaped ')'
+	})
+}
+
 func TestBuilderErrorMessages(t *testing.T) {
 	t.Run("descriptive error messages", func(t *testing.T) {
 		tests := []struct {

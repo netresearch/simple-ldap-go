@@ -5,8 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"net/mail"
+	"regexp"
 	"strings"
 )
+
+// validAttributeName matches valid LDAP attribute names (letters, digits, hyphens, dots).
+// OID format (e.g. "1.2.3.4") is also allowed.
+var validAttributeName = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9\-.]*$|^\d+(\.\d+)+$`)
 
 // UserBuilder implements the builder pattern for creating FullUser objects.
 // This provides a fluent, chainable API for constructing users with validation.
@@ -580,18 +585,23 @@ func (b *QueryBuilder) FilterByObjectClass(objectClass string) *QueryBuilder {
 		b.filter.Reset()
 		b.filter.WriteString("(&")
 		b.filter.WriteString(existing)
-		fmt.Fprintf(&b.filter, "(objectClass=%s))", objectClass)
+		fmt.Fprintf(&b.filter, "(objectClass=%s))", EscapeFilterValue(objectClass))
 	} else {
-		fmt.Fprintf(&b.filter, "(objectClass=%s)", objectClass)
+		fmt.Fprintf(&b.filter, "(objectClass=%s)", EscapeFilterValue(objectClass))
 	}
 
 	return b
 }
 
 // FilterByAttribute adds an attribute filter.
+// The attribute name is validated against a strict pattern to prevent LDAP injection.
 func (b *QueryBuilder) FilterByAttribute(attribute, value string) *QueryBuilder {
 	if attribute == "" {
 		b.errors = append(b.errors, errors.New("attribute name cannot be empty"))
+		return b
+	}
+	if !validAttributeName.MatchString(attribute) {
+		b.errors = append(b.errors, fmt.Errorf("invalid attribute name: %s", attribute))
 		return b
 	}
 
@@ -601,9 +611,9 @@ func (b *QueryBuilder) FilterByAttribute(attribute, value string) *QueryBuilder 
 		b.filter.Reset()
 		b.filter.WriteString("(&")
 		b.filter.WriteString(existing)
-		fmt.Fprintf(&b.filter, "(%s=%s))", attribute, value)
+		fmt.Fprintf(&b.filter, "(%s=%s))", attribute, EscapeFilterValue(value))
 	} else {
-		fmt.Fprintf(&b.filter, "(%s=%s)", attribute, value)
+		fmt.Fprintf(&b.filter, "(%s=%s)", attribute, EscapeFilterValue(value))
 	}
 
 	return b
