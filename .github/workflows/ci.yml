@@ -138,6 +138,8 @@ jobs:
 
       - name: Run actionlint
         uses: reviewdog/action-actionlint@0d952c597ef8459f634d7145b0b044a9699e5e43 # v1.71.0
+        with:
+          fail_level: error
 
   license-check:
     name: license compliance
@@ -164,7 +166,7 @@ jobs:
       - name: Check license compliance
         run: |
           echo "Checking license compliance..."
-          $(go env GOPATH)/bin/go-licenses check ./... 2>&1 | tee license-report.txt || true
+          "$(go env GOPATH)"/bin/go-licenses check ./... 2>&1 | tee license-report.txt || true
 
           # Fail on copyleft licenses that require source disclosure
           if grep -iE "(GPL|AGPL|LGPL|SSPL|CDDL|EPL|MPL)" license-report.txt | grep -v "Apache\|MIT\|BSD\|ISC"; then
