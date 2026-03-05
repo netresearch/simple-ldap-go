@@ -1085,7 +1085,7 @@ func CreateSecureTLSConfig(cfg *TLSConfig) *tls.Config {
 		MinVersion:         cfg.MinVersion,
 		MaxVersion:         cfg.MaxVersion,
 		CipherSuites:       cfg.CipherSuites,
-		InsecureSkipVerify: cfg.InsecureSkipVerify,
+		InsecureSkipVerify: cfg.InsecureSkipVerify, // #nosec G402 -- user-configurable
 		ServerName:         cfg.ServerName,
 		Certificates:       cfg.Certificates,
 	}
