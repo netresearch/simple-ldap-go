@@ -2,9 +2,10 @@ name: Optimized Test Suite
 
 on:
   push:
-    branches: [ main, develop, 'feature/*' ]
+    branches: [ main, develop, 'feature/*', 'fix/*' ]
   pull_request:
     branches: [ main, develop ]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -16,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go-version: ['1.24', '1.25']
+        go-version: ['1.24', '1.26']
 
     steps:
     - name: Checkout code
@@ -48,8 +49,19 @@ jobs:
       with:
         name: unit-test-results-${{ matrix.go-version }}
         path: |
-          coverage.out
+          coverage-unit.out
           test-results.xml
+
+    - name: Upload unit coverage to Codecov
+      uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5
+      if: matrix.go-version == '1.26'
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        files: ./coverage-unit.out
+        flags: unit
+        name: unit-tests
+        disable_search: true
+        network_prefix: github.com/netresearch/simple-ldap-go/
 
   # Integration tests with optimized Docker container management
   integration-tests:
@@ -58,7 +70,7 @@ jobs:
     needs: unit-tests
     strategy:
       matrix:
-        go-version: ['1.24', '1.25']
+        go-version: ['1.24', '1.26']
 
     steps:
     - name: Checkout code
@@ -97,8 +109,19 @@ jobs:
       with:
         name: integration-test-results-${{ matrix.go-version }}
         path: |
-          coverage.out
+          coverage-integration.out
           test-results.xml
+
+    - name: Upload integration coverage to Codecov
+      uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5
+      if: matrix.go-version == '1.26'
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        files: ./coverage-integration.out
+        flags: integration
+        name: integration-tests
+        disable_search: true
+        network_prefix: github.com/netresearch/simple-ldap-go/
 
   # Performance and benchmark tests
   performance-tests:
@@ -114,7 +137,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6
       with:
-        go-version: '1.26'
+        go-version-file: go.mod
 
     - name: Cache Go modules
       uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
@@ -150,13 +173,13 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6
       with:
-        go-version: '1.26'
+        go-version-file: go.mod
 
     - name: Install golangci-lint
       uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # v9
       with:
         version: v2.10.1
-        args: --timeout=10m
+        install-only: true
 
     - name: Run quality checks
       run: make qa
@@ -182,7 +205,7 @@ jobs:
           echo "✅ Found tests with short mode support"
         fi
 
-  # Coverage report generation
+  # Coverage report generation (combined from unit + integration)
   coverage:
     name: Coverage Report
     runs-on: ubuntu-latest
@@ -197,22 +220,29 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6
       with:
-        go-version: '1.26'
+        go-version-file: go.mod
 
-    - name: Download dependencies
-      run: go mod download
-
-    - name: Generate coverage report
-      run: make test-coverage
-      timeout-minutes: 12
-
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5
+    - name: Download unit coverage
+      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
       with:
-        token: ${{ secrets.CODECOV_TOKEN }}
-        file: ./coverage.out
-        flags: unittests
-        name: codecov-umbrella
+        name: unit-test-results-1.26
+        path: coverage-unit
+
+    - name: Download integration coverage
+      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+      with:
+        name: integration-test-results-1.26
+        path: coverage-integration
+
+    - name: Merge coverage profiles
+      run: |
+        # Merge unit and integration coverage profiles
+        head -1 coverage-unit/coverage-unit.out > coverage.out
+        tail -n +2 coverage-unit/coverage-unit.out >> coverage.out
+        tail -n +2 coverage-integration/coverage-integration.out >> coverage.out
+        go tool cover -html=coverage.out -o coverage.html
+        go tool cover -func=coverage.out | tail -1
+        echo "Combined coverage report generated"
 
     - name: Upload coverage results
       uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
@@ -222,14 +252,24 @@ jobs:
           coverage.out
           coverage.html
 
+    - name: Upload combined coverage to Codecov
+      uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        files: ./coverage.out
+        flags: unittests
+        name: codecov-umbrella
+        disable_search: true
+        network_prefix: github.com/netresearch/simple-ldap-go/
+
   # Full test suite for releases
   full-test-suite:
     name: Full Test Suite
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     strategy:
       matrix:
-        go-version: ['1.24', '1.25']
+        go-version: ['1.24', '1.26']
         os: [ubuntu-latest, windows-latest, macos-latest]
 
     steps:
