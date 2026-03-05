@@ -49,7 +49,8 @@ func DefaultCircuitBreakerConfig() *CircuitBreakerConfig {
 	}
 }
 
-// CircuitBreaker implements the circuit breaker pattern for resilient error handling
+// CircuitBreaker implements the circuit breaker pattern for resilient error handling.
+// CircuitBreaker is safe for concurrent use by multiple goroutines.
 type CircuitBreaker struct {
 	config       *CircuitBreakerConfig
 	logger       *slog.Logger
@@ -214,12 +215,12 @@ func (cb *CircuitBreaker) openCircuit() {
 }
 
 // GetStats returns circuit breaker statistics
-func (cb *CircuitBreaker) GetStats() map[string]interface{} {
+func (cb *CircuitBreaker) GetStats() map[string]any {
 	cb.mu.RLock()
 	defer cb.mu.RUnlock()
 
 	currentState := CircuitBreakerState(cb.state.Load())
-	return map[string]interface{}{
+	return map[string]any{
 		"name":           cb.name,
 		"state":          currentState.String(),
 		"failures":       cb.failures.Load(),
@@ -364,8 +365,8 @@ func (b *Bulkhead) Execute(ctx context.Context, fn func() error) error {
 }
 
 // GetStats returns bulkhead statistics
-func (b *Bulkhead) GetStats() map[string]interface{} {
-	return map[string]interface{}{
+func (b *Bulkhead) GetStats() map[string]any {
+	return map[string]any{
 		"name":           b.name,
 		"max_concurrent": b.config.MaxConcurrency,
 		"active":         atomic.LoadInt64(&b.active),
@@ -503,13 +504,13 @@ func (tm *TimeoutManager) ExecuteWithAdaptiveTimeout(ctx context.Context, operat
 }
 
 // GetTimeoutStats returns timeout statistics for all operations
-func (tm *TimeoutManager) GetTimeoutStats() map[string]interface{} {
+func (tm *TimeoutManager) GetTimeoutStats() map[string]any {
 	tm.mu.RLock()
 	defer tm.mu.RUnlock()
 
-	stats := make(map[string]interface{})
+	stats := make(map[string]any)
 	for operation, opStats := range tm.operationStats {
-		stats[operation] = map[string]interface{}{
+		stats[operation] = map[string]any{
 			"avg_duration":    opStats.avgDuration,
 			"max_duration":    opStats.maxDuration,
 			"timeouts":        atomic.LoadInt64(&opStats.timeouts),

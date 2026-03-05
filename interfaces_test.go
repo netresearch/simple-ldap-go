@@ -425,99 +425,24 @@ func TestInterfaceMethodSignatures(t *testing.T) {
 	})
 }
 
-// TestConnectionInterface tests the Connection interface
-func TestConnectionInterface(t *testing.T) {
-	t.Run("Connection interface methods", func(t *testing.T) {
-		connectionType := reflect.TypeOf((*Connection)(nil)).Elem()
-		expectedMethods := []string{
-			"Close",
-			"Bind",
-			"Search",
-			"SearchContext",
-			"Add",
-			"AddContext",
-			"Modify",
-			"ModifyContext",
-			"Del",
-			"DelRequest",
-			"PasswordModify",
-			"PasswordModifyContext",
-		}
+// TestDirectoryManagerStructure tests DirectoryManager interface uses correct types
+func TestDirectoryManagerStructure(t *testing.T) {
+	t.Run("DirectoryManager has correct method signatures", func(t *testing.T) {
+		directoryManagerType := reflect.TypeOf((*DirectoryManager)(nil)).Elem()
 
-		for _, methodName := range expectedMethods {
-			method, found := connectionType.MethodByName(methodName)
-			assert.True(t, found, "Method %s should exist in Connection", methodName)
-			assert.NotNil(t, method)
-		}
+		// GetConnection should return (*ldap.Conn, error)
+		method, found := directoryManagerType.MethodByName("GetConnection")
+		assert.True(t, found, "GetConnection should exist in DirectoryManager")
+		assert.Equal(t, 2, method.Type.NumOut(), "GetConnection should return 2 values")
 
-		assert.Equal(t, len(expectedMethods), connectionType.NumMethod(), "Connection should have exactly %d methods", len(expectedMethods))
-	})
-}
+		// GetCacheStats should return *CacheStats
+		method, found = directoryManagerType.MethodByName("GetCacheStats")
+		assert.True(t, found, "GetCacheStats should exist in DirectoryManager")
+		assert.Equal(t, 1, method.Type.NumOut(), "GetCacheStats should return 1 value")
 
-// TestSearchRequestAndResultStructs tests the SearchRequest and SearchResult structs
-func TestSearchRequestAndResultStructs(t *testing.T) {
-	t.Run("SearchRequest has all required fields", func(t *testing.T) {
-		searchRequestType := reflect.TypeOf(SearchRequest{})
-		expectedFields := []string{
-			"BaseDN",
-			"Scope",
-			"DerefAliases",
-			"SizeLimit",
-			"TimeLimit",
-			"TypesOnly",
-			"Filter",
-			"Attributes",
-		}
-
-		for _, fieldName := range expectedFields {
-			field, found := searchRequestType.FieldByName(fieldName)
-			assert.True(t, found, "Field %s should exist in SearchRequest", fieldName)
-			assert.NotNil(t, field)
-		}
-
-		assert.Equal(t, len(expectedFields), searchRequestType.NumField(), "SearchRequest should have exactly %d fields", len(expectedFields))
-	})
-
-	t.Run("SearchResult has all required fields", func(t *testing.T) {
-		searchResultType := reflect.TypeOf(SearchResult{})
-		expectedFields := []string{
-			"Entries",
-			"Referrals",
-		}
-
-		for _, fieldName := range expectedFields {
-			field, found := searchResultType.FieldByName(fieldName)
-			assert.True(t, found, "Field %s should exist in SearchResult", fieldName)
-			assert.NotNil(t, field)
-		}
-
-		assert.Equal(t, len(expectedFields), searchResultType.NumField(), "SearchResult should have exactly %d fields", len(expectedFields))
-	})
-
-	t.Run("Entry has all required fields", func(t *testing.T) {
-		entryType := reflect.TypeOf(Entry{})
-		expectedFields := []string{
-			"DN",
-			"Attributes",
-		}
-
-		for _, fieldName := range expectedFields {
-			field, found := entryType.FieldByName(fieldName)
-			assert.True(t, found, "Field %s should exist in Entry", fieldName)
-			assert.NotNil(t, field)
-		}
-
-		assert.Equal(t, len(expectedFields), entryType.NumField(), "Entry should have exactly %d fields", len(expectedFields))
-	})
-
-	t.Run("EntryAttribute has required fields", func(t *testing.T) {
-		entryAttributeType := reflect.TypeOf(EntryAttribute{})
-
-		// Should at least have Name field
-		field, found := entryAttributeType.FieldByName("Name")
-		assert.True(t, found, "Field Name should exist in EntryAttribute")
-		assert.NotNil(t, field)
-		assert.Equal(t, "string", field.Type.Name(), "Name field should be string type")
+		// ClearCache should exist
+		_, found = directoryManagerType.MethodByName("ClearCache")
+		assert.True(t, found, "ClearCache should exist in DirectoryManager")
 	})
 }
 
@@ -558,12 +483,10 @@ func TestInterfaceUsabilityPatterns(t *testing.T) {
 		}
 
 		service := &FullDirectoryService{
-			manager: nil, // LDAP doesn't fully implement DirectoryManager yet
+			manager: nil, // LDAP doesn't fully implement DirectoryManager yet (missing CreateComputer, etc.)
 		}
 
 		assert.Nil(t, service.manager)
-		// LDAP doesn't fully implement DirectoryManager yet (missing ClearCache)
-		// Interface tests are for structure validation, not implementation completeness
 	})
 }
 

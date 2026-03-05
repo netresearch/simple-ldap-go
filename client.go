@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-ldap/ldap/v3"
@@ -16,7 +17,8 @@ import (
 // indicating a data integrity issue.
 var ErrDNDuplicated = errors.New("DN is not unique")
 
-// LDAP represents the main LDAP client with connection management and security features
+// LDAP represents the main LDAP client with connection management and security features.
+// LDAP is safe for concurrent use by multiple goroutines.
 type LDAP struct {
 	config           *Config
 	user             string
@@ -72,27 +74,9 @@ func New(config Config, username, password string, opts ...Option) (*LDAP, error
 	}
 
 	// Check if this is an example server
-	// These are all test/example servers that should never try to connect
-	serverLower := strings.ToLower(config.Server)
-	isExampleServer := strings.Contains(serverLower, "example.") ||
-		strings.Contains(serverLower, "localhost") ||
-		strings.Contains(serverLower, "enterprise.com") ||
-		strings.Contains(serverLower, ".server.com") ||
-		strings.Contains(serverLower, "test.com") ||
-		strings.Contains(serverLower, "test.example") ||
-		strings.Contains(serverLower, "://test:") || // Match ldap://test:389 pattern
-		strings.HasSuffix(serverLower, ".server") || // Match domains ending in .server
-		strings.Contains(serverLower, "failing.server") ||
-		strings.Contains(serverLower, "test.server") ||
-		strings.Contains(serverLower, "slow.server") ||
-		strings.Contains(serverLower, "recovering.server") ||
-		strings.Contains(serverLower, "server.com") ||
-		strings.Contains(serverLower, "prod.server") ||
-		strings.Contains(serverLower, "production.server") ||
-		strings.Contains(serverLower, "unreachable.server") ||
-		strings.Contains(serverLower, "real.server")
+	isExample := isExampleServerName(config.Server)
 
-	if !isExampleServer {
+	if !isExample {
 		// Log initialization only for real servers
 		logger.Info("ldap_client_initializing",
 			slog.String("server", config.Server),
@@ -151,7 +135,7 @@ func New(config Config, username, password string, opts ...Option) (*LDAP, error
 	}
 
 	// Initialize cache if enabled (skip for example servers)
-	if (config.EnableCache || config.EnableOptimizations) && !isExampleServer {
+	if (config.EnableCache || config.EnableOptimizations) && !isExample {
 		cacheConfig := DefaultCacheConfig()
 		cacheConfig.Enabled = true
 		cache, err := NewLRUCache(cacheConfig, logger)
@@ -182,7 +166,7 @@ func New(config Config, username, password string, opts ...Option) (*LDAP, error
 	}
 
 	// Initialize connection pool if configured
-	if config.Pool != nil && !isExampleServer {
+	if config.Pool != nil && !isExample {
 		pool, err := NewConnectionPool(config.Pool, config, username, password, logger)
 		if err != nil {
 			logger.Error("connection_pool_initialization_failed",
@@ -203,7 +187,7 @@ func New(config Config, username, password string, opts ...Option) (*LDAP, error
 	}
 
 	// Initialize performance monitor if metrics are enabled
-	if (config.EnableMetrics || config.EnableOptimizations) && !isExampleServer {
+	if (config.EnableMetrics || config.EnableOptimizations) && !isExample {
 		perfConfig := config.Performance
 		if perfConfig == nil {
 			perfConfig = DefaultPerformanceConfig()
@@ -227,7 +211,7 @@ func New(config Config, username, password string, opts ...Option) (*LDAP, error
 	}
 
 	// Test connection (skip for example servers)
-	if !isExampleServer {
+	if !isExample {
 		_, err := client.GetConnection()
 		if err != nil {
 			logger.Error("ldap_client_initialization_failed",
@@ -238,7 +222,7 @@ func New(config Config, username, password string, opts ...Option) (*LDAP, error
 		}
 	}
 
-	if !isExampleServer {
+	if !isExample {
 		logger.Info("ldap_client_initialized_successfully",
 			slog.String("server", config.Server),
 			slog.Duration("duration", time.Since(start)))
@@ -247,17 +231,17 @@ func New(config Config, username, password string, opts ...Option) (*LDAP, error
 	return client, nil
 }
 
-// isExampleServer checks if this is an example/test server
-func (l *LDAP) isExampleServer() bool {
-	serverLower := strings.ToLower(l.config.Server)
+// isExampleServerName checks if a server name is an example/test server
+func isExampleServerName(server string) bool {
+	serverLower := strings.ToLower(server)
 	return strings.Contains(serverLower, "example.") ||
 		strings.Contains(serverLower, "localhost") ||
 		strings.Contains(serverLower, "enterprise.com") ||
 		strings.Contains(serverLower, ".server.com") ||
 		strings.Contains(serverLower, "test.com") ||
 		strings.Contains(serverLower, "test.example") ||
-		strings.Contains(serverLower, "://test:") || // Match ldap://test:389 pattern
-		strings.HasSuffix(serverLower, ".server") || // Match domains ending in .server
+		strings.Contains(serverLower, "://test:") ||
+		strings.HasSuffix(serverLower, ".server") ||
 		strings.Contains(serverLower, "failing.server") ||
 		strings.Contains(serverLower, "test.server") ||
 		strings.Contains(serverLower, "slow.server") ||
@@ -267,6 +251,11 @@ func (l *LDAP) isExampleServer() bool {
 		strings.Contains(serverLower, "production.server") ||
 		strings.Contains(serverLower, "unreachable.server") ||
 		strings.Contains(serverLower, "real.server")
+}
+
+// isExampleServer checks if this is an example/test server
+func (l *LDAP) isExampleServer() bool {
+	return isExampleServerName(l.config.Server)
 }
 
 // GetConnection returns a new LDAP connection
@@ -347,7 +336,7 @@ func (l *LDAP) GetConnectionProtectedContext(ctx context.Context) (*ldap.Conn, e
 
 // GetCircuitBreakerStats returns circuit breaker statistics if configured.
 // Returns nil if circuit breaker is not enabled.
-func (l *LDAP) GetCircuitBreakerStats() map[string]interface{} {
+func (l *LDAP) GetCircuitBreakerStats() map[string]any {
 	if l.circuitBreaker == nil {
 		return nil
 	}
@@ -493,19 +482,7 @@ func (l *LDAP) Close() error {
 		}
 	}
 
-	// Return combined errors if any
-	if len(errs) > 0 {
-		var errMsg string
-		for i, err := range errs {
-			if i > 0 {
-				errMsg += "; "
-			}
-			errMsg += err.Error()
-		}
-		return fmt.Errorf("errors during close: %s", errMsg)
-	}
-
-	return nil
+	return errors.Join(errs...)
 }
 
 // ============================================================================
@@ -598,25 +575,17 @@ func (l *LDAP) GetPoolStats() PerformanceStats {
 
 // GetCacheStats returns cache statistics
 func (l *LDAP) GetCacheStats() *CacheStats {
-	// Return mock cache stats for now
-	return &CacheStats{
-		Hits:             0,
-		Misses:           0,
-		HitRatio:         0.0,
-		TotalEntries:     0,
-		MaxEntries:       1000,
-		MemoryUsageMB:    0.0,
-		MemoryUsageBytes: 0,
-		AvgGetTime:       0,
-		AvgSetTime:       0,
-		Sets:             0,
-		Deletes:          0,
-		Evictions:        0,
-		Expirations:      0,
-		NegativeHits:     0,
-		NegativeEntries:  0,
-		RefreshOps:       0,
-		CleanupOps:       0,
+	if l.cache != nil {
+		stats := l.cache.Stats()
+		return &stats
+	}
+	return &CacheStats{}
+}
+
+// ClearCache clears all cached entries
+func (l *LDAP) ClearCache() {
+	if l.cache != nil {
+		l.cache.Clear()
 	}
 }
 
@@ -632,31 +601,63 @@ func (l *LDAP) GetCacheStats() *CacheStats {
 //   - map[string]*User: A map of SAM account name to User object for found users
 //   - error: Any error encountered during the bulk search
 func (l *LDAP) BulkFindUsersBySAMAccountName(ctx context.Context, samAccountNames []string, options *BulkSearchOptions) (map[string]*User, error) {
-	// For now, return a stub implementation
-	// In a full implementation, this would:
-	// 1. Split samAccountNames into batches based on options.BatchSize
-	// 2. Execute searches concurrently up to options.MaxConcurrency
-	// 3. Use caching if options.UseCache is true
-	// 4. Handle errors based on options.ContinueOnError
-	// 5. Retry failed searches based on options.RetryAttempts
-
-	result := make(map[string]*User)
-	for _, sam := range samAccountNames {
-		// Stub: create mock user for demonstration
-		email := fmt.Sprintf("%s@example.com", sam)
-		result[sam] = &User{
-			Object: Object{
-				cn: sam,
-				dn: fmt.Sprintf("CN=%s,OU=Users,DC=example,DC=com", sam),
-			},
-			SAMAccountName: sam,
-			Description:    fmt.Sprintf("User %s", sam),
-			Mail:           &email,
-			Enabled:        true,
-			Groups:         []string{},
-		}
+	if len(samAccountNames) == 0 {
+		return make(map[string]*User), nil
 	}
 
+	concurrency := 10
+	if options != nil && options.BatchSize > 0 {
+		concurrency = options.BatchSize
+	}
+	if concurrency > len(samAccountNames) {
+		concurrency = len(samAccountNames)
+	}
+
+	var (
+		mu     sync.Mutex
+		wg     sync.WaitGroup
+		result = make(map[string]*User, len(samAccountNames))
+		errs   []error
+	)
+
+	jobs := make(chan string, len(samAccountNames))
+	for _, sam := range samAccountNames {
+		jobs <- sam
+	}
+	close(jobs)
+
+	continueOnError := options != nil && options.ContinueOnError
+
+	for range concurrency {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for sam := range jobs {
+				user, err := l.FindUserBySAMAccountNameContext(ctx, sam)
+				if err != nil {
+					if errors.Is(err, ErrUserNotFound) {
+						continue
+					}
+					mu.Lock()
+					errs = append(errs, fmt.Errorf("bulk find failed for %s: %w", sam, err))
+					mu.Unlock()
+					if !continueOnError {
+						return
+					}
+					continue
+				}
+				mu.Lock()
+				result[sam] = user
+				mu.Unlock()
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	if len(errs) > 0 {
+		return result, errors.Join(errs...)
+	}
 	return result, nil
 }
 

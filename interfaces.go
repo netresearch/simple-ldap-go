@@ -3,6 +3,8 @@ package ldap
 
 import (
 	"context"
+
+	"github.com/go-ldap/ldap/v3"
 )
 
 // UserReader defines methods for reading user information from LDAP.
@@ -136,115 +138,21 @@ type DirectoryManager interface {
 	ComputerManager
 
 	// Connection management
-	GetConnection() (Connection, error)
-	GetConnectionContext(ctx context.Context) (Connection, error)
+	GetConnection() (*ldap.Conn, error)
+	GetConnectionContext(ctx context.Context) (*ldap.Conn, error)
 	Close() error
 
 	// Statistics and monitoring
 	GetPoolStats() PerformanceStats
-	GetCacheStats() CacheStats
+	GetCacheStats() *CacheStats
 	GetPerformanceStats() PerformanceStats
 	ClearCache()
 }
 
-// Connection represents an LDAP connection with modern interface design.
-// This interface abstracts the underlying connection implementation for better testability.
-type Connection interface {
-	// Basic connection operations
-	Close() error
-	Bind(username, password string) error
-
-	// Search operations
-	Search(searchRequest *SearchRequest) (*SearchResult, error)
-	SearchContext(ctx context.Context, searchRequest *SearchRequest) (*SearchResult, error)
-
-	// Modify operations
-	Add(addRequest *AddRequest) error
-	AddContext(ctx context.Context, addRequest *AddRequest) error
-	Modify(modifyRequest *ModifyRequest) error
-	ModifyContext(ctx context.Context, modifyRequest *ModifyRequest) error
-	Del(delRequest *DelRequest) error
-	DelRequest(ctx context.Context, delRequest *DelRequest) error
-
-	// Password operations
-	PasswordModify(passwordModifyRequest *PasswordModifyRequest) error
-	PasswordModifyContext(ctx context.Context, passwordModifyRequest *PasswordModifyRequest) error
-}
-
-// SearchRequest represents a search request with modern Go patterns.
-type SearchRequest struct {
-	BaseDN       string
-	Scope        int
-	DerefAliases int
-	SizeLimit    int
-	TimeLimit    int
-	TypesOnly    bool
-	Filter       string
-	Attributes   []string
-}
-
-// SearchResult represents search results with modern Go patterns.
-type SearchResult struct {
-	Entries   []*Entry
-	Referrals []string
-}
-
-// Entry represents an LDAP entry with modern Go patterns.
-type Entry struct {
-	DN         string
-	Attributes []*EntryAttribute
-}
-
-// EntryAttribute represents an LDAP entry attribute with modern Go patterns.
-type EntryAttribute struct {
-	Name   string
-	Values []string
-}
-
-// AddRequest represents an add request with modern Go patterns.
-type AddRequest struct {
-	DN         string
-	Attributes []Attribute
-}
-
-// ModifyRequest represents a modify request with modern Go patterns.
-type ModifyRequest struct {
-	DN      string
-	Changes []Change
-}
-
-// DelRequest represents a delete request with modern Go patterns.
-type DelRequest struct {
-	DN string
-}
-
-// PasswordModifyRequest represents a password modify request with modern Go patterns.
-type PasswordModifyRequest struct {
-	UserDN      string
-	OldPassword string
-	NewPassword string
-}
-
-// Attribute represents an LDAP attribute with modern Go patterns.
-type Attribute struct {
-	Type string
-	Vals []string
-}
-
-// Change represents a modification change with modern Go patterns.
-type Change struct {
-	Operation int
-	Attribute Attribute
-}
-
-// Ensure LDAP implements the DirectoryManager interface
-// Note: These checks are commented out until all interface methods are implemented
+// Ensure LDAP implements the DirectoryManager interface.
+// Note: LDAP does not yet fully implement DirectoryManager (missing CreateComputer, etc.)
+// Uncomment when all methods are implemented:
 // var _ DirectoryManager = (*LDAP)(nil)
-
-// Ensure LDAP implements individual manager interfaces
-// var _ UserManager = (*LDAP)(nil)
-// var _ GroupManager = (*LDAP)(nil)
-// var _ ComputerManager = (*LDAP)(nil)
 
 // ReadOnlyDirectory is a read-only interface for LDAP operations.
 // This interface is useful for applications that only need read access.
@@ -254,12 +162,12 @@ type ReadOnlyDirectory interface {
 	ComputerReader
 
 	// Connection management (read-only)
-	GetConnection() (Connection, error)
-	GetConnectionContext(ctx context.Context) (Connection, error)
+	GetConnection() (*ldap.Conn, error)
+	GetConnectionContext(ctx context.Context) (*ldap.Conn, error)
 
 	// Statistics and monitoring (read-only)
 	GetPoolStats() PerformanceStats
-	GetCacheStats() CacheStats
+	GetCacheStats() *CacheStats
 	GetPerformanceStats() PerformanceStats
 }
 
@@ -271,12 +179,7 @@ type WriteOnlyDirectory interface {
 	ComputerWriter
 
 	// Connection management
-	GetConnection() (Connection, error)
-	GetConnectionContext(ctx context.Context) (Connection, error)
+	GetConnection() (*ldap.Conn, error)
+	GetConnectionContext(ctx context.Context) (*ldap.Conn, error)
 	Close() error
 }
-
-// Ensure LDAP implements read-only and write-only interfaces
-// Note: These checks are commented out until all interface methods are implemented
-// var _ ReadOnlyDirectory = (*LDAP)(nil)
-// var _ WriteOnlyDirectory = (*LDAP)(nil)
