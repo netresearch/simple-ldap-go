@@ -202,21 +202,42 @@ func TestBulkFindUsersBySAMAccountNameWithMock(t *testing.T) {
 		logger: slog.Default(),
 	}
 
-	ctx := context.Background()
-	samAccountNames := []string{"admin", "user1", "nonexistent"}
-	options := &BulkSearchOptions{
-		BatchSize:      10,
-		MaxConcurrency: 2,
-		UseCache:       false,
-	}
-	users, err := client.BulkFindUsersBySAMAccountName(ctx, samAccountNames, options)
-	// Currently returns stub implementation
-	assert.NoError(t, err)
-	assert.NotNil(t, users)
-	assert.Len(t, users, 3)
-	assert.Contains(t, users, "admin")
-	assert.Contains(t, users, "user1")
-	assert.Contains(t, users, "nonexistent")
+	t.Run("with options", func(t *testing.T) {
+		ctx := context.Background()
+		samAccountNames := []string{"admin", "user1", "nonexistent"}
+		options := &BulkSearchOptions{
+			BatchSize: 2,
+			UseCache:  false,
+		}
+		users, err := client.BulkFindUsersBySAMAccountName(ctx, samAccountNames, options)
+		assert.Error(t, err)
+		assert.Empty(t, users)
+	})
+
+	t.Run("empty input", func(t *testing.T) {
+		ctx := context.Background()
+		users, err := client.BulkFindUsersBySAMAccountName(ctx, []string{}, nil)
+		assert.NoError(t, err)
+		assert.Empty(t, users)
+	})
+
+	t.Run("nil options", func(t *testing.T) {
+		ctx := context.Background()
+		users, err := client.BulkFindUsersBySAMAccountName(ctx, []string{"admin"}, nil)
+		assert.Error(t, err)
+		assert.Empty(t, users)
+	})
+
+	t.Run("continue on error", func(t *testing.T) {
+		ctx := context.Background()
+		options := &BulkSearchOptions{
+			BatchSize:       2,
+			ContinueOnError: true,
+		}
+		users, err := client.BulkFindUsersBySAMAccountName(ctx, []string{"admin", "user1"}, options)
+		assert.Error(t, err)
+		assert.Empty(t, users)
+	})
 }
 
 // TestMockLDAPConnUserOperations tests the mock itself

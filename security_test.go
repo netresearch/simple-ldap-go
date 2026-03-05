@@ -5,6 +5,7 @@ package ldap
 import (
 	"crypto/tls"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -345,4 +346,52 @@ func TestValidateIPWhitelist(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRateLimiterDoubleClose(t *testing.T) {
+	rl := NewRateLimiter(nil, nil)
+
+	// First close should succeed
+	rl.Close()
+
+	// Second close should not panic
+	rl.Close()
+}
+
+func TestRateLimiterCheckLimit(t *testing.T) {
+	config := &RateLimiterConfig{
+		MaxAttempts:    3,
+		Window:          time.Minute,
+		LockoutDuration: time.Minute,
+		CleanupInterval: time.Hour,
+	}
+	rl := NewRateLimiter(config, nil)
+	defer rl.Close()
+
+	// First 3 attempts should be allowed
+	for i := 0; i < 3; i++ {
+		if !rl.CheckLimit("user1") {
+			t.Errorf("Attempt %d should be allowed", i+1)
+		}
+	}
+
+	// 4th attempt should be blocked
+	if rl.CheckLimit("user1") {
+		t.Error("4th attempt should be blocked")
+	}
+}
+
+func TestRateLimiterConcurrentAccess(t *testing.T) {
+	rl := NewRateLimiter(nil, nil)
+	defer rl.Close()
+
+	var wg sync.WaitGroup
+	for i := 0; i < 50; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			rl.CheckLimit("concurrent-user")
+		}()
+	}
+	wg.Wait()
 }

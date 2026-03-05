@@ -409,7 +409,7 @@ func TestCacheWithRefresh(t *testing.T) {
 		expectedValue := "refreshed_value"
 		refreshCalled := false
 
-		refreshFunc := func() (interface{}, error) {
+		refreshFunc := func() (any, error) {
 			refreshCalled = true
 			return expectedValue, nil
 		}
@@ -429,7 +429,7 @@ func TestCacheWithRefresh(t *testing.T) {
 		key := "error_key"
 		refreshErr := errors.New("refresh failed")
 
-		refreshFunc := func() (interface{}, error) {
+		refreshFunc := func() (any, error) {
 			return nil, refreshErr
 		}
 
@@ -455,7 +455,7 @@ func TestCacheWithRefresh(t *testing.T) {
 		// Wait for entry to become stale (75% of TTL)
 		time.Sleep(80 * time.Millisecond)
 
-		refreshFunc := func() (interface{}, error) {
+		refreshFunc := func() (any, error) {
 			return refreshedValue, nil
 		}
 
@@ -471,7 +471,7 @@ func TestCacheWithRefresh(t *testing.T) {
 		cachedValue, found := cache.Get(key)
 		assert.True(t, found)
 		// Could be either value depending on timing
-		assert.Contains(t, []interface{}{initialValue, refreshedValue}, cachedValue)
+		assert.Contains(t, []any{initialValue, refreshedValue}, cachedValue)
 	})
 }
 
@@ -720,7 +720,7 @@ func TestCacheDisabled(t *testing.T) {
 		refreshCalled := false
 		expectedValue := "refreshed"
 
-		refreshFunc := func() (interface{}, error) {
+		refreshFunc := func() (any, error) {
 			refreshCalled = true
 			return expectedValue, nil
 		}
