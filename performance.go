@@ -572,7 +572,7 @@ func extractClientIP(ctx context.Context) string {
 	if ctx == nil {
 		return ""
 	}
-	if ip := ctx.Value("client_ip"); ip != nil {
+	if ip := ctx.Value(ContextKeyClientIP); ip != nil {
 		if ipStr, ok := ip.(string); ok {
 			return ipStr
 		}

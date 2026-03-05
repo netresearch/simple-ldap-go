@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -85,7 +84,7 @@ func DefaultCacheConfig() *CacheConfig {
 type CacheEntry struct {
 	// Core data
 	Key   string
-	Value interface{}
+	Value any
 
 	// Timing information
 	CreatedAt  time.Time
@@ -117,23 +116,23 @@ func (e *CacheEntry) IsStale() bool {
 // Cache interface defines the caching operations
 type Cache interface {
 	// Basic operations
-	Get(key string) (interface{}, bool)
-	Set(key string, value interface{}, ttl time.Duration) error
+	Get(key string) (any, bool)
+	Set(key string, value any, ttl time.Duration) error
 	Delete(key string) bool
 	Clear()
 
 	// Context-aware operations
-	GetContext(ctx context.Context, key string) (interface{}, bool)
-	SetContext(ctx context.Context, key string, value interface{}, ttl time.Duration) error
+	GetContext(ctx context.Context, key string) (any, bool)
+	SetContext(ctx context.Context, key string, value any, ttl time.Duration) error
 
 	// Advanced operations
-	GetWithRefresh(key string, refreshFunc func() (interface{}, error)) (interface{}, error)
+	GetWithRefresh(key string, refreshFunc func() (any, error)) (any, error)
 	SetNegative(key string, ttl time.Duration) error
 
 	// Cache key tracking operations
 	RegisterCacheKey(primaryKey string, cacheKey string)
 	InvalidateByPrimaryKey(primaryKey string) int
-	SetWithPrimaryKey(cacheKey string, value interface{}, ttl time.Duration, primaryKey string) error
+	SetWithPrimaryKey(cacheKey string, value any, ttl time.Duration, primaryKey string) error
 	GetRelatedKeys(primaryKey string) []string
 
 	// Statistics and management
@@ -141,7 +140,8 @@ type Cache interface {
 	Close() error
 }
 
-// LRUCache implements an intelligent LRU cache with advanced features
+// LRUCache implements an intelligent LRU cache with advanced features.
+// LRUCache is safe for concurrent use by multiple goroutines.
 type LRUCache struct {
 	config *CacheConfig
 	logger *slog.Logger
@@ -227,12 +227,12 @@ func NewLRUCache(config *CacheConfig, logger *slog.Logger) (*LRUCache, error) {
 }
 
 // Get retrieves a value from the cache
-func (c *LRUCache) Get(key string) (interface{}, bool) {
+func (c *LRUCache) Get(key string) (any, bool) {
 	return c.GetContext(context.Background(), key)
 }
 
 // GetContext retrieves a value from the cache with context support
-func (c *LRUCache) GetContext(ctx context.Context, key string) (interface{}, bool) {
+func (c *LRUCache) GetContext(ctx context.Context, key string) (any, bool) {
 	if !c.config.Enabled {
 		return nil, false
 	}
@@ -299,12 +299,12 @@ func (c *LRUCache) GetContext(ctx context.Context, key string) (interface{}, boo
 }
 
 // Set stores a value in the cache with the specified TTL
-func (c *LRUCache) Set(key string, value interface{}, ttl time.Duration) error {
+func (c *LRUCache) Set(key string, value any, ttl time.Duration) error {
 	return c.SetContext(context.Background(), key, value, ttl)
 }
 
 // SetContext stores a value in the cache with context support
-func (c *LRUCache) SetContext(ctx context.Context, key string, value interface{}, ttl time.Duration) error {
+func (c *LRUCache) SetContext(ctx context.Context, key string, value any, ttl time.Duration) error {
 	if !c.config.Enabled {
 		return ErrCacheDisabled
 	}
@@ -492,7 +492,7 @@ func (c *LRUCache) Clear() {
 }
 
 // GetWithRefresh retrieves a value, refreshing it if stale
-func (c *LRUCache) GetWithRefresh(key string, refreshFunc func() (interface{}, error)) (interface{}, error) {
+func (c *LRUCache) GetWithRefresh(key string, refreshFunc func() (any, error)) (any, error) {
 	if !c.config.Enabled || !c.config.RefreshOnAccess {
 		// Fall back to refresh function if cache is disabled
 		return refreshFunc()
@@ -680,7 +680,7 @@ func (c *LRUCache) evictForSpace(neededBytes int64) error {
 }
 
 // estimateEntrySize calculates approximate memory usage for a cache entry
-func (c *LRUCache) estimateEntrySize(key string, value interface{}) int32 {
+func (c *LRUCache) estimateEntrySize(key string, value any) int32 {
 	size := len(key) + 8 // Key string + basic overhead
 
 	if value == nil {
@@ -723,7 +723,7 @@ func (c *LRUCache) estimateEntrySize(key string, value interface{}) int32 {
 }
 
 // compressValue compresses a value using gzip (placeholder implementation)
-func (c *LRUCache) compressValue(value interface{}) (interface{}, error) {
+func (c *LRUCache) compressValue(value any) (any, error) {
 	// TODO: Implement actual compression if needed
 	// For now, return the value unchanged
 	return value, nil
@@ -815,12 +815,7 @@ func (c *LRUCache) performMaintenance() {
 		atomic.AddInt64(&c.stats.Expirations, 1)
 	}
 
-	// Force GC if memory usage is high
 	memoryUsage := atomic.LoadInt64(&c.memoryUsage)
-	maxMemoryBytes := int64(c.config.MaxMemoryMB * 1024 * 1024)
-	if memoryUsage > maxMemoryBytes*8/10 { // 80% threshold
-		runtime.GC()
-	}
 
 	atomic.AddInt64(&c.stats.CleanupOps, 1)
 
@@ -932,7 +927,7 @@ func (c *LRUCache) InvalidateByPrimaryKey(primaryKey string) int {
 }
 
 // SetWithPrimaryKey stores a value in cache and registers it with a primary key
-func (c *LRUCache) SetWithPrimaryKey(cacheKey string, value interface{}, ttl time.Duration, primaryKey string) error {
+func (c *LRUCache) SetWithPrimaryKey(cacheKey string, value any, ttl time.Duration, primaryKey string) error {
 	// Set the cache entry
 	err := c.Set(cacheKey, value, ttl)
 	if err != nil {
