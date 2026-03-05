@@ -20,9 +20,11 @@ jobs:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
           RELEASE_URL: ${{ github.event.release.html_url }}
         run: |
-          echo "tag=${RELEASE_TAG}" >> $GITHUB_OUTPUT
-          echo "url=${RELEASE_URL}" >> $GITHUB_OUTPUT
-          echo "label=released:${RELEASE_TAG}" >> $GITHUB_OUTPUT
+          {
+            echo "tag=${RELEASE_TAG}"
+            echo "url=${RELEASE_URL}"
+            echo "label=released:${RELEASE_TAG}"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Get previous release tag
         id: prev_release
@@ -32,7 +34,7 @@ jobs:
         run: |
           PREV_TAG=$(gh api repos/${{ github.repository }}/releases \
             --jq "[.[] | select(.tag_name != \"${CURRENT_TAG}\" and .prerelease == false)] | .[0].tag_name // \"\"")
-          echo "tag=${PREV_TAG}" >> $GITHUB_OUTPUT
+          echo "tag=${PREV_TAG}" >> "$GITHUB_OUTPUT"
           echo "Previous release: ${PREV_TAG:-none}"
 
       - name: Create release label
@@ -42,7 +44,7 @@ jobs:
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
         run: |
           gh label create "${LABEL_NAME}" \
-            --repo ${{ github.repository }} \
+            --repo "${{ github.repository }}" \
             --color 0e8a16 \
             --description "Released in ${RELEASE_TAG}" \
             --force
@@ -77,29 +79,29 @@ jobs:
               if [[ -n "${PR_NUM}" ]]; then
                 echo "Found PR #${PR_NUM} for commit ${sha:0:7}"
                 LABELED_PRS="${LABELED_PRS} ${PR_NUM}"
-                gh pr edit ${PR_NUM} --repo ${{ github.repository }} \
+                gh pr edit "${PR_NUM}" --repo "${{ github.repository }}" \
                   --add-label "${LABEL_NAME}" 2>/dev/null || true
-                EXISTING=$(gh pr view ${PR_NUM} --repo ${{ github.repository }} \
+                EXISTING=$(gh pr view "${PR_NUM}" --repo "${{ github.repository }}" \
                   --json comments --jq ".comments[].body | select(contains(\"${RELEASE_TAG}\"))" 2>/dev/null || echo "")
                 if [[ -z "${EXISTING}" ]]; then
-                  gh pr comment ${PR_NUM} --repo ${{ github.repository }} \
+                  gh pr comment "${PR_NUM}" --repo "${{ github.repository }}" \
                     --body "Released in [${RELEASE_TAG}](${RELEASE_URL})" 2>/dev/null || true
                 fi
               fi
             done
           else
             echo "Using fallback: searching recently merged PRs without release labels"
-            PR_LIST=$(gh pr list --repo ${{ github.repository }} --state merged --limit 50 \
+            PR_LIST=$(gh pr list --repo "${{ github.repository }}" --state merged --limit 50 \
               --json number,labels --jq '.[] | select(.labels | map(.name) | any(startswith("released:")) | not) | .number')
             for PR_NUM in ${PR_LIST}; do
               echo "Labeling PR #${PR_NUM} (first release)"
               LABELED_PRS="${LABELED_PRS} ${PR_NUM}"
-              gh pr edit ${PR_NUM} --repo ${{ github.repository }} \
+              gh pr edit "${PR_NUM}" --repo "${{ github.repository }}" \
                 --add-label "${LABEL_NAME}" 2>/dev/null || true
             done
           fi
 
-          echo "labeled_prs=${LABELED_PRS}" >> $GITHUB_OUTPUT
+          echo "labeled_prs=${LABELED_PRS}" >> "$GITHUB_OUTPUT"
 
       - name: Find and label closed issues
         env:
@@ -110,17 +112,17 @@ jobs:
           LABELED_PRS: ${{ steps.label_prs.outputs.labeled_prs }}
         run: |
           for PR_NUM in ${LABELED_PRS}; do
-            LINKED_ISSUES=$(gh pr view ${PR_NUM} --repo ${{ github.repository }} \
+            LINKED_ISSUES=$(gh pr view "${PR_NUM}" --repo "${{ github.repository }}" \
               --json closingIssuesReferences --jq '.closingIssuesReferences[].number' 2>/dev/null || echo "")
 
             for ISSUE_NUM in ${LINKED_ISSUES}; do
               echo "Labeling issue #${ISSUE_NUM} (closed by PR #${PR_NUM})"
-              gh issue edit ${ISSUE_NUM} --repo ${{ github.repository }} \
+              gh issue edit "${ISSUE_NUM}" --repo "${{ github.repository }}" \
                 --add-label "${LABEL_NAME}" 2>/dev/null || true
-              EXISTING=$(gh issue view ${ISSUE_NUM} --repo ${{ github.repository }} \
+              EXISTING=$(gh issue view "${ISSUE_NUM}" --repo "${{ github.repository }}" \
                 --json comments --jq ".comments[].body | select(contains(\"${RELEASE_TAG}\"))" 2>/dev/null || echo "")
               if [[ -z "${EXISTING}" ]]; then
-                gh issue comment ${ISSUE_NUM} --repo ${{ github.repository }} \
+                gh issue comment "${ISSUE_NUM}" --repo "${{ github.repository }}" \
                   --body "Fixed in [${RELEASE_TAG}](${RELEASE_URL})" 2>/dev/null || true
               fi
             done
@@ -131,16 +133,18 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           LABEL_NAME: ${{ steps.release.outputs.label }}
         run: |
-          PR_COUNT=$(gh pr list --repo ${{ github.repository }} --state merged \
+          PR_COUNT=$(gh pr list --repo "${{ github.repository }}" --state merged \
             --label "${LABEL_NAME}" --json number --jq 'length')
-          ISSUE_COUNT=$(gh issue list --repo ${{ github.repository }} --state closed \
+          ISSUE_COUNT=$(gh issue list --repo "${{ github.repository }}" --state closed \
             --label "${LABEL_NAME}" --json number --jq 'length')
           QUERY="label:${LABEL_NAME}"
           ENCODED_QUERY=$(printf '%s' "${QUERY}" | jq -sRr @uri)
-          echo "## Release Labeling Complete" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **Label:** \`${LABEL_NAME}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **PRs labeled:** ${PR_COUNT}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Issues labeled:** ${ISSUE_COUNT}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "[View all labeled items](https://github.com/${{ github.repository }}/issues?q=${ENCODED_QUERY})" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## Release Labeling Complete"
+            echo ""
+            echo "- **Label:** \`${LABEL_NAME}\`"
+            echo "- **PRs labeled:** ${PR_COUNT}"
+            echo "- **Issues labeled:** ${ISSUE_COUNT}"
+            echo ""
+            echo "[View all labeled items](https://github.com/${{ github.repository }}/issues?q=${ENCODED_QUERY})"
+          } >> "$GITHUB_STEP_SUMMARY"

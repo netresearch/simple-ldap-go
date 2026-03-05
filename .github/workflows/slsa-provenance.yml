@@ -41,8 +41,8 @@ jobs:
         run: |
           cd release-assets
           # Generate SHA256 for all release assets
-          if ls * 1> /dev/null 2>&1; then
-            sha256sum * > ../provenance-subjects.txt
+          if ls ./* 1> /dev/null 2>&1; then
+            sha256sum ./* > ../provenance-subjects.txt
             cat ../provenance-subjects.txt
 
             # Base64 encode sha256sum output for SLSA reusable workflow
