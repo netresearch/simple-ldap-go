@@ -192,7 +192,7 @@ func TestCircuitBreaker(t *testing.T) {
 	})
 }
 
-func TestCircuitBreakerError(t *testing.T) {
+func TestCircuitBreakerError_Resilience(t *testing.T) {
 	cbErr := &CircuitBreakerError{
 		State:       "OPEN",
 		Failures:    5,

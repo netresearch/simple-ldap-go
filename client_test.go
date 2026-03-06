@@ -645,6 +645,7 @@ func TestConnectionFieldName(t *testing.T) {
 		}
 
 		// Field should be accessible
+		assert.NotNil(t, client2.config)
 		assert.Nil(t, client2.connPool)
 	})
 }

@@ -35,6 +35,7 @@ func TestRegressionPoolConnPoolFieldName(t *testing.T) {
 		}
 
 		// Field should be accessible as connPool, not pool
+		assert.NotNil(t, client.config)
 		assert.Nil(t, client.connPool)
 
 		// This should compile - if it doesn't, the field name is wrong
