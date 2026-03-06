@@ -5,7 +5,7 @@
 # Default Go settings
 GO_VERSION := 1.23
 TIMEOUT_UNIT := 10s
-TIMEOUT_INTEGRATION := 60s
+TIMEOUT_INTEGRATION := 300s
 TIMEOUT_ALL := 300s
 PARALLEL := 4
 
@@ -35,12 +35,12 @@ test-unit: ## Run all unit tests
 test-integration: ## Run integration tests (requires Docker)
 	@echo "Running integration tests..."
 	@echo "⚠️  Warning: This will start Docker containers and may take 1-2 minutes"
-	go test $(TEST_FLAGS) -timeout=$(TIMEOUT_INTEGRATION) $(INTEGRATION_PATTERN) ./...
+	go test $(TEST_FLAGS) -tags=integration -timeout=$(TIMEOUT_INTEGRATION) $(INTEGRATION_PATTERN) ./...
 
 test-integration-parallel: ## Run integration tests with optimized parallelization
 	@echo "Running optimized integration tests..."
 	@echo "⚠️  Using shared containers for faster execution"
-	go test $(TEST_FLAGS) -timeout=$(TIMEOUT_INTEGRATION) -parallel=2 -coverprofile=coverage-integration.out $(INTEGRATION_PATTERN) ./...
+	go test $(TEST_FLAGS) -tags=integration -timeout=$(TIMEOUT_INTEGRATION) -parallel=2 -coverprofile=coverage-integration.out $(INTEGRATION_PATTERN) ./...
 
 test-all: ## Run all tests (unit + integration)
 	@echo "Running all tests..."

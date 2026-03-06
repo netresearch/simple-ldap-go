@@ -252,16 +252,6 @@ jobs:
           coverage.out
           coverage.html
 
-    - name: Upload combined coverage to Codecov
-      uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5
-      with:
-        token: ${{ secrets.CODECOV_TOKEN }}
-        files: ./coverage.out
-        flags: unittests
-        name: codecov-umbrella
-        disable_search: true
-        network_prefix: github.com/netresearch/simple-ldap-go/
-
   # Full test suite for releases
   full-test-suite:
     name: Full Test Suite

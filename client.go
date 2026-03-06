@@ -453,6 +453,12 @@ func (l *LDAP) ReleaseConnection(conn *ldap.Conn) error {
 	return nil
 }
 
+// cacheEnabled returns true if caching is active for this client.
+// Cache is enabled via either EnableCache or EnableOptimizations config flags.
+func (l *LDAP) cacheEnabled() bool {
+	return (l.config.EnableCache || l.config.EnableOptimizations) && l.cache != nil
+}
+
 // Close closes the LDAP client and cleans up resources.
 // This method properly closes connection pools, caches, and other resources.
 //

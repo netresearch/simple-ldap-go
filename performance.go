@@ -189,6 +189,15 @@ func NewPerformanceMonitor(config *PerformanceConfig, logger *slog.Logger) *Perf
 		responseTimes: make([]time.Duration, 0, config.BufferSize),
 	}
 
+	// Ensure intervals are non-zero to avoid panic in time.NewTicker
+	defaults := DefaultPerformanceConfig()
+	if config.FlushInterval <= 0 {
+		config.FlushInterval = defaults.FlushInterval
+	}
+	if config.MemoryStatsInterval <= 0 {
+		config.MemoryStatsInterval = defaults.MemoryStatsInterval
+	}
+
 	if config.Enabled {
 		pm.startBackgroundTasks()
 	}

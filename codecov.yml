@@ -1,13 +1,15 @@
 codecov:
   require_ci_to_pass: true
-  # Wait for all uploads before evaluating status
   notify:
-    after_n_builds: 3
+    after_n_builds: 2
 
 ignore:
   - "examples/**"
   - "testutil/**"
   - "docs/**"
+  - "test_setup.go"
+  - "test_setup_stub.go"
+  - "test_runner_stub.go"
 
 coverage:
   status:
@@ -15,12 +17,10 @@ coverage:
       default:
         target: auto
         threshold: 5%
-        # Informational until codecov.yml is on default branch and
-        # after_n_builds takes effect
         informational: true
     patch:
       default:
-        target: auto
+        target: 100%
 
 flags:
   unit:
@@ -28,10 +28,6 @@ flags:
       - "**/*.go"
     carryforward: true
   integration:
-    paths:
-      - "**/*.go"
-    carryforward: true
-  unittests:
     paths:
       - "**/*.go"
     carryforward: true
@@ -48,6 +44,8 @@ component_management:
         - auth.go
         - generics.go
         - iterators.go
+        - options.go
+        - shared_search.go
     - component_id: security
       name: Security
       paths:
@@ -57,6 +55,7 @@ component_management:
       name: Performance
       paths:
         - cache.go
+        - cache_generic.go
         - cache_indexed.go
         - pool.go
         - concurrency.go
@@ -66,3 +65,15 @@ component_management:
       name: Query Builders
       paths:
         - builders.go
+    - component_id: errors
+      name: Error Handling
+      paths:
+        - errors.go
+        - error_helpers.go
+    - component_id: utils
+      name: Utilities
+      paths:
+        - utils.go
+        - uac.go
+        - object.go
+        - sam_account_type.go

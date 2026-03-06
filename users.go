@@ -181,7 +181,7 @@ func (l *LDAP) FindUserByDNContext(ctx context.Context, dn string) (user *User, 
 
 	// Check cache if enabled
 	var cacheKey string
-	if l.config.EnableCache && l.cache != nil {
+	if l.cacheEnabled() {
 		cacheKey = fmt.Sprintf("user:dn:%s", dn)
 		if cached, found := l.cache.Get(cacheKey); found {
 			if cachedUser, ok := cached.(*User); ok {
@@ -235,7 +235,7 @@ func (l *LDAP) FindUserByDNContext(ctx context.Context, dn string) (user *User, 
 	}
 
 	// Cache the result if caching is enabled
-	if l.config.EnableCache && l.cache != nil && user != nil {
+	if l.cacheEnabled() && user != nil {
 		// Use SetWithPrimaryKey to register all related cache keys with the user's DN
 		_ = l.cache.SetWithPrimaryKey(cacheKey, user, l.getCacheTTL(), user.DN())
 		// Also register alternate cache keys
@@ -315,7 +315,7 @@ func (l *LDAP) FindUserBySAMAccountNameContext(ctx context.Context, sAMAccountNa
 
 	// Check cache if enabled
 	var cacheKey string
-	if l.config.EnableCache && l.cache != nil {
+	if l.cacheEnabled() {
 		cacheKey = fmt.Sprintf("user:sam:%s", sAMAccountName)
 		if cached, found := l.cache.Get(cacheKey); found {
 			if cachedUser, ok := cached.(*User); ok {
@@ -430,7 +430,7 @@ func (l *LDAP) FindUserBySAMAccountNameContext(ctx context.Context, sAMAccountNa
 	}
 
 	// Store in cache if enabled
-	if l.config.EnableCache && l.cache != nil && cacheKey != "" {
+	if l.cacheEnabled() && cacheKey != "" {
 		// Use SetWithPrimaryKey to register all related cache keys with the user's DN
 		if err := l.cache.SetWithPrimaryKey(cacheKey, user, l.getCacheTTL(), user.DN()); err != nil {
 			l.logger.Debug("cache_set_error",
@@ -610,7 +610,7 @@ func (l *LDAP) FindUserByMailContext(ctx context.Context, mail string) (user *Us
 
 	// Check cache if enabled
 	var cacheKey string
-	if l.config.EnableCache && l.cache != nil {
+	if l.cacheEnabled() {
 		cacheKey = fmt.Sprintf("user:mail:%s", mail)
 		if cached, found := l.cache.Get(cacheKey); found {
 			if cachedUser, ok := cached.(*User); ok {
@@ -698,7 +698,7 @@ func (l *LDAP) FindUserByMailContext(ctx context.Context, mail string) (user *Us
 	}
 
 	// Store in cache if enabled
-	if l.config.EnableCache && l.cache != nil && cacheKey != "" {
+	if l.cacheEnabled() && cacheKey != "" {
 		// Use SetWithPrimaryKey to register all related cache keys with the user's DN
 		if err := l.cache.SetWithPrimaryKey(cacheKey, user, l.getCacheTTL(), user.DN()); err != nil {
 			l.logger.Debug("cache_set_error",
@@ -1316,7 +1316,7 @@ func (l *LDAP) ModifyUserContext(ctx context.Context, dn string, attributes map[
 		slog.Duration("duration", time.Since(start)))
 
 	// Clear cache for modified user using DN as primary key
-	if l.config.EnableCache && l.cache != nil {
+	if l.cacheEnabled() {
 		deleted := l.cache.InvalidateByPrimaryKey(dn)
 		l.logger.Debug("user_cache_invalidated_on_modify",
 			slog.String("dn", dn),
@@ -1409,7 +1409,7 @@ func (l *LDAP) DeleteUserContext(ctx context.Context, dn string) (err error) {
 		slog.Duration("duration", time.Since(start)))
 
 	// Clear all cache entries for deleted user using the DN as primary key
-	if l.config.EnableCache && l.cache != nil {
+	if l.cacheEnabled() {
 		deleted := l.cache.InvalidateByPrimaryKey(dn)
 		l.logger.Debug("user_cache_invalidated_on_delete",
 			slog.String("dn", dn),
@@ -1583,7 +1583,7 @@ func (l *LDAP) BulkModifyUsersContext(ctx context.Context, modifications []UserM
 				err = conn.Modify(modReq)
 
 				// Clear cache for modified user using DN as primary key
-				if err == nil && client.config.EnableCache && client.cache != nil {
+				if err == nil && client.cacheEnabled() {
 					deleted := client.cache.InvalidateByPrimaryKey(data.DN)
 					client.logger.Debug("user_cache_invalidated_on_modify",
 						slog.String("dn", data.DN),

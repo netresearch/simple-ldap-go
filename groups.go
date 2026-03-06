@@ -85,7 +85,7 @@ func (l *LDAP) FindGroupByDNContext(ctx context.Context, dn string) (group *Grou
 
 	// Check cache if enabled
 	var cacheKey string
-	if l.config.EnableCache && l.cache != nil {
+	if l.cacheEnabled() {
 		cacheKey = fmt.Sprintf("group:dn:%s", dn)
 		if cached, found := l.cache.Get(cacheKey); found {
 			if cachedGroup, ok := cached.(*Group); ok {
@@ -138,7 +138,7 @@ func (l *LDAP) FindGroupByDNContext(ctx context.Context, dn string) (group *Grou
 	}
 
 	// Store in cache if enabled
-	if l.config.EnableCache && l.cache != nil && cacheKey != "" {
+	if l.cacheEnabled() && cacheKey != "" {
 		if err := l.cache.Set(cacheKey, group, l.getCacheTTL()); err != nil {
 			l.logger.Debug("cache_set_error",
 				slog.String("operation", "FindGroupByDN"),
