@@ -220,8 +220,8 @@ func (l *LDAP) CheckPasswordForDN(dn, password string) (*User, error) {
 func (l *LDAP) CheckPasswordForDNContext(ctx context.Context, dn, password string) (*User, error) {
 	start := time.Now()
 
-	// Create secure credential for password handling
-	creds, err := NewSecureCredentialSimple("", password)
+	// Create secure credential for password handling (use DN as identifier)
+	creds, err := NewSecureCredentialSimple(dn, password)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create secure credentials: %w", err)
 	}
