@@ -62,6 +62,11 @@ type Config struct {
 func New(config Config, username, password string, opts ...Option) (*LDAP, error) {
 	// Enable optimizations by default for better performance
 	config.EnableOptimizations = true
+	// When EnableOptimizations is set, enable individual flags so cache/metrics checks work
+	if config.EnableOptimizations {
+		config.EnableCache = true
+		config.EnableMetrics = true
+	}
 
 	start := time.Now()
 
