@@ -11,6 +11,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// filterUTF8Errors returns only errors containing "UTF-8" from the list.
+func filterUTF8Errors(errs []string) []string {
+	var utf8Errs []string
+	for _, e := range errs {
+		if strings.Contains(strings.ToLower(e), "utf-8") || strings.Contains(strings.ToLower(e), "utf8") {
+			utf8Errs = append(utf8Errs, e)
+		}
+	}
+	return utf8Errs
+}
+
 // ---------- SanitizeDN ----------
 
 func TestSanitizeDN(t *testing.T) {
@@ -128,8 +139,9 @@ func TestValidator_ValidateValue_UTF8Disabled(t *testing.T) {
 	validator := NewValidator(config)
 
 	result := validator.ValidateValue("test\xff")
-	// UTF8 validation should be skipped
-	_ = result
+	// UTF8 validation should be skipped, so invalid UTF-8 should not cause failure
+	assert.True(t, result.Valid, "should pass when UTF-8 validation is disabled")
+	assert.Empty(t, result.Errors, "should have no errors when UTF-8 validation is disabled")
 }
 
 func TestValidator_ValidateValue_NormalizeDisabled(t *testing.T) {
@@ -389,7 +401,8 @@ func TestValidator_ValidateDN_UTF8Disabled(t *testing.T) {
 	validator := NewValidator(config)
 
 	result := validator.ValidateDN("CN=test\xff,DC=com")
-	_ = result // should not fail on UTF-8 since check disabled
+	// Should not fail on UTF-8 since check is disabled
+	assert.Empty(t, filterUTF8Errors(result.Errors), "should have no UTF-8 errors when validation is disabled")
 }
 
 func TestValidator_ValidateDN_NormalizeDisabled(t *testing.T) {
@@ -418,7 +431,8 @@ func TestValidator_ValidateFilter_UTF8Disabled(t *testing.T) {
 	validator := NewValidator(config)
 
 	result := validator.ValidateFilter("(cn=test\xff)")
-	_ = result
+	// Should not fail on UTF-8 since check is disabled
+	assert.Empty(t, filterUTF8Errors(result.Errors), "should have no UTF-8 errors when validation is disabled")
 }
 
 func TestValidator_ValidateFilter_NormalizeDisabled(t *testing.T) {
@@ -474,7 +488,7 @@ func TestValidator_ValidateCredentials_UTF8Disabled(t *testing.T) {
 
 	result := validator.ValidateCredentials("user\xff", "pass\xff")
 	// Should not fail on UTF-8 since validation is disabled
-	_ = result
+	assert.Empty(t, filterUTF8Errors(result.Errors), "should have no UTF-8 errors when validation is disabled")
 }
 
 // ---------- CreateValidationSummary edge cases ----------
@@ -600,23 +614,28 @@ func TestValidator_ValidateAttribute_NormalizeDisabled(t *testing.T) {
 
 // ---------- ValidateDN medium threat level (warning branch) ----------
 
-func TestValidator_ValidateDN_MediumThreatWarning(t *testing.T) {
-	// The detectInjectionThreats only returns "low" or "high", never "medium"
-	// So the "else" branch (warning) in ValidateDN threat handling requires
-	// a medium threat, which detectInjectionThreats doesn't produce.
-	// We can test this by checking that a valid DN with no injection passes.
+func TestValidator_ValidateDN_NoThreatDetected(t *testing.T) {
+	// detectInjectionThreats only produces "low" (no threats) or "high" (injection found).
+	// The "else" warning branch in ValidateDN is a defensive branch that can't be
+	// reached through detectInjectionThreats alone.
+	// This test verifies that a clean DN produces no threats.
 	validator := NewValidator(DefaultValidationConfig())
 	result := validator.ValidateDN("CN=normal user,DC=example,DC=com")
 	assert.True(t, result.Valid)
+	assert.Nil(t, result.ThreatContext, "clean DN should produce no threat context")
 }
 
-// ---------- ValidateFilter medium threat level (warning branch) ----------
+// ---------- ValidateFilter warning branch ----------
 
-func TestValidator_ValidateFilter_MediumThreatWarning(t *testing.T) {
-	// Same reasoning as DN - the detectInjectionThreats only returns low/high
+func TestValidator_ValidateFilter_NoThreatDetected(t *testing.T) {
+	// detectInjectionThreats only produces "low" (no threats) or "high" (injection found).
+	// The "else" warning branch in ValidateFilter (non-high, non-critical threats) is a
+	// defensive branch that can't be reached through detectInjectionThreats alone.
+	// This test verifies that a clean filter produces no threats.
 	validator := NewValidator(DefaultValidationConfig())
 	result := validator.ValidateFilter("(cn=normal)")
 	assert.True(t, result.Valid)
+	assert.Nil(t, result.ThreatContext, "clean filter should produce no threat context")
 }
 
 // ---------- detectThreats and detectInjectionThreats default switch cases ----------

@@ -62,11 +62,6 @@ type Config struct {
 func New(config Config, username, password string, opts ...Option) (*LDAP, error) {
 	// Enable optimizations by default for better performance
 	config.EnableOptimizations = true
-	// When EnableOptimizations is set, enable individual flags so cache/metrics checks work
-	if config.EnableOptimizations {
-		config.EnableCache = true
-		config.EnableMetrics = true
-	}
 
 	start := time.Now()
 
@@ -456,6 +451,12 @@ func (l *LDAP) ReleaseConnection(conn *ldap.Conn) error {
 	}
 
 	return nil
+}
+
+// cacheEnabled returns true if caching is active for this client.
+// Cache is enabled via either EnableCache or EnableOptimizations config flags.
+func (l *LDAP) cacheEnabled() bool {
+	return (l.config.EnableCache || l.config.EnableOptimizations) && l.cache != nil
 }
 
 // Close closes the LDAP client and cleans up resources.

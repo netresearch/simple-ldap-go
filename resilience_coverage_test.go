@@ -34,17 +34,17 @@ func TestTimeoutManagerExecuteWithAdaptiveTimeout(t *testing.T) {
 		err := tm.ExecuteWithAdaptiveTimeout(context.Background(), "slow_op", func(ctx context.Context) error {
 			select {
 			case <-ctx.Done():
-				return ctx.Err()
+				// Return the custom sentinel so IsContextError recognizes it
+				return ErrContextDeadlineExceeded
 			case <-time.After(200 * time.Millisecond):
 				return nil
 			}
 		})
 		assert.Error(t, err)
-		// Should be a TimeoutError
+		// Must be a TimeoutError wrapping the deadline exceeded
 		var timeoutErr *TimeoutError
-		if errors.As(err, &timeoutErr) {
-			assert.True(t, timeoutErr.Timeout())
-		}
+		require.True(t, errors.As(err, &timeoutErr), "error should be a TimeoutError, got: %v", err)
+		assert.True(t, timeoutErr.Timeout())
 	})
 
 	t.Run("execution with non-context error", func(t *testing.T) {
