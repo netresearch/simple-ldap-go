@@ -17,15 +17,15 @@ func TestCacheIntegration(t *testing.T) {
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 
-	t.Run("cache disabled by default", func(t *testing.T) {
+	t.Run("cache enabled by default via EnableOptimizations", func(t *testing.T) {
 		client, err := New(tc.Config, tc.AdminUser, tc.AdminPass)
 		require.NoError(t, err)
 		defer client.Close()
 
-		// Verify cache is not initialized
-		assert.Nil(t, client.cache, "cache should not be initialized by default")
+		// Cache is enabled by default because New() sets EnableOptimizations = true
+		assert.NotNil(t, client.cache, "cache should be initialized by default via EnableOptimizations")
 
-		// Perform operations - should work without cache
+		// Perform operations - should work with cache
 		user, err := client.FindUserByDN(fmt.Sprintf("uid=jdoe,%s", tc.UsersOU))
 		require.NoError(t, err)
 		assert.NotNil(t, user)
@@ -57,7 +57,7 @@ func TestCacheIntegration(t *testing.T) {
 		user2, err := client.FindUserByDN(userDN)
 		require.NoError(t, err)
 		assert.NotNil(t, user2)
-		assert.Equal(t, user1.DN, user2.DN, "cached user should match")
+		assert.Equal(t, user1.DN(), user2.DN(), "cached user should match")
 
 		// Verify cache hit
 		stats2 := client.cache.Stats()
@@ -92,7 +92,7 @@ func TestCacheIntegration(t *testing.T) {
 		user2, err := client.FindUserByMail(testEmail)
 		require.NoError(t, err)
 		assert.NotNil(t, user2)
-		assert.Equal(t, user1.DN, user2.DN)
+		assert.Equal(t, user1.DN(), user2.DN())
 
 		stats2 := client.cache.Stats()
 		assert.Greater(t, stats2.Hits, stats1.Hits, "cache hits should increase")
@@ -156,7 +156,8 @@ func TestCacheIntegration(t *testing.T) {
 		// Lookup user - cache miss
 		user1, err := client.FindUserByDN(userDN)
 		require.NoError(t, err)
-		assert.Equal(t, "tempuser@example.com", user1.Mail)
+		require.NotNil(t, user1.Mail)
+		assert.Equal(t, "tempuser@example.com", *user1.Mail)
 
 		// Modify user
 		modReq := ldap.NewModifyRequest(userDN, nil)
@@ -174,7 +175,8 @@ func TestCacheIntegration(t *testing.T) {
 		// Lookup again - should get updated data
 		user2, err := client.FindUserByDN(userDN)
 		require.NoError(t, err)
-		assert.Equal(t, "newemail@example.com", user2.Mail, "should get updated email after cache clear")
+		require.NotNil(t, user2.Mail)
+		assert.Equal(t, "newemail@example.com", *user2.Mail, "should get updated email after cache clear")
 
 		// Cleanup
 		delReq := ldap.NewDelRequest(userDN, nil)
@@ -212,7 +214,7 @@ func TestGroupCacheIntegration(t *testing.T) {
 		group2, err := client.FindGroupByDN(groupDN)
 		require.NoError(t, err)
 		assert.NotNil(t, group2)
-		assert.Equal(t, group1.DN, group2.DN)
+		assert.Equal(t, group1.DN(), group2.DN())
 
 		stats2 := client.cache.Stats()
 		assert.Greater(t, stats2.Hits, initialHits, "should have cache hit for group")
@@ -452,7 +454,8 @@ func TestCacheInvalidation(t *testing.T) {
 		// Lookup to populate cache
 		user1, err := client.FindUserByDN(userDN)
 		require.NoError(t, err)
-		require.Equal(t, "modifycache@example.com", user1.Mail)
+		require.NotNil(t, user1.Mail)
+		require.Equal(t, "modifycache@example.com", *user1.Mail)
 
 		// Modify user email using bulk operation
 		modifications := []UserModification{
@@ -472,7 +475,8 @@ func TestCacheInvalidation(t *testing.T) {
 		// Lookup again - should get new data, not cached
 		user2, err := client.FindUserByDN(userDN)
 		require.NoError(t, err)
-		assert.Equal(t, "newmail@example.com", user2.Mail, "should get updated email, not cached value")
+		require.NotNil(t, user2.Mail)
+		assert.Equal(t, "newmail@example.com", *user2.Mail, "should get updated email, not cached value")
 	})
 }
 

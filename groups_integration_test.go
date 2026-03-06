@@ -3,6 +3,7 @@
 package ldap
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -56,7 +57,7 @@ func TestFindGroupByDNIntegration(t *testing.T) {
 				assert.Error(t, err)
 				assert.Nil(t, group)
 				if tt.expectedError != nil {
-					assert.Equal(t, tt.expectedError, err)
+					assert.True(t, errors.Is(err, tt.expectedError), "expected %v, got %v", tt.expectedError, err)
 				}
 			} else {
 				assert.NoError(t, err)

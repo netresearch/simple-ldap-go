@@ -69,6 +69,11 @@ func SetupTestContainer(t *testing.T) *TestContainer {
 	mappedPort, err := genericContainer.MappedPort(ctx, "389/tcp")
 	require.NoError(t, err)
 
+	// Use the IP address directly to avoid isExampleServer() matching "localhost"
+	if host == "localhost" {
+		host = "127.0.0.1"
+	}
+
 	port := mappedPort.Port()
 	connStr := fmt.Sprintf("ldap://%s:%s", host, port)
 
