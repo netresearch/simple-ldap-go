@@ -1,0 +1,14 @@
+# Trivy vulnerability ignore list.
+#
+# Format: one CVE/GHSA ID per line. Lines beginning with '#' are comments.
+
+# github.com/docker/docker is pulled in transitively via testcontainers-go,
+# which is a *test-only* dependency. It never ships in the library's runtime
+# code path.
+#
+# Trivy reports these as fixed in Docker Engine v29.3.1, but that release has
+# not been published as a Go module (latest proxy.golang.org tag is v28.5.2),
+# so there is no version we can bump to. Revisit once docker/docker publishes
+# a v29.x Go module tag that incorporates the fix.
+CVE-2026-33997
+CVE-2026-34040
