@@ -398,7 +398,7 @@ func (l *LDAP) ChangePasswordForSAMAccountNameContext(ctx context.Context, sAMAc
 	start := time.Now()
 
 	// Create secure credentials for password handling
-	oldCreds, err := NewSecureCredentialSimple("", oldPassword)
+	oldCreds, err := NewSecureCredentialSimple(sAMAccountName, oldPassword)
 	if err != nil {
 		return fmt.Errorf("failed to create secure credentials for old password: %w", err)
 	}
@@ -408,7 +408,7 @@ func (l *LDAP) ChangePasswordForSAMAccountNameContext(ctx context.Context, sAMAc
 		}
 	}()
 
-	newCreds, err := NewSecureCredentialSimple("", newPassword)
+	newCreds, err := NewSecureCredentialSimple(sAMAccountName, newPassword)
 	if err != nil {
 		return fmt.Errorf("failed to create secure credentials for new password: %w", err)
 	}
