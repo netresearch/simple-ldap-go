@@ -397,6 +397,10 @@ func (l *LDAP) ChangePasswordForSAMAccountName(sAMAccountName, oldPassword, newP
 func (l *LDAP) ChangePasswordForSAMAccountNameContext(ctx context.Context, sAMAccountName, oldPassword, newPassword string) (err error) {
 	start := time.Now()
 
+	if err := ValidateSAMAccountName(sAMAccountName); err != nil {
+		return fmt.Errorf("invalid sAMAccountName: %w", err)
+	}
+
 	// Create secure credentials for password handling
 	oldCreds, err := NewSecureCredentialSimple(sAMAccountName, oldPassword)
 	if err != nil {
