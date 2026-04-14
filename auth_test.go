@@ -2,6 +2,7 @@ package ldap
 
 import (
 	"errors"
+	"log/slog"
 	"os/exec"
 	"strings"
 	"testing"
@@ -245,6 +246,43 @@ func TestChangePasswordForSAMAccountName(t *testing.T) {
 			t.Skip("LDAPS not available for testing with OpenLDAP container")
 			return
 		}
+	})
+}
+
+// TestChangePasswordForSAMAccountNameContext_Regression_NRS4340 is a regression
+// test for NRS-4340: ChangePasswordForSAMAccountNameContext was calling
+// NewSecureCredentialSimple("", password) causing all password change attempts
+// to fail with "credential validation failed: username cannot be empty".
+func TestChangePasswordForSAMAccountNameContext_Regression_NRS4340(t *testing.T) {
+	// Use a minimal LDAP struct — no live server needed because both error cases
+	// (invalid sAMAccountName, non-LDAPS AD) are checked before any connection.
+	client := &LDAP{
+		config: &Config{
+			Server:            "ldap://localhost:389",
+			IsActiveDirectory: true,
+			BaseDN:            "dc=test,dc=local",
+		},
+		logger: slog.Default(),
+	}
+
+	t.Run("empty sAMAccountName rejected early", func(t *testing.T) {
+		err := client.ChangePasswordForSAMAccountName("", "oldpass", "newpass")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid sAMAccountName",
+			"empty username should be caught by ValidateSAMAccountName before credential creation")
+		assert.NotContains(t, err.Error(), "credential validation failed",
+			"should not reach SecureCredential validation with empty username")
+	})
+
+	t.Run("valid sAMAccountName does not fail with username cannot be empty", func(t *testing.T) {
+		err := client.ChangePasswordForSAMAccountName("jdoe", "oldpass", "newpass")
+		require.Error(t, err)
+		// Regression: before the fix this returned "credential validation failed: username cannot be empty"
+		// because NewSecureCredentialSimple("", ...) was called. With the fix it must reach the
+		// LDAPS check instead.
+		assert.Equal(t, ErrActiveDirectoryMustBeLDAPS, err,
+			"valid username should pass credential creation and fail only on the LDAPS requirement")
+		assert.NotContains(t, err.Error(), "username cannot be empty")
 	})
 }
 
