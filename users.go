@@ -290,6 +290,10 @@ func (l *LDAP) FindUserBySAMAccountName(sAMAccountName string) (user *User, err 
 // This method performs a subtree search starting from the configured BaseDN.
 // For OpenLDAP compatibility, it also searches for uid attribute when sAMAccountName is not found.
 func (l *LDAP) FindUserBySAMAccountNameContext(ctx context.Context, sAMAccountName string) (user *User, err error) {
+	if err := ValidateSAMAccountName(sAMAccountName); err != nil {
+		return nil, fmt.Errorf("invalid sAMAccountName: %w", err)
+	}
+
 	// Check for context cancellation first
 	if err := l.checkContextCancellation(ctx, "FindUserBySAMAccountName", sAMAccountName, "start"); err != nil {
 		return nil, ctx.Err()
