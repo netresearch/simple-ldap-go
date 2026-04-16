@@ -249,13 +249,11 @@ func TestChangePasswordForSAMAccountName(t *testing.T) {
 	})
 }
 
-// TestChangePasswordForSAMAccountNameContext_Regression_NRS4340 is a regression
-// test for NRS-4340: ChangePasswordForSAMAccountNameContext was calling
-// NewSecureCredentialSimple("", password) causing all password change attempts
-// to fail with "credential validation failed: username cannot be empty".
-func TestChangePasswordForSAMAccountNameContext_Regression_NRS4340(t *testing.T) {
-	// Use a minimal LDAP struct — no live server needed because both error cases
-	// (invalid sAMAccountName, non-LDAPS AD) are checked before any connection.
+// TestSAMAccountNameValidation_AllEntrypoints verifies that all public
+// sAMAccountName-accepting functions reject invalid input consistently via
+// ValidateSAMAccountName. This was introduced after NRS-4340 revealed that
+// ChangePasswordForSAMAccountNameContext discarded the username.
+func TestSAMAccountNameValidation_AllEntrypoints(t *testing.T) {
 	client := &LDAP{
 		config: &Config{
 			Server:            "ldap://localhost:389",
@@ -265,14 +263,80 @@ func TestChangePasswordForSAMAccountNameContext_Regression_NRS4340(t *testing.T)
 		logger: slog.Default(),
 	}
 
-	t.Run("empty sAMAccountName rejected early", func(t *testing.T) {
-		err := client.ChangePasswordForSAMAccountName("", "oldpass", "newpass")
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid sAMAccountName",
-			"empty username should be caught by ValidateSAMAccountName before credential creation")
-		assert.NotContains(t, err.Error(), "credential validation failed",
-			"should not reach SecureCredential validation with empty username")
+	invalidNames := []struct {
+		name  string
+		value string
+	}{
+		{"empty", ""},
+		{"too short", "x"},
+		{"contains invalid char", "user/name"},
+		{"starts with number", "1user"},
+	}
+
+	t.Run("CheckPasswordForSAMAccountName", func(t *testing.T) {
+		for _, tc := range invalidNames {
+			t.Run(tc.name, func(t *testing.T) {
+				_, err := client.CheckPasswordForSAMAccountName(tc.value, "pass")
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "invalid sAMAccountName")
+			})
+		}
 	})
+
+	t.Run("ChangePasswordForSAMAccountName", func(t *testing.T) {
+		for _, tc := range invalidNames {
+			t.Run(tc.name, func(t *testing.T) {
+				err := client.ChangePasswordForSAMAccountName(tc.value, "old", "new")
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "invalid sAMAccountName")
+			})
+		}
+	})
+
+	t.Run("ResetPasswordForSAMAccountName", func(t *testing.T) {
+		for _, tc := range invalidNames {
+			t.Run(tc.name, func(t *testing.T) {
+				err := client.ResetPasswordForSAMAccountName(tc.value, "newpass")
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "invalid sAMAccountName")
+			})
+		}
+	})
+
+	t.Run("FindUserBySAMAccountName", func(t *testing.T) {
+		for _, tc := range invalidNames {
+			t.Run(tc.name, func(t *testing.T) {
+				_, err := client.FindUserBySAMAccountName(tc.value)
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "invalid sAMAccountName")
+			})
+		}
+	})
+
+	t.Run("FindComputerBySAMAccountName", func(t *testing.T) {
+		for _, tc := range invalidNames {
+			t.Run(tc.name, func(t *testing.T) {
+				_, err := client.FindComputerBySAMAccountName(tc.value)
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "invalid sAMAccountName")
+			})
+		}
+	})
+}
+
+// TestChangePasswordForSAMAccountNameContext_Regression_NRS4340 is a regression
+// test for NRS-4340: ChangePasswordForSAMAccountNameContext was calling
+// NewSecureCredentialSimple("", password) causing all password change attempts
+// to fail with "credential validation failed: username cannot be empty".
+func TestChangePasswordForSAMAccountNameContext_Regression_NRS4340(t *testing.T) {
+	client := &LDAP{
+		config: &Config{
+			Server:            "ldap://localhost:389",
+			IsActiveDirectory: true,
+			BaseDN:            "dc=test,dc=local",
+		},
+		logger: slog.Default(),
+	}
 
 	t.Run("valid sAMAccountName does not fail with username cannot be empty", func(t *testing.T) {
 		err := client.ChangePasswordForSAMAccountName("jdoe", "oldpass", "newpass")

@@ -50,6 +50,10 @@ func (l *LDAP) CheckPasswordForSAMAccountName(sAMAccountName, password string) (
 //
 // This is commonly used for login validation in Active Directory environments.
 func (l *LDAP) CheckPasswordForSAMAccountNameContext(ctx context.Context, sAMAccountName, password string) (*User, error) {
+	if err := ValidateSAMAccountName(sAMAccountName); err != nil {
+		return nil, fmt.Errorf("invalid sAMAccountName: %w", err)
+	}
+
 	// Check for context cancellation first
 	if err := l.checkContextCancellation(ctx, "CheckPasswordForSAMAccountName", sAMAccountName, "start"); err != nil {
 		return nil, ctx.Err()
@@ -555,6 +559,10 @@ func (l *LDAP) ResetPasswordForSAMAccountName(sAMAccountName, newPassword string
 
 // ResetPasswordForSAMAccountNameContext performs an administrative password reset with context support.
 func (l *LDAP) ResetPasswordForSAMAccountNameContext(ctx context.Context, sAMAccountName, newPassword string) error {
+	if err := ValidateSAMAccountName(sAMAccountName); err != nil {
+		return fmt.Errorf("invalid sAMAccountName: %w", err)
+	}
+
 	start := time.Now()
 
 	// Encode new password for LDAP (UTF-16LE with quotes)

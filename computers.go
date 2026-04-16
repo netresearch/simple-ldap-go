@@ -241,6 +241,10 @@ func (l *LDAP) FindComputerBySAMAccountName(sAMAccountName string) (computer *Co
 // This method performs a subtree search starting from the configured BaseDN.
 // Computer sAMAccountNames typically end with a dollar sign ($).
 func (l *LDAP) FindComputerBySAMAccountNameContext(ctx context.Context, sAMAccountName string) (computer *Computer, err error) {
+	if err := ValidateSAMAccountName(sAMAccountName); err != nil {
+		return nil, fmt.Errorf("invalid sAMAccountName: %w", err)
+	}
+
 	start := time.Now()
 	l.logger.Debug("computer_search_by_sam_account_started",
 		slog.String("operation", "FindComputerBySAMAccountName"),
