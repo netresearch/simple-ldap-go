@@ -1,0 +1,30 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "0 3 * * 1" # Weekly, Monday 03:00 UTC
+
+permissions: {}
+
+jobs:
+  analyze-go:
+    uses: netresearch/.github/.github/workflows/codeql.yml@main
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    with:
+      languages: go
+
+  analyze-actions:
+    uses: netresearch/.github/.github/workflows/codeql.yml@main
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    with:
+      languages: actions
