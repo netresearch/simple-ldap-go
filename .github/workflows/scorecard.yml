@@ -11,7 +11,7 @@ permissions: {}
 
 jobs:
   analysis:
-    uses: netresearch/.github/.github/workflows/scorecard.yml@4f6d149347c61a27ce243f5ac8011d6748487341 # main
+    uses: netresearch/.github/.github/workflows/scorecard.yml@main
     permissions:
       security-events: write
       id-token: write
