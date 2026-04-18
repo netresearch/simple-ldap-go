@@ -17,7 +17,7 @@ permissions:
 jobs:
   # Canonical Go pipeline: build + vet + test + golangci-lint + govulncheck + gosec.
   go-check:
-    uses: netresearch/.github/.github/workflows/go-check.yml@main
+    uses: netresearch/.github/.github/workflows/go-check.yml@4f6d149347c61a27ce243f5ac8011d6748487341 # main
     permissions:
       contents: read
       security-events: write
@@ -31,25 +31,25 @@ jobs:
 
   # Workflow-file linter (actionlint) via org reusable.
   lint-workflows:
-    uses: netresearch/.github/.github/workflows/lint-workflows.yml@main
+    uses: netresearch/.github/.github/workflows/lint-workflows.yml@4f6d149347c61a27ce243f5ac8011d6748487341 # main
     permissions:
       contents: read
 
   # Markdown linter via org reusable.
   lint-markdown:
-    uses: netresearch/.github/.github/workflows/lint-markdown.yml@main
+    uses: netresearch/.github/.github/workflows/lint-markdown.yml@4f6d149347c61a27ce243f5ac8011d6748487341 # main
     permissions:
       contents: read
 
   # YAML linter via org reusable.
   lint-yaml:
-    uses: netresearch/.github/.github/workflows/lint-yaml.yml@main
+    uses: netresearch/.github/.github/workflows/lint-yaml.yml@4f6d149347c61a27ce243f5ac8011d6748487341 # main
     permissions:
       contents: read
 
   # Secret scanning via the org reusable.
   gitleaks:
-    uses: netresearch/.github/.github/workflows/gitleaks.yml@main
+    uses: netresearch/.github/.github/workflows/gitleaks.yml@4f6d149347c61a27ce243f5ac8011d6748487341 # main
     permissions:
       contents: read
       security-events: write
