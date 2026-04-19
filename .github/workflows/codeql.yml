@@ -6,16 +6,16 @@ on:
   pull_request:
     branches: [main]
   schedule:
-    - cron: "0 3 * * 1" # Weekly, Monday 03:00 UTC
+    - cron: '30 4 * * 1'
 
 permissions: {}
 
 jobs:
-  analyze:
+  codeql:
     uses: netresearch/.github/.github/workflows/codeql.yml@main
+    with:
+      languages: go
     permissions:
       contents: read
       security-events: write
       actions: read
-    with:
-      languages: go,actions
