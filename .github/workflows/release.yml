@@ -1,0 +1,14 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  create:
+    uses: netresearch/.github/.github/workflows/golib-create-release.yml@main
+    permissions:
+      contents: write
