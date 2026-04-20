@@ -9,9 +9,10 @@ coverage.out
 *.tmp
 *~
 
-# Test binaries
-enhanced_errors
-*_test
+# Test binaries (compiled `go test -c` outputs)
+/enhanced_errors
+# Note: patterns like "*_test" would also hit *_test.go source files; use
+# *.test (below) for Go's actual test-binary suffix.
 
 # IDE files
 .idea/
