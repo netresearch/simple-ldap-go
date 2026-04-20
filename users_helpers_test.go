@@ -139,9 +139,12 @@ func TestFindUsersBySAMAccountNames(t *testing.T) {
 	})
 
 	t.Run("find mix of existing and non-existing users", func(t *testing.T) {
+		// Keep every sAMAccountName <= 20 chars so it passes AD schema validation
+		// (ValidateSAMAccountName rejects longer values with a fatal error rather
+		// than a "not found" result).
 		names := []string{
 			testData.ValidUserUID,
-			"nonexistent_user_12345",
+			"nonexist_user_12345",
 			"another_fake_user",
 		}
 

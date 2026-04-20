@@ -377,7 +377,9 @@ func TestCacheInvalidation(t *testing.T) {
 		require.NoError(t, err)
 		defer client.Close()
 
-		// Create a test user with specific attributes
+		// Create a test user with specific attributes. `sAMAccountName` is an
+		// AD-only attribute not defined in OpenLDAP's stock schemas — use `uid`
+		// instead (FindUserBySAMAccountName falls back to `uid` for OpenLDAP).
 		userDN := fmt.Sprintf("uid=cachetest,%s", tc.UsersOU)
 		addReq := ldap.NewAddRequest(userDN, nil)
 		addReq.Attribute("objectClass", []string{"inetOrgPerson", "organizationalPerson", "person", "top"})
@@ -385,7 +387,6 @@ func TestCacheInvalidation(t *testing.T) {
 		addReq.Attribute("cn", []string{"Cache Test User"})
 		addReq.Attribute("sn", []string{"Test"})
 		addReq.Attribute("mail", []string{"cachetest@example.com"})
-		addReq.Attribute("sAMAccountName", []string{"cachetest"})
 		addReq.Attribute("userPassword", []string{"password123"})
 
 		conn, err := client.GetConnection()
@@ -433,7 +434,9 @@ func TestCacheInvalidation(t *testing.T) {
 		require.NoError(t, err)
 		defer client.Close()
 
-		// Create a test user
+		// Create a test user. OpenLDAP stock schemas don't define
+		// `sAMAccountName`, so use `uid` — the library falls back to uid for
+		// OpenLDAP-mode sAMAccountName lookups.
 		userDN := fmt.Sprintf("uid=modifycache,%s", tc.UsersOU)
 		addReq := ldap.NewAddRequest(userDN, nil)
 		addReq.Attribute("objectClass", []string{"inetOrgPerson", "organizationalPerson", "person", "top"})
@@ -441,7 +444,6 @@ func TestCacheInvalidation(t *testing.T) {
 		addReq.Attribute("cn", []string{"Modify Cache User"})
 		addReq.Attribute("sn", []string{"Cache"})
 		addReq.Attribute("mail", []string{"modifycache@example.com"})
-		addReq.Attribute("sAMAccountName", []string{"modifycache"})
 		addReq.Attribute("userPassword", []string{"password123"})
 
 		conn, err := client.GetConnection()
@@ -493,7 +495,8 @@ func TestCacheKeyTracking(t *testing.T) {
 		require.NoError(t, err)
 		defer client.Close()
 
-		// Create a test user
+		// Create a test user (sAMAccountName is AD-only; rely on uid for
+		// OpenLDAP SAM-account-name lookups).
 		userDN := fmt.Sprintf("uid=keytrack,%s", tc.UsersOU)
 		addReq := ldap.NewAddRequest(userDN, nil)
 		addReq.Attribute("objectClass", []string{"inetOrgPerson", "organizationalPerson", "person", "top"})
@@ -501,7 +504,6 @@ func TestCacheKeyTracking(t *testing.T) {
 		addReq.Attribute("cn", []string{"Key Track User"})
 		addReq.Attribute("sn", []string{"Track"})
 		addReq.Attribute("mail", []string{"keytrack@example.com"})
-		addReq.Attribute("sAMAccountName", []string{"keytrack"})
 
 		conn, err := client.GetConnection()
 		require.NoError(t, err)
@@ -544,7 +546,7 @@ func TestCacheKeyTracking(t *testing.T) {
 		require.NoError(t, err)
 		defer client.Close()
 
-		// Create a test user
+		// Create a test user (sAMAccountName is AD-only; rely on uid).
 		userDN := fmt.Sprintf("uid=nofetch,%s", tc.UsersOU)
 		addReq := ldap.NewAddRequest(userDN, nil)
 		addReq.Attribute("objectClass", []string{"inetOrgPerson", "organizationalPerson", "person", "top"})
@@ -552,7 +554,6 @@ func TestCacheKeyTracking(t *testing.T) {
 		addReq.Attribute("cn", []string{"No Fetch User"})
 		addReq.Attribute("sn", []string{"Fetch"})
 		addReq.Attribute("mail", []string{"nofetch@example.com"})
-		addReq.Attribute("sAMAccountName", []string{"nofetch"})
 
 		conn, err := client.GetConnection()
 		require.NoError(t, err)
@@ -584,7 +585,7 @@ func TestCacheKeyTracking(t *testing.T) {
 		require.NoError(t, err)
 		defer client.Close()
 
-		// Create a test user
+		// Create a test user (sAMAccountName is AD-only; rely on uid).
 		userDN := fmt.Sprintf("uid=concurrent,%s", tc.UsersOU)
 		addReq := ldap.NewAddRequest(userDN, nil)
 		addReq.Attribute("objectClass", []string{"inetOrgPerson", "organizationalPerson", "person", "top"})
@@ -592,7 +593,6 @@ func TestCacheKeyTracking(t *testing.T) {
 		addReq.Attribute("cn", []string{"Concurrent User"})
 		addReq.Attribute("sn", []string{"User"})
 		addReq.Attribute("mail", []string{"concurrent@example.com"})
-		addReq.Attribute("sAMAccountName", []string{"concurrent"})
 
 		conn, err := client.GetConnection()
 		require.NoError(t, err)

@@ -1122,7 +1122,14 @@ func (l *LDAP) CreateUserContext(ctx context.Context, user FullUser, password st
 		}()))
 
 	if user.ObjectClasses == nil {
-		user.ObjectClasses = []string{"top", "person", "organizationalPerson", "user"}
+		// Default to the Active Directory "user" object chain on AD, and to the
+		// OpenLDAP-compatible inetOrgPerson chain otherwise. Callers can still
+		// override by setting ObjectClasses explicitly on FullUser.
+		if l.config.IsActiveDirectory {
+			user.ObjectClasses = []string{"top", "person", "organizationalPerson", "user"}
+		} else {
+			user.ObjectClasses = []string{"top", "person", "organizationalPerson", "inetOrgPerson"}
+		}
 	}
 
 	if user.DisplayName == nil {
@@ -1173,16 +1180,25 @@ func (l *LDAP) CreateUserContext(ctx context.Context, user FullUser, password st
 	nameBuilder.WriteString(user.FirstName)
 	nameBuilder.WriteString(" ")
 	nameBuilder.WriteString(user.LastName)
-	req.Attribute("name", []string{nameBuilder.String()})
+	// `name` is part of AD's user class; OpenLDAP inetOrgPerson has no such
+	// attribute, so only emit it when talking to AD.
+	if l.config.IsActiveDirectory {
+		req.Attribute("name", []string{nameBuilder.String()})
+	}
 	req.Attribute("givenName", []string{user.FirstName})
 	req.Attribute("sn", []string{user.LastName})
 	req.Attribute("displayName", []string{*user.DisplayName})
-	req.Attribute("accountExpires", []string{convertAccountExpires(user.AccountExpires)})
-	// Performance optimization: Use strconv.FormatUint instead of fmt.Sprintf
-	req.Attribute("userAccountControl", []string{strconv.FormatUint(uint64(user.UserAccountControl.Uint32()), 10)})
-
-	if user.SAMAccountName != nil {
-		req.Attribute("sAMAccountName", []string{*user.SAMAccountName})
+	// accountExpires, userAccountControl and sAMAccountName are Active
+	// Directory-specific attributes. OpenLDAP's standard schemas do not define
+	// them (attempting to set them fails with LDAP result 17 "Undefined
+	// Attribute Type"), so gate them on the IsActiveDirectory flag.
+	if l.config.IsActiveDirectory {
+		req.Attribute("accountExpires", []string{convertAccountExpires(user.AccountExpires)})
+		// Performance optimization: Use strconv.FormatUint instead of fmt.Sprintf
+		req.Attribute("userAccountControl", []string{strconv.FormatUint(uint64(user.UserAccountControl.Uint32()), 10)})
+		if user.SAMAccountName != nil {
+			req.Attribute("sAMAccountName", []string{*user.SAMAccountName})
+		}
 	}
 
 	if user.Description != nil {

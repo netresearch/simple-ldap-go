@@ -64,7 +64,8 @@ func TestFindGroupByDN(t *testing.T) {
 				assert.Error(t, err)
 				assert.Nil(t, group)
 				if tt.expectedError != nil {
-					assert.Equal(t, tt.expectedError, err)
+					// Use errors.Is so wrapped sentinel errors (fmt.wrapError) match.
+					assert.ErrorIs(t, err, tt.expectedError)
 				}
 			} else {
 				assert.NoError(t, err)
@@ -249,7 +250,7 @@ func TestGroupErrorConditions(t *testing.T) {
 		// Test DN with characters that need escaping
 		_, err := client.FindGroupByDN("cn=group(with)parens,ou=groups,dc=example,dc=org")
 		assert.Error(t, err) // Should be group not found
-		assert.Equal(t, ErrGroupNotFound, err)
+		assert.ErrorIs(t, err, ErrGroupNotFound)
 	})
 
 	t.Run("very long DN", func(t *testing.T) {
@@ -263,7 +264,7 @@ func TestGroupErrorConditions(t *testing.T) {
 		testData := tc.GetTestData()
 		_, err := client.FindGroupByDN(testData.ValidUserDN)
 		assert.Error(t, err)
-		assert.Equal(t, ErrGroupNotFound, err)
+		assert.ErrorIs(t, err, ErrGroupNotFound)
 	})
 }
 

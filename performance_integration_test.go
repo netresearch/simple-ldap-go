@@ -150,9 +150,12 @@ func TestBulkOperationsPerformance(t *testing.T) {
 			},
 		}
 
-		// Set path for users
+		// Set the RDN-only path for users. CreateUser appends the client BaseDN
+		// automatically, so passing the full OU DN (`ou=people,dc=example,dc=org`)
+		// would produce a doubled-up DN and a "No Such Object" error.
+		usersPath := "ou=people"
 		for i := range users {
-			users[i].Path = &tc.UsersOU
+			users[i].Path = &usersPath
 		}
 
 		// Create users in bulk
