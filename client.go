@@ -134,6 +134,13 @@ func New(config Config, username, password string, opts ...Option) (*LDAP, error
 		opt(client)
 	}
 
+	// Re-bind the local logger variable so that subsequent component
+	// initialization (cache, connection pool, circuit breaker, performance
+	// monitor) emits its init logs through the caller-supplied logger when
+	// WithLogger(...) was passed as an option. Without this, those logs would
+	// still hit slog.Default() because `logger` was captured before options ran.
+	logger = client.logger
+
 	// Initialize cache if enabled (skip for example servers)
 	if (config.EnableCache || config.EnableOptimizations) && !isExample {
 		cacheConfig := DefaultCacheConfig()
