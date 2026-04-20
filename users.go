@@ -1121,6 +1121,12 @@ func (l *LDAP) CreateUserContext(ctx context.Context, user FullUser, password st
 			return "<nil>"
 		}()))
 
+	if user.SAMAccountName != nil {
+		if err := ValidateSAMAccountName(*user.SAMAccountName); err != nil {
+			return "", fmt.Errorf("invalid sAMAccountName: %w", err)
+		}
+	}
+
 	if user.ObjectClasses == nil {
 		// Default to the Active Directory "user" object chain on AD, and to the
 		// OpenLDAP-compatible inetOrgPerson chain otherwise. Callers can still
@@ -1199,6 +1205,12 @@ func (l *LDAP) CreateUserContext(ctx context.Context, user FullUser, password st
 		if user.SAMAccountName != nil {
 			req.Attribute("sAMAccountName", []string{*user.SAMAccountName})
 		}
+	} else if user.SAMAccountName != nil {
+		// inetOrgPerson has no sAMAccountName. Store the value in `uid`,
+		// which FindUserBySAMAccountName falls back to when the AD-only
+		// attribute isn't present. Without this, users created with a
+		// SAMAccountName on OpenLDAP are silently unfindable by it.
+		req.Attribute("uid", []string{*user.SAMAccountName})
 	}
 
 	if user.Description != nil {
