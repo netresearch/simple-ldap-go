@@ -170,6 +170,20 @@ func TestCreateUser_CancelledContext(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestCreateUser_InvalidSAMAccountName(t *testing.T) {
+	client := newExampleClient(t)
+	// Contains a space, which ValidateSAMAccountName rejects.
+	bad := "bad user"
+	_, err := client.CreateUser(FullUser{
+		CN:             "Bad User",
+		FirstName:      "Bad",
+		LastName:       "User",
+		SAMAccountName: &bad,
+	}, "password")
+	require.Error(t, err)
+	require.ErrorContains(t, err, "invalid sAMAccountName")
+}
+
 func TestModifyUser_ConnectionError(t *testing.T) {
 	client := newExampleClient(t)
 	err := client.ModifyUser("cn=x,dc=example,dc=com", map[string][]string{
