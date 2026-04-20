@@ -64,14 +64,15 @@ func TestFindComputerByDN(t *testing.T) {
 				assert.Error(t, err)
 				assert.Nil(t, computer)
 				if tt.expectedError != nil {
-					assert.Equal(t, tt.expectedError, err)
+					// Use errors.Is so wrapped sentinel errors match.
+					assert.ErrorIs(t, err, tt.expectedError)
 				}
 			} else {
 				// Note: This test might fail because our test setup creates "device" objects
 				// rather than "computer" objects. This is testing the API structure.
 				if err != nil {
 					t.Logf("Expected computer search failure due to test schema: %v", err)
-					assert.Equal(t, ErrComputerNotFound, err)
+					assert.ErrorIs(t, err, ErrComputerNotFound)
 				} else {
 					assert.NotNil(t, computer)
 					assert.Equal(t, strings.ToLower(tt.dn), strings.ToLower(computer.DN()))
@@ -108,10 +109,12 @@ func TestFindComputerBySAMAccountName(t *testing.T) {
 			expectedError:  ErrComputerNotFound,
 		},
 		{
+			// OpenLDAP compatibility: FindComputerBySAMAccountName also matches cn,
+			// so searching by the bare cn "WORKSTATION01" finds the test device object.
+			// (In AD the same lookup would require the trailing "$" and return not-found.)
 			name:           "computer name without dollar sign",
 			sAMAccountName: "WORKSTATION01",
-			expectError:    true,
-			expectedError:  ErrComputerNotFound,
+			expectError:    false,
 		},
 		{
 			name:           "nonexistent computer",
@@ -135,7 +138,7 @@ func TestFindComputerBySAMAccountName(t *testing.T) {
 				assert.Error(t, err)
 				assert.Nil(t, computer)
 				if tt.expectedError != nil {
-					assert.Equal(t, tt.expectedError, err)
+					assert.ErrorIs(t, err, tt.expectedError)
 				}
 			} else {
 				assert.NoError(t, err)
@@ -229,10 +232,12 @@ func TestComputerSearchFilters(t *testing.T) {
 	})
 
 	t.Run("sAMAccountName filter escaping", func(t *testing.T) {
-		// Test that special characters in sAMAccountName are properly escaped
-		_, err := client.FindComputerBySAMAccountName("computer(with)parens$")
+		// Test that special characters in sAMAccountName are properly escaped.
+		// Keep the input <= 20 chars so it passes sAMAccountName length validation
+		// (max 20 per AD schema) and actually exercises the search / escape path.
+		_, err := client.FindComputerBySAMAccountName("c(with)parens$")
 		assert.Error(t, err) // Should be computer not found with proper escaping
-		assert.Equal(t, ErrComputerNotFound, err)
+		assert.ErrorIs(t, err, ErrComputerNotFound)
 	})
 }
 
@@ -298,7 +303,7 @@ func TestComputerErrorConditions(t *testing.T) {
 		testData := tc.GetTestData()
 		_, err := client.FindComputerByDN(testData.ValidUserDN)
 		assert.Error(t, err)
-		assert.Equal(t, ErrComputerNotFound, err)
+		assert.ErrorIs(t, err, ErrComputerNotFound)
 	})
 }
 
