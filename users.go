@@ -1470,7 +1470,6 @@ func (l *LDAP) BulkCreateUsersContext(ctx context.Context, users []FullUser, pas
 
 	// Create worker pool
 	pool := NewWorkerPool[FullUser](l, config)
-	defer pool.Close()
 
 	// Submit work items - continue on submission failures
 	submissionFailures := 0
@@ -1491,6 +1490,15 @@ func (l *LDAP) BulkCreateUsersContext(ctx context.Context, users []FullUser, pas
 				slog.String("error", err.Error()))
 		}
 	}
+
+	// Close the pool in a goroutine once all items are submitted. Close()
+	// closes the work channel, waits for workers to finish draining, then
+	// closes the result channel — which lets the range loop below terminate.
+	// Running it in a goroutine avoids a deadlock when the number of work
+	// items exceeds the result-channel buffer: workers block on the full
+	// buffer, wg.Wait() never returns, so if we called Close() before the
+	// range loop the range would never start.
+	go pool.Close()
 
 	// Collect results
 	var results []WorkResult[FullUser]
@@ -1558,7 +1566,6 @@ func (l *LDAP) BulkModifyUsersContext(ctx context.Context, modifications []UserM
 
 	// Create worker pool
 	pool := NewWorkerPool[UserModification](l, config)
-	defer pool.Close()
 
 	// Submit work items
 	for i, mod := range modifications {
@@ -1604,6 +1611,11 @@ func (l *LDAP) BulkModifyUsersContext(ctx context.Context, modifications []UserM
 				slog.String("error", err.Error()))
 		}
 	}
+
+	// Close the pool once all items are submitted so the result channel
+	// will be closed after workers drain. See BulkCreateUsersContext for
+	// the full rationale on why this must run in a goroutine.
+	go pool.Close()
 
 	// Collect results
 	var results []WorkResult[UserModification]
@@ -1659,7 +1671,6 @@ func (l *LDAP) BulkDeleteUsersContext(ctx context.Context, dns []string, config 
 
 	// Create worker pool
 	pool := NewWorkerPool[string](l, config)
-	defer pool.Close()
 
 	// Submit work items
 	for i, dn := range dns {
@@ -1677,6 +1688,11 @@ func (l *LDAP) BulkDeleteUsersContext(ctx context.Context, dns []string, config 
 				slog.String("error", err.Error()))
 		}
 	}
+
+	// Close the pool once all items are submitted so the result channel
+	// will be closed after workers drain. See BulkCreateUsersContext for
+	// the full rationale on why this must run in a goroutine.
+	go pool.Close()
 
 	// Collect results
 	var results []WorkResult[string]
