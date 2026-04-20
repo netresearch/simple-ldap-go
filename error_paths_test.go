@@ -234,12 +234,122 @@ func TestBulkOps_DisabledByDefault(t *testing.T) {
 	})
 }
 
-// Note: Bulk{Create,Modify,Delete}UsersContext with EnableBulkOps=true is
-// deliberately not unit-tested here — the production code path defers
-// pool.Close() while synchronously ranging over pool.Results() which will not
-// terminate until the worker-pool context times out (default 5 min). That
-// represents a product-code concern that is out of scope for this coverage
-// change and needs a separate fix.
+// Regression tests for the deadlock that used to live in the
+// Bulk{Create,Modify,Delete}UsersContext call sites with EnableBulkOps=true:
+// `defer pool.Close()` ran only after the function returned, but the
+// synchronous `for result := range pool.Results()` loop waited for the
+// result channel to close — which only happens inside Close(). The fix is
+// to call Close() in a goroutine after all items are submitted so the
+// channel drains and then closes, letting the range loop terminate.
+//
+// The tests wrap each bulk call in a 2 s timeout context. The underlying
+// LDAP operations fail immediately (no real server), so the calls must
+// return well within the timeout. Previously they would block for 5+ minutes
+// (worker-pool context timeout) and then still hang on the unclosed result
+// channel, i.e. indefinitely.
+
+func newBulkOpsClient(t *testing.T) *LDAP {
+	t.Helper()
+	// Using an example.com hostname bypasses the eager dial in New() so the
+	// test can construct a client without a live LDAP server. All subsequent
+	// operations will fail at GetConnection time — which is fine: we only
+	// care that the bulk call RETURNS rather than hangs.
+	client, err := New(Config{
+		Server:        "ldap://example.com:389",
+		BaseDN:        "dc=example,dc=com",
+		EnableBulkOps: true,
+	}, "cn=admin,dc=example,dc=com", "pass")
+	require.NoError(t, err)
+	require.NotNil(t, client)
+	return client
+}
+
+// fastBulkConfig returns a WorkerPoolConfig with a short operation timeout so
+// the tests don't wait the 5 min default if the fix regresses. Two workers and
+// a small buffer also exercise the "more items than buffer" case.
+func fastBulkConfig() *WorkerPoolConfig {
+	return &WorkerPoolConfig{
+		WorkerCount: 2,
+		BufferSize:  4,
+		Timeout:     500 * time.Millisecond,
+		FailFast:    false,
+	}
+}
+
+func runWithDeadlockGuard(t *testing.T, name string, fn func()) {
+	t.Helper()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		fn()
+	}()
+	select {
+	case <-done:
+		// OK
+	case <-time.After(5 * time.Second):
+		t.Fatalf("%s deadlocked: did not return within 5s", name)
+	}
+}
+
+func TestBulkCreateUsersContext_NoDeadlock(t *testing.T) {
+	client := newBulkOpsClient(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	// Submit more items than BufferSize to make sure we don't deadlock when
+	// workers block on a full result channel.
+	users := make([]FullUser, 10)
+	for i := range users {
+		users[i] = FullUser{CN: "user"}
+	}
+
+	runWithDeadlockGuard(t, "BulkCreateUsersContext", func() {
+		results, err := client.BulkCreateUsersContext(ctx, users, "pw", fastBulkConfig())
+		// We don't assert on err — the point is that the call RETURNS.
+		// Operations will have failed (no real LDAP server) but they should
+		// either show up as errored results or be skipped via submission
+		// failures; either way the function must return.
+		_ = results
+		_ = err
+	})
+}
+
+func TestBulkModifyUsersContext_NoDeadlock(t *testing.T) {
+	client := newBulkOpsClient(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	mods := make([]UserModification, 10)
+	for i := range mods {
+		mods[i] = UserModification{
+			DN:         "cn=x,dc=example,dc=com",
+			Attributes: map[string][]string{"description": {"d"}},
+		}
+	}
+
+	runWithDeadlockGuard(t, "BulkModifyUsersContext", func() {
+		results, err := client.BulkModifyUsersContext(ctx, mods, fastBulkConfig())
+		_ = results
+		_ = err
+	})
+}
+
+func TestBulkDeleteUsersContext_NoDeadlock(t *testing.T) {
+	client := newBulkOpsClient(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	dns := make([]string, 10)
+	for i := range dns {
+		dns[i] = "cn=x,dc=example,dc=com"
+	}
+
+	runWithDeadlockGuard(t, "BulkDeleteUsersContext", func() {
+		results, err := client.BulkDeleteUsersContext(ctx, dns, fastBulkConfig())
+		_ = results
+		_ = err
+	})
+}
 
 // =============================================================================
 // groups.go — FindGroupByDN/FindGroups error paths
