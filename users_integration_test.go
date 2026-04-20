@@ -4,6 +4,7 @@ package ldap
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -146,4 +147,55 @@ func TestUserCRUDOperationsIntegration(t *testing.T) {
 			t.Logf("DeleteUser cleanup result: %v", err)
 		}
 	})
+}
+
+// TestCreateUserWithSAMAccountNameOnOpenLDAP is the regression test for
+// issue #153: CreateUser on a non-AD directory must round-trip via
+// FindUserBySAMAccountName. The AD-only sAMAccountName attribute is
+// unusable on inetOrgPerson, so the implementation now falls back to
+// storing the value in `uid` — which is exactly what FindUserBy
+// SAMAccountName falls back to on non-AD schemas.
+func TestCreateUserWithSAMAccountNameOnOpenLDAP(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+	tc := SetupTestContainer(t)
+	defer tc.Close(t)
+
+	client := tc.GetLDAPClient(t)
+
+	sam := "regress153"
+	testUser := FullUser{
+		CN:             "Regress 153",
+		FirstName:      "Regress",
+		LastName:       "OneFiftyThree",
+		SAMAccountName: &sam,
+		UserAccountControl: UAC{
+			NormalAccount: true,
+		},
+	}
+
+	dn, err := client.CreateUser(testUser, "password123")
+	require.NoError(t, err, "CreateUser on OpenLDAP must succeed when SAMAccountName is supplied")
+	require.NotEmpty(t, dn)
+
+	// Clean up on any exit — even assertion failures below.
+	defer func() {
+		if delErr := client.DeleteUser(dn); delErr != nil {
+			t.Logf("cleanup DeleteUser: %v", delErr)
+		}
+	}()
+
+	// The round-trip: the user we just created must be findable by
+	// SAMAccountName. Before the fix this returned ErrUserNotFound
+	// because `uid` was never populated on the non-AD code path.
+	found, err := client.FindUserBySAMAccountName(sam)
+	require.NoError(t, err, "FindUserBySAMAccountName must find the user we just created")
+	require.NotNil(t, found)
+	// OpenLDAP normalizes attribute-type case in returned DNs (e.g.
+	// `cn=` vs the `CN=` the client constructs), so compare case-
+	// insensitively.
+	assert.True(t, strings.EqualFold(dn, found.DN()),
+		"DN mismatch: created=%q found=%q", dn, found.DN())
+	assert.Equal(t, sam, found.SAMAccountName)
 }
