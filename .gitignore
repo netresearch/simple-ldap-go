@@ -23,3 +23,6 @@ enhanced_errors
 .DS_Store
 Thumbs.db
 *.test
+
+# Example test runtime artifacts
+examples/structured_logging/ldap.log

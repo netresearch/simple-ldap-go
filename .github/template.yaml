@@ -4,4 +4,4 @@
 template: go-lib
 intentional-drift:
 - path: .github/workflows/ci.yml
-  reason: "coverage-threshold at 55% \u2014 transitional until coverage reaches 80%"
+  reason: "coverage-threshold at 77% \u2014 transitional until coverage reaches 80%; the remaining gap requires an in-repo LDAP test fixture (testcontainers currently gated behind the 'integration' build tag and not exercised by go-check.yml)"
