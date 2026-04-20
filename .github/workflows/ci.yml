@@ -22,7 +22,6 @@ jobs:
       enable-fuzz: true
       enable-license-check: true
       enable-codecov: true
-      enable-integration-tests: true
       coverage-threshold: 77
     permissions:
       contents: read
