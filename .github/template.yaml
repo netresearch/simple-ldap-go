@@ -4,5 +4,7 @@
 template: go-lib
 intentional-drift:
 - path: .github/workflows/ci.yml
-  reason: "coverage-threshold 77 transitional (2.7pp to 80% needs integration tests\
-    \ \u2014 see #140)"
+  reason: "coverage-threshold 77 transitional; enable-integration-tests: true (LDAP\
+    \ testcontainer). E2E deliberately not enabled \u2014 this is a library (no executable\
+    \ surface); the integration tier already exercises end-to-end behaviour against\
+    \ a real OpenLDAP server"
