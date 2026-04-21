@@ -8,3 +8,9 @@ intentional-drift:
     \ testcontainer). E2E deliberately not enabled \u2014 this is a library (no executable\
     \ surface); the integration tier already exercises end-to-end behaviour against\
     \ a real OpenLDAP server"
+- path: .github/workflows/release.yml
+  reason: "cosign 3.x path bug in the reusable release workflow (create bundle file:\
+    \ open : no such file or directory). 'cosign-sign: false' disables keyless signing\
+    \ locally; GitHub artifact attestation (attest: true default) still provides provenance.\
+    \ id-token + attestations permissions added for that attestation. Remove when the\
+    \ reusable release workflow upstream fixes the cosign path issue."
