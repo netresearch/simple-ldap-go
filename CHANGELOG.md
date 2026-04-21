@@ -9,6 +9,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v1.11.0] - 2026-04-22
+
+### Added
+
+Extend every entity struct with the attributes admin UIs typically surface, plus AD-specific audit timestamps. New fields default to zero values when the directory doesn't return them, so existing consumers are unaffected.
+
+- **`User`** gets 11 new fields + three parser helpers ([#160](https://github.com/netresearch/simple-ldap-go/pull/160)):
+  - Identity: `GivenName`, `Surname`, `DisplayName`, `Title`, `Department`, `Company`
+  - Contact: `ManagerDN`, `TelephoneNumber`, `Mobile`, `Office`
+  - Security posture: `AccountExpires` (0 unset / -1 never / Unix seconds), `PwdLastSet`, `MustChangePassword` (true when AD's `pwdLastSet` is 0), `LockoutTime`
+  - Audit: `WhenCreated`, `WhenChanged`
+  - Helpers: `parseAccountExpires`, `parseGeneralizedTime`, `parseFileTimeSeconds`
+- **`Group`** gets `GroupType` (uint32 bitmask), `ManagedByDN`, `WhenCreated`, `WhenChanged`, plus classification helpers `IsSecurity()`, `IsDistribution()`, `Scope()` (`"builtin"` / `"global"` / `"domain-local"` / `"universal"` / `"app-basic"` / `"app-query"` / `""` when unknown) ([#161](https://github.com/netresearch/simple-ldap-go/pull/161)).
+- **`Computer`** gets `ManagedByDN`, `WhenCreated`, `WhenChanged` ([#162](https://github.com/netresearch/simple-ldap-go/pull/162)).
+
+### Changed
+
+- Each entity now has a single `userFields` / `groupFields` / `computerFields` attribute list shared by every internal search call, and a `userFromEntry` / `groupFromEntry` / `computerFromEntry` mapping helper. Inline attribute lists and inline struct constructions are gone.
+
+### Fixed
+
+- `CreateUser` maps `sAMAccountName` → `uid` on non-AD directories so OpenLDAP-backed flows no longer fail ([#155](https://github.com/netresearch/simple-ldap-go/pull/155)).
+- `CreateUser` honours `WithLogger` for init log lines and is safe to call against OpenLDAP.
+- Bulk user operations close the worker pool before ranging over results, removing a race that could surface as a data race or hang ([#146](https://github.com/netresearch/simple-ldap-go/pull/146)).
+- Integration test suite brought back to green and re-enabled on CI ([#151](https://github.com/netresearch/simple-ldap-go/pull/151)).
+
+### Tests
+
+- `users_from_entry_test.go`, `groups_from_entry_test.go`, `computers_from_entry_test.go` — focused coverage for the new mapping helpers (AD full-entry, OpenLDAP fallback, malformed UAC / groupType).
+- `utils_extra_test.go` — covers `parseAccountExpires`, `parseFileTimeSeconds`, `parseGeneralizedTime`.
+- Overall coverage raised from 58.6 % to 77.3 % ([#142](https://github.com/netresearch/simple-ldap-go/pull/142)).
+
+### CI
+
+- Sync with `netresearch/.github` templates/go-lib (#141, #143, #145, #150, #152, #158).
+- Migrate reusable workflow references + absorb optimized-tests into `go-check` / `tests.yml` (#131).
+- Dependabot ecosystem cleanup: drop npm, docker, devcontainers (#159).
+
+---
+
 ## [v1.10.0] - 2026-04-16
 
 ### Fixed
