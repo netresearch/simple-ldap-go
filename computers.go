@@ -13,9 +13,10 @@ import (
 // ErrComputerNotFound is returned when a computer search operation finds no matching entries.
 var ErrComputerNotFound = errors.New("computer not found")
 
-// computerFields is the shared attribute list every internal Computer
-// search requests. Servers silently ignore attribute names they don't
-// know, so a single list works for both AD and OpenLDAP / RFC-4524.
+// computerFields is the shared attribute list for every internal
+// Computer search request. Servers silently ignore attribute names
+// they don't know, so a single list works for both AD and
+// OpenLDAP / RFC-4524 device entries.
 var computerFields = []string{
 	"memberOf", "cn", "sAMAccountName", "userAccountControl",
 	"operatingSystem", "operatingSystemVersion", "operatingSystemServicePack",
@@ -228,6 +229,7 @@ func (l *LDAP) FindComputerByDNContext(ctx context.Context, dn string) (computer
 	if err != nil {
 		l.logger.Error("computer_uac_parsing_failed",
 			slog.String("dn", dn),
+			slog.String("uac", r.Entries[0].GetAttributeValue("userAccountControl")),
 			slog.String("error", err.Error()))
 
 		return nil, err
@@ -352,6 +354,7 @@ func (l *LDAP) FindComputerBySAMAccountNameContext(ctx context.Context, sAMAccou
 	if err != nil {
 		l.logger.Error("computer_uac_parsing_failed",
 			slog.String("sam_account_name", sAMAccountName),
+			slog.String("uac", r.Entries[0].GetAttributeValue("userAccountControl")),
 			slog.String("error", err.Error()))
 
 		return nil, err
@@ -462,6 +465,7 @@ func (l *LDAP) FindComputersContext(ctx context.Context) (computers []Computer, 
 		if cerr != nil {
 			l.logger.Debug("computer_entry_skipped_uac_parsing",
 				slog.String("dn", entry.DN),
+				slog.String("uac", entry.GetAttributeValue("userAccountControl")),
 				slog.String("error", cerr.Error()))
 
 			skipped++
