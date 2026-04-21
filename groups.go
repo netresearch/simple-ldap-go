@@ -104,12 +104,13 @@ func (g Group) Scope() string {
 func groupFromEntry(entry *ldap.Entry) Group {
 	var gt uint32
 	if raw := entry.GetAttributeValue("groupType"); raw != "" {
-		// AD returns groupType as a signed int32 string (e.g.
-		// "-2147483646"). Parse into int64 then cast to uint32 so we
-		// keep the intended bit pattern for both positive and negative
-		// representations.
-		if parsed, err := strconv.ParseInt(raw, 10, 64); err == nil {
-			gt = uint32(parsed)
+		// AD stores groupType as a signed 32-bit integer (e.g.
+		// "-2147483646" = 0x80000002 = GLOBAL|SECURITY). ParseInt
+		// with bitSize=32 rejects anything that wouldn't fit in int32
+		// so the subsequent uint32 conversion is always safe; the
+		// bit pattern is preserved.
+		if parsed, err := strconv.ParseInt(raw, 10, 32); err == nil {
+			gt = uint32(int32(parsed))
 		}
 	}
 
