@@ -13,6 +13,16 @@ import (
 // ErrComputerNotFound is returned when a computer search operation finds no matching entries.
 var ErrComputerNotFound = errors.New("computer not found")
 
+// computerFields is the shared attribute list every internal Computer
+// search requests. Servers silently ignore attribute names they don't
+// know, so a single list works for both AD and OpenLDAP / RFC-4524.
+var computerFields = []string{
+	"memberOf", "cn", "sAMAccountName", "userAccountControl",
+	"operatingSystem", "operatingSystemVersion", "operatingSystemServicePack",
+	"description", "dNSHostName", "lastLogonTimestamp",
+	"managedBy", "whenCreated", "whenChanged",
+}
+
 // Computer represents an LDAP computer object with common attributes.
 type Computer struct {
 	Object
@@ -32,8 +42,62 @@ type Computer struct {
 	ServicePack string
 	// LastLogon contains the timestamp of the last logon (from lastLogonTimestamp, replicated).
 	LastLogon int64
+	// ManagedByDN is the distinguished name of the user/group that owns
+	// this computer (from `managedBy`), or "" when unset.
+	ManagedByDN string
+	// WhenCreated is the Unix-seconds timestamp at which the entry was
+	// created (from `whenCreated`, parsed via parseGeneralizedTime).
+	// 0 when the attribute is absent (OpenLDAP / RFC-4524 entries).
+	WhenCreated int64
+	// WhenChanged is the Unix-seconds timestamp of the most recent
+	// modification. 0 when absent.
+	WhenChanged int64
 	// Groups contains a list of distinguished names (DNs) of groups the computer belongs to.
 	Groups []string
+}
+
+// computerFromEntry maps an LDAP entry to a Computer, handling the
+// AD vs OpenLDAP enablement+account-name split. Returns a non-nil
+// error only when AD's userAccountControl is present but malformed;
+// OpenLDAP entries never produce an error. Callers can choose to
+// propagate the error (FindComputerByDN) or skip the entry
+// (FindComputers).
+func computerFromEntry(entry *ldap.Entry) (Computer, error) {
+	var (
+		enabled        bool
+		samAccountName string
+	)
+
+	if uac := entry.GetAttributeValue("userAccountControl"); uac != "" {
+		var err error
+		enabled, err = parseObjectEnabled(uac)
+		if err != nil {
+			return Computer{}, err
+		}
+
+		samAccountName = entry.GetAttributeValue("sAMAccountName")
+	} else {
+		// OpenLDAP / RFC-4524 device entries: no userAccountControl —
+		// default to enabled and use cn as the account name.
+		enabled = true
+		samAccountName = entry.GetAttributeValue("cn")
+	}
+
+	return Computer{
+		Object:         objectFromEntry(entry),
+		SAMAccountName: samAccountName,
+		Enabled:        enabled,
+		Description:    entry.GetAttributeValue("description"),
+		DNSHostName:    entry.GetAttributeValue("dNSHostName"),
+		OS:             entry.GetAttributeValue("operatingSystem"),
+		OSVersion:      entry.GetAttributeValue("operatingSystemVersion"),
+		ServicePack:    entry.GetAttributeValue("operatingSystemServicePack"),
+		LastLogon:      parseLastLogonTimestamp(entry.GetAttributeValue("lastLogonTimestamp")),
+		ManagedByDN:    entry.GetAttributeValue("managedBy"),
+		WhenCreated:    parseGeneralizedTime(entry.GetAttributeValue("whenCreated")),
+		WhenChanged:    parseGeneralizedTime(entry.GetAttributeValue("whenChanged")),
+		Groups:         entry.GetAttributeValues("memberOf"),
+	}, nil
 }
 
 // FullComputer represents a complete LDAP computer object for creation and modification operations.
@@ -124,7 +188,7 @@ func (l *LDAP) FindComputerByDNContext(ctx context.Context, dn string) (computer
 		Scope:        ldap.ScopeBaseObject,
 		DerefAliases: ldap.NeverDerefAliases,
 		Filter:       filter,
-		Attributes:   []string{"memberOf", "cn", "sAMAccountName", "userAccountControl", "operatingSystem", "operatingSystemVersion", "operatingSystemServicePack", "description", "dNSHostName", "lastLogonTimestamp"},
+		Attributes:   computerFields,
 	})
 	if err != nil {
 		// If LDAP error indicates object not found, return ErrComputerNotFound
@@ -160,43 +224,16 @@ func (l *LDAP) FindComputerByDNContext(ctx context.Context, dn string) (computer
 		return nil, ErrDNDuplicated
 	}
 
-	var enabled bool
-	var samAccountName string
-
-	// Handle Active Directory vs OpenLDAP compatibility
-	if uac := r.Entries[0].GetAttributeValue("userAccountControl"); uac != "" {
-		// Active Directory
-		var err error
-		enabled, err = parseObjectEnabled(uac)
-		if err != nil {
-			l.logger.Error("computer_uac_parsing_failed",
-				slog.String("dn", dn),
-				slog.String("uac", uac),
-				slog.String("error", err.Error()))
-			return nil, err
-		}
-		samAccountName = r.Entries[0].GetAttributeValue("sAMAccountName")
-	} else {
-		// OpenLDAP - devices are typically enabled, use cn as account name
-		enabled = true
-		samAccountName = r.Entries[0].GetAttributeValue("cn")
-		l.logger.Debug("computer_using_openldap_compatibility",
+	cm, err := computerFromEntry(r.Entries[0])
+	if err != nil {
+		l.logger.Error("computer_uac_parsing_failed",
 			slog.String("dn", dn),
-			slog.String("account_name", samAccountName))
+			slog.String("error", err.Error()))
+
+		return nil, err
 	}
 
-	computer = &Computer{
-		Object:         objectFromEntry(r.Entries[0]),
-		SAMAccountName: samAccountName,
-		Enabled:        enabled,
-		Description:    r.Entries[0].GetAttributeValue("description"),
-		DNSHostName:    r.Entries[0].GetAttributeValue("dNSHostName"),
-		OS:             r.Entries[0].GetAttributeValue("operatingSystem"),
-		OSVersion:      r.Entries[0].GetAttributeValue("operatingSystemVersion"),
-		ServicePack:    r.Entries[0].GetAttributeValue("operatingSystemServicePack"),
-		LastLogon:      parseLastLogonTimestamp(r.Entries[0].GetAttributeValue("lastLogonTimestamp")),
-		Groups:         r.Entries[0].GetAttributeValues("memberOf"),
-	}
+	computer = &cm
 
 	l.logger.Debug("computer_found_by_dn",
 		slog.String("operation", "FindComputerByDN"),
@@ -283,7 +320,7 @@ func (l *LDAP) FindComputerBySAMAccountNameContext(ctx context.Context, sAMAccou
 		Scope:        ldap.ScopeWholeSubtree,
 		DerefAliases: ldap.NeverDerefAliases,
 		Filter:       filter,
-		Attributes:   []string{"memberOf", "cn", "sAMAccountName", "userAccountControl", "operatingSystem", "operatingSystemVersion", "operatingSystemServicePack", "description", "dNSHostName", "lastLogonTimestamp"},
+		Attributes:   computerFields,
 	})
 	if err != nil {
 		l.logger.Error("computer_search_by_sam_account_failed",
@@ -311,43 +348,16 @@ func (l *LDAP) FindComputerBySAMAccountNameContext(ctx context.Context, sAMAccou
 		return nil, ErrSAMAccountNameDuplicated
 	}
 
-	var enabled bool
-	var samAccountName string
-
-	// Handle Active Directory vs OpenLDAP compatibility
-	if uac := r.Entries[0].GetAttributeValue("userAccountControl"); uac != "" {
-		// Active Directory
-		var err error
-		enabled, err = parseObjectEnabled(uac)
-		if err != nil {
-			l.logger.Error("computer_uac_parsing_failed",
-				slog.String("sam_account_name", sAMAccountName),
-				slog.String("uac", uac),
-				slog.String("error", err.Error()))
-			return nil, err
-		}
-		samAccountName = r.Entries[0].GetAttributeValue("sAMAccountName")
-	} else {
-		// OpenLDAP - devices are typically enabled, use cn as account name
-		enabled = true
-		samAccountName = r.Entries[0].GetAttributeValue("cn")
-		l.logger.Debug("computer_using_openldap_compatibility",
+	cm, err := computerFromEntry(r.Entries[0])
+	if err != nil {
+		l.logger.Error("computer_uac_parsing_failed",
 			slog.String("sam_account_name", sAMAccountName),
-			slog.String("account_name", samAccountName))
+			slog.String("error", err.Error()))
+
+		return nil, err
 	}
 
-	computer = &Computer{
-		Object:         objectFromEntry(r.Entries[0]),
-		SAMAccountName: samAccountName,
-		Enabled:        enabled,
-		Description:    r.Entries[0].GetAttributeValue("description"),
-		DNSHostName:    r.Entries[0].GetAttributeValue("dNSHostName"),
-		OS:             r.Entries[0].GetAttributeValue("operatingSystem"),
-		OSVersion:      r.Entries[0].GetAttributeValue("operatingSystemVersion"),
-		ServicePack:    r.Entries[0].GetAttributeValue("operatingSystemServicePack"),
-		LastLogon:      parseLastLogonTimestamp(r.Entries[0].GetAttributeValue("lastLogonTimestamp")),
-		Groups:         r.Entries[0].GetAttributeValues("memberOf"),
-	}
+	computer = &cm
 
 	l.logger.Debug("computer_found_by_sam_account",
 		slog.String("operation", "FindComputerBySAMAccountName"),
@@ -424,7 +434,7 @@ func (l *LDAP) FindComputersContext(ctx context.Context) (computers []Computer, 
 		Scope:        ldap.ScopeWholeSubtree,
 		DerefAliases: ldap.NeverDerefAliases,
 		Filter:       filter,
-		Attributes:   []string{"cn", "memberOf", "sAMAccountName", "userAccountControl", "operatingSystem", "operatingSystemVersion", "operatingSystemServicePack", "description", "dNSHostName", "lastLogonTimestamp"},
+		Attributes:   computerFields,
 	})
 	if err != nil {
 		l.logger.Error("computer_list_search_failed",
@@ -448,39 +458,15 @@ func (l *LDAP) FindComputersContext(ctx context.Context) (computers []Computer, 
 		default:
 		}
 
-		// Handle Active Directory vs OpenLDAP compatibility for parsing
-		var enabled bool
-		var samAccountName string
-		if uac := entry.GetAttributeValue("userAccountControl"); uac != "" {
-			// Active Directory
-			var err error
-			enabled, err = parseObjectEnabled(uac)
-			if err != nil {
-				l.logger.Debug("computer_entry_skipped_uac_parsing",
-					slog.String("dn", entry.DN),
-					slog.String("uac", uac),
-					slog.String("error", err.Error()))
-				skipped++
-				continue
-			}
-			samAccountName = entry.GetAttributeValue("sAMAccountName")
-		} else {
-			// OpenLDAP - devices are typically enabled, use cn as account name
-			enabled = true
-			samAccountName = entry.GetAttributeValue("cn")
-		}
+		computer, cerr := computerFromEntry(entry)
+		if cerr != nil {
+			l.logger.Debug("computer_entry_skipped_uac_parsing",
+				slog.String("dn", entry.DN),
+				slog.String("error", cerr.Error()))
 
-		computer := Computer{
-			Object:         objectFromEntry(entry),
-			SAMAccountName: samAccountName,
-			Enabled:        enabled,
-			Description:    entry.GetAttributeValue("description"),
-			DNSHostName:    entry.GetAttributeValue("dNSHostName"),
-			OS:             entry.GetAttributeValue("operatingSystem"),
-			OSVersion:      entry.GetAttributeValue("operatingSystemVersion"),
-			ServicePack:    entry.GetAttributeValue("operatingSystemServicePack"),
-			LastLogon:      parseLastLogonTimestamp(entry.GetAttributeValue("lastLogonTimestamp")),
-			Groups:         entry.GetAttributeValues("memberOf"),
+			skipped++
+
+			continue
 		}
 
 		computers = append(computers, computer)
