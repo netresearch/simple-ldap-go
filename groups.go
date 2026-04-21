@@ -228,7 +228,7 @@ func (l *LDAP) FindGroupByDNContext(ctx context.Context, dn string) (group *Grou
 	params := dnSearchParams{
 		operation:   "FindGroupByDN",
 		filter:      "(|(objectClass=group)(objectClass=groupOfNames))",
-		attributes:  []string{"cn", "description", "member", "memberOf"},
+		attributes:  groupFields,
 		notFoundErr: ErrGroupNotFound,
 		logPrefix:   "group_",
 	}
