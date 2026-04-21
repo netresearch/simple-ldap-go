@@ -121,6 +121,64 @@ func parseLastLogonTimestamp(value string) int64 {
 	return unixNano / 1e9 // Convert to seconds
 }
 
+// parseFileTimeSeconds parses an Active Directory FILETIME string
+// (100-nanosecond intervals since 1601-01-01 UTC) into Unix seconds.
+// Returns 0 when the value is empty, "0", or malformed. Used for
+// attributes such as pwdLastSet and lockoutTime.
+func parseFileTimeSeconds(value string) int64 {
+	return parseLastLogonTimestamp(value)
+}
+
+// parseAccountExpires parses the Active Directory accountExpires
+// attribute. Returns:
+//
+//   - 0 when unset or "0" (interpreted as "no expiry specified")
+//   - -1 when equal to the sentinel value 9223372036854775807 or the
+//     unsigned equivalent (0x7FFFFFFFFFFFFFFF) — conventionally "never
+//     expires"
+//   - Otherwise the Unix-seconds timestamp of expiry.
+func parseAccountExpires(value string) int64 {
+	if value == "" || value == "0" {
+		return 0
+	}
+
+	raw, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		return 0
+	}
+
+	// Both signed-max and AD's documented "never" value map to -1.
+	if raw == int64(accountExpiresNever) || raw == 9223372036854775807 {
+		return -1
+	}
+
+	return parseLastLogonTimestamp(value)
+}
+
+// parseGeneralizedTime parses an LDAP GeneralizedTime string
+// (RFC 4517 §3.3.13) into Unix seconds. Accepts the common AD
+// variants: "YYYYMMDDHHMMSS.fZ" and "YYYYMMDDHHMMSSZ". Returns 0
+// when parsing fails so callers can treat it as "unknown".
+func parseGeneralizedTime(value string) int64 {
+	if value == "" {
+		return 0
+	}
+
+	layouts := []string{
+		"20060102150405.0Z",
+		"20060102150405Z",
+		"20060102150405.000Z",
+	}
+
+	for _, layout := range layouts {
+		if t, err := time.Parse(layout, value); err == nil {
+			return t.Unix()
+		}
+	}
+
+	return 0
+}
+
 // convertAccountExpires converts a Go time.Time to Active Directory accountExpires format.
 // Active Directory stores accountExpires as the number of 100-nanosecond intervals since January 1, 1601 UTC.
 // A nil time represents "never expires" and returns the maximum possible value.
