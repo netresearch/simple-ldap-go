@@ -129,13 +129,18 @@ func parseFileTimeSeconds(value string) int64 {
 	return parseLastLogonTimestamp(value)
 }
 
+// accountExpiresNeverSigned is the "never expires" sentinel AD stores in
+// `accountExpires` (0x7FFFFFFFFFFFFFFF = math.MaxInt64). Declared as a
+// signed int64 so parseAccountExpires can compare the decoded value
+// without the uint64→int64 cast gosec G115 flags.
+const accountExpiresNeverSigned int64 = 0x7FFFFFFFFFFFFFFF
+
 // parseAccountExpires parses the Active Directory accountExpires
 // attribute. Returns:
 //
 //   - 0 when unset or "0" (interpreted as "no expiry specified")
-//   - -1 when equal to the sentinel value 9223372036854775807 or the
-//     unsigned equivalent (0x7FFFFFFFFFFFFFFF) — conventionally "never
-//     expires"
+//   - -1 when equal to the AD "never expires" sentinel
+//     (0x7FFFFFFFFFFFFFFF / 9223372036854775807)
 //   - Otherwise the Unix-seconds timestamp of expiry.
 func parseAccountExpires(value string) int64 {
 	if value == "" || value == "0" {
@@ -147,8 +152,7 @@ func parseAccountExpires(value string) int64 {
 		return 0
 	}
 
-	// Both signed-max and AD's documented "never" value map to -1.
-	if raw == int64(accountExpiresNever) || raw == 9223372036854775807 {
+	if raw == accountExpiresNeverSigned {
 		return -1
 	}
 
