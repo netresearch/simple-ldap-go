@@ -19,33 +19,3 @@ updates:
     groups:
       github-actions:
         patterns: ['*']
-
-  - package-ecosystem: docker
-    directory: /
-    schedule:
-      interval: weekly
-      day: monday
-    open-pull-requests-limit: 3
-    groups:
-      docker:
-        patterns: ['*']
-
-  - package-ecosystem: npm
-    directory: /
-    schedule:
-      interval: weekly
-      day: monday
-    open-pull-requests-limit: 5
-    groups:
-      npm:
-        patterns: ['*']
-
-  - package-ecosystem: devcontainers
-    directory: /
-    schedule:
-      interval: weekly
-      day: monday
-    open-pull-requests-limit: 2
-    groups:
-      devcontainers:
-        patterns: ['*']
