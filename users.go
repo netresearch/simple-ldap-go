@@ -77,8 +77,11 @@ type User struct {
 	Mobile string
 	// Office is a human-readable office location (physicalDeliveryOfficeName).
 	Office string
-	// AccountExpires is the Unix-seconds timestamp at which the account expires,
-	// 0 when unset, or -1 for "never" (AD's 9223372036854775807 / 0).
+	// AccountExpires is the Unix-seconds timestamp at which the account expires.
+	// Three-value meaning:
+	//   0  — not set (no expiry recorded on the entry)
+	//   -1 — never expires (AD's sentinel 9223372036854775807 = 0x7FFFFFFFFFFFFFFF)
+	//   >0 — concrete expiry timestamp in Unix seconds.
 	AccountExpires int64
 	// PwdLastSet is the Unix-seconds timestamp at which the user last changed
 	// their password, 0 when unset. When the AD value is 0 it means the user
