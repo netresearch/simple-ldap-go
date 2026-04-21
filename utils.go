@@ -121,6 +121,83 @@ func parseLastLogonTimestamp(value string) int64 {
 	return unixNano / 1e9 // Convert to seconds
 }
 
+// parseFileTimeSeconds parses an Active Directory FILETIME string
+// (100-nanosecond intervals since 1601-01-01 UTC) into Unix seconds.
+// Returns 0 when the value is empty, "0", or malformed. Used for
+// attributes such as pwdLastSet and lockoutTime.
+func parseFileTimeSeconds(value string) int64 {
+	return parseLastLogonTimestamp(value)
+}
+
+// accountExpiresNeverSigned is the "never expires" sentinel AD stores in
+// `accountExpires` (0x7FFFFFFFFFFFFFFF = math.MaxInt64). Declared as a
+// signed int64 so parseAccountExpires can compare the decoded value
+// without the uint64→int64 cast gosec G115 flags.
+const accountExpiresNeverSigned int64 = 0x7FFFFFFFFFFFFFFF
+
+// parseAccountExpires parses the Active Directory accountExpires
+// attribute. The directory transmits the value as a base-10 decimal
+// string (this function does NOT accept 0x-prefixed hex input); the
+// constant 0x7FFFFFFFFFFFFFFF is given in hex only for reference and
+// equals the decimal sentinel 9223372036854775807. Returns:
+//
+//   - 0 when the value is empty or "0" (interpreted as "no expiry
+//     specified")
+//   - -1 when equal to the AD "never expires" sentinel
+//     (decimal 9223372036854775807)
+//   - Otherwise the Unix-seconds timestamp of expiry.
+func parseAccountExpires(value string) int64 {
+	if value == "" || value == "0" {
+		return 0
+	}
+
+	raw, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		return 0
+	}
+
+	if raw == accountExpiresNeverSigned {
+		return -1
+	}
+
+	return parseLastLogonTimestamp(value)
+}
+
+// parseGeneralizedTime parses an LDAP GeneralizedTime string
+// (RFC 4517 §3.3.13) into Unix seconds. Accepts the two common AD
+// variants:
+//
+//   - "YYYYMMDDHHMMSSZ" (no fraction)
+//   - "YYYYMMDDHHMMSS.fffZ" (any number of fractional digits, 1 to
+//     nanosecond precision)
+//
+// The fractional component is discarded (we only return seconds).
+// Returns 0 when parsing fails so callers can treat it as "unknown".
+func parseGeneralizedTime(value string) int64 {
+	if value == "" {
+		return 0
+	}
+
+	// Strip the fractional portion before calling time.Parse so we
+	// accept any number of fractional digits, not just the fixed .0
+	// / .000 layouts. Format is "YYYYMMDDHHMMSS[.frac]Z" (14 fixed
+	// numeric chars, optional dot+digits, trailing Z).
+	trimmed := value
+	if len(trimmed) >= 15 && trimmed[14] == '.' {
+		zIdx := len(trimmed) - 1
+		if trimmed[zIdx] != 'Z' {
+			return 0
+		}
+		trimmed = trimmed[:14] + "Z"
+	}
+
+	if t, err := time.Parse("20060102150405Z", trimmed); err == nil {
+		return t.Unix()
+	}
+
+	return 0
+}
+
 // convertAccountExpires converts a Go time.Time to Active Directory accountExpires format.
 // Active Directory stores accountExpires as the number of 100-nanosecond intervals since January 1, 1601 UTC.
 // A nil time represents "never expires" and returns the maximum possible value.

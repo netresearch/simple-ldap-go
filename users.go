@@ -27,8 +27,21 @@ var (
 	// accountExpiresNever represents the value for accounts that never expire in Active Directory.
 	accountExpiresNever uint64 = 0x7FFFFFFFFFFFFFFF
 
-	// userFields contains the standard LDAP attributes retrieved for user objects.
-	userFields = []string{"memberOf", "cn", "sAMAccountName", "mail", "userAccountControl", "description", "lastLogonTimestamp"}
+	// userFields contains the standard LDAP attributes retrieved for user
+	// objects. The list is shared between AD and OpenLDAP searches — servers
+	// silently ignore attribute names they do not know.
+	userFields = []string{
+		// Core identity
+		"memberOf", "cn", "sAMAccountName", "uid", "mail",
+		"userAccountControl", "description", "lastLogonTimestamp",
+		// Extended identity / org
+		"givenName", "sn", "displayName", "title", "department", "company",
+		"manager", "telephoneNumber", "mobile", "physicalDeliveryOfficeName",
+		// Security posture
+		"accountExpires", "pwdLastSet", "lockoutTime",
+		// Audit
+		"whenCreated", "whenChanged",
+	}
 )
 
 // User represents an LDAP user object with common attributes.
@@ -44,6 +57,46 @@ type User struct {
 	Mail *string
 	// LastLogon contains the timestamp of the last logon (from lastLogonTimestamp, replicated).
 	LastLogon int64
+	// GivenName is the user's first (given) name.
+	GivenName string
+	// Surname is the user's last (family) name (LDAP `sn`).
+	Surname string
+	// DisplayName is the user's presentation name — may differ from CN.
+	DisplayName string
+	// Title is the user's job title.
+	Title string
+	// Department names the user's department.
+	Department string
+	// Company names the user's employer organisation.
+	Company string
+	// ManagerDN is the distinguished name of the user's manager, or "" when unset.
+	ManagerDN string
+	// TelephoneNumber is the user's office phone.
+	TelephoneNumber string
+	// Mobile is the user's mobile phone.
+	Mobile string
+	// Office is a human-readable office location (physicalDeliveryOfficeName).
+	Office string
+	// AccountExpires is the Unix-seconds timestamp at which the account expires.
+	// Three-value meaning:
+	//   0  — not set (no expiry recorded on the entry)
+	//   -1 — never expires (AD's sentinel 9223372036854775807 = 0x7FFFFFFFFFFFFFFF)
+	//   >0 — concrete expiry timestamp in Unix seconds.
+	AccountExpires int64
+	// PwdLastSet is the Unix-seconds timestamp at which the user last changed
+	// their password, 0 when unset. When the AD value is 0 it means the user
+	// must change password at next logon; callers should consult MustChangePassword.
+	PwdLastSet int64
+	// MustChangePassword is true when pwdLastSet is 0 in AD (forces change
+	// on next logon). OpenLDAP servers always report false.
+	MustChangePassword bool
+	// LockoutTime is the Unix-seconds timestamp of the most recent lockout,
+	// 0 when the account is not currently locked.
+	LockoutTime int64
+	// WhenCreated is the Unix-seconds timestamp at which the entry was created.
+	WhenCreated int64
+	// WhenChanged is the Unix-seconds timestamp at which the entry was last modified.
+	WhenChanged int64
 	// Groups contains a list of distinguished names (DNs) of groups the user belongs to.
 	Groups []string
 }
@@ -74,14 +127,33 @@ func userFromEntry(entry *ldap.Entry) (*User, error) {
 
 	mail := getFirstNonEmptyAttribute(entry, "mail")
 
+	pwdLastSet := parseFileTimeSeconds(entry.GetAttributeValue("pwdLastSet"))
+	mustChange := entry.GetAttributeValue("pwdLastSet") == "0"
+
 	return &User{
-		Object:         objectFromEntry(entry),
-		Enabled:        enabled,
-		SAMAccountName: samAccountName,
-		Description:    entry.GetAttributeValue("description"),
-		Mail:           mail,
-		LastLogon:      parseLastLogonTimestamp(entry.GetAttributeValue("lastLogonTimestamp")),
-		Groups:         entry.GetAttributeValues("memberOf"),
+		Object:             objectFromEntry(entry),
+		Enabled:            enabled,
+		SAMAccountName:     samAccountName,
+		Description:        entry.GetAttributeValue("description"),
+		Mail:               mail,
+		LastLogon:          parseLastLogonTimestamp(entry.GetAttributeValue("lastLogonTimestamp")),
+		GivenName:          entry.GetAttributeValue("givenName"),
+		Surname:            entry.GetAttributeValue("sn"),
+		DisplayName:        entry.GetAttributeValue("displayName"),
+		Title:              entry.GetAttributeValue("title"),
+		Department:         entry.GetAttributeValue("department"),
+		Company:            entry.GetAttributeValue("company"),
+		ManagerDN:          entry.GetAttributeValue("manager"),
+		TelephoneNumber:    entry.GetAttributeValue("telephoneNumber"),
+		Mobile:             entry.GetAttributeValue("mobile"),
+		Office:             entry.GetAttributeValue("physicalDeliveryOfficeName"),
+		AccountExpires:     parseAccountExpires(entry.GetAttributeValue("accountExpires")),
+		PwdLastSet:         pwdLastSet,
+		MustChangePassword: mustChange,
+		LockoutTime:        parseFileTimeSeconds(entry.GetAttributeValue("lockoutTime")),
+		WhenCreated:        parseGeneralizedTime(entry.GetAttributeValue("whenCreated")),
+		WhenChanged:        parseGeneralizedTime(entry.GetAttributeValue("whenChanged")),
+		Groups:             entry.GetAttributeValues("memberOf"),
 	}, nil
 }
 
@@ -398,7 +470,7 @@ func (l *LDAP) FindUserBySAMAccountNameContext(ctx context.Context, sAMAccountNa
 			Scope:        ldap.ScopeWholeSubtree,
 			DerefAliases: ldap.NeverDerefAliases,
 			Filter:       filter,
-			Attributes:   []string{"memberOf", "cn", "uid", "mail", "description"}, // OpenLDAP compatible attributes
+			Attributes:   userFields, // shared AD + OpenLDAP attribute list (unknown attrs are ignored by the server)
 		})
 		if err != nil {
 			l.logger.Error("user_search_openldap_failed",
@@ -666,7 +738,7 @@ func (l *LDAP) FindUserByMailContext(ctx context.Context, mail string) (user *Us
 		Scope:        ldap.ScopeWholeSubtree,
 		DerefAliases: ldap.NeverDerefAliases,
 		Filter:       filter,
-		Attributes:   []string{"memberOf", "cn", "sAMAccountName", "uid", "mail", "userAccountControl", "description"}, // Include both AD and OpenLDAP attributes
+		Attributes:   userFields, // shared AD + OpenLDAP attribute list
 	})
 	if err != nil {
 		l.logger.Error("user_search_by_mail_failed",
@@ -819,7 +891,7 @@ func (l *LDAP) FindUsersContext(ctx context.Context) (users []User, err error) {
 		Scope:        ldap.ScopeWholeSubtree,
 		DerefAliases: ldap.NeverDerefAliases,
 		Filter:       filter,
-		Attributes:   []string{"memberOf", "cn", "sAMAccountName", "uid", "mail", "userAccountControl", "description"}, // Include both AD and OpenLDAP attributes
+		Attributes:   userFields, // shared AD + OpenLDAP attribute list
 	})
 	if err != nil {
 		l.logger.Error("user_list_search_failed",
