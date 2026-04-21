@@ -98,21 +98,44 @@ func (g Group) Scope() string {
 	}
 }
 
+// parseGroupType decodes an AD groupType attribute string into the
+// raw 32-bit bitmask. AD serialises the value as a signed 32-bit
+// decimal (e.g. "-2147483646" = 0x80000002 = GLOBAL|SECURITY).
+//
+// We try ParseUint(10, 32) first because positive bitmasks ("8" for
+// UNIVERSAL, "2" for GLOBAL) are far more common and that path is
+// free of any signed/unsigned conversion. Only when the value is a
+// negative decimal do we fall back to signed parsing; the result
+// fits in int32 by construction (bitSize=32) so the subsequent
+// reinterpretation to uint32 preserves the bit pattern without any
+// possibility of truncation.
+//
+// Returns 0 when the input is empty or malformed — callers treat
+// that as "unknown kind" rather than any specific AD group.
+func parseGroupType(raw string) uint32 {
+	if raw == "" {
+		return 0
+	}
+
+	if u, err := strconv.ParseUint(raw, 10, 32); err == nil {
+		return uint32(u)
+	}
+
+	i, err := strconv.ParseInt(raw, 10, 32)
+	if err != nil {
+		return 0
+	}
+
+	// i fits in int32 by bitSize=32 above; the two's-complement
+	// bit pattern survives the unsigned reinterpretation.
+	return uint32(i) //nolint:gosec // G115: int32→uint32 bit-reinterpret, range enforced by ParseInt(bitSize=32).
+}
+
 // groupFromEntry maps an LDAP entry to a Group, including the extended
 // metadata (groupType, managedBy, whenCreated, whenChanged). Shared by
 // FindGroupByDN and FindGroups so the mapping logic lives in one place.
 func groupFromEntry(entry *ldap.Entry) Group {
-	var gt uint32
-	if raw := entry.GetAttributeValue("groupType"); raw != "" {
-		// AD stores groupType as a signed 32-bit integer (e.g.
-		// "-2147483646" = 0x80000002 = GLOBAL|SECURITY). ParseInt
-		// with bitSize=32 rejects anything that wouldn't fit in int32
-		// so the subsequent uint32 conversion is always safe; the
-		// bit pattern is preserved.
-		if parsed, err := strconv.ParseInt(raw, 10, 32); err == nil {
-			gt = uint32(int32(parsed))
-		}
-	}
+	gt := parseGroupType(entry.GetAttributeValue("groupType"))
 
 	return Group{
 		Object:      objectFromEntry(entry),
