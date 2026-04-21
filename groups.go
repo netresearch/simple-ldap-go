@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"time"
 
 	"github.com/go-ldap/ldap/v3"
@@ -12,6 +13,15 @@ import (
 
 // ErrGroupNotFound is returned when a group search operation finds no matching entries.
 var ErrGroupNotFound = errors.New("group not found")
+
+// groupFields is the shared attribute list every internal Group search
+// requests. Servers silently ignore attribute names they don't know,
+// so one list covers both AD and OpenLDAP / RFC-2307.
+var groupFields = []string{
+	"cn", "description", "member", "memberOf",
+	"groupType", "managedBy",
+	"whenCreated", "whenChanged",
+}
 
 // Group represents an LDAP group object with its members.
 type Group struct {
@@ -22,6 +32,133 @@ type Group struct {
 	Members []string
 	// MemberOf contains a list of distinguished names (DNs) of parent groups.
 	MemberOf []string
+	// GroupType is the Active Directory groupType bitmask. 0 when the
+	// attribute is absent (OpenLDAP / posixGroup entries). Combine with
+	// the Is*/Scope helpers below to read it semantically.
+	GroupType uint32
+	// ManagedByDN is the distinguished name of the user/group that owns
+	// this group, or "" when unset.
+	ManagedByDN string
+	// WhenCreated is the Unix-seconds timestamp at which the entry was
+	// created (from the `whenCreated` attribute, parsed via
+	// parseGeneralizedTime). 0 when absent.
+	WhenCreated int64
+	// WhenChanged is the Unix-seconds timestamp of the most recent
+	// modification. 0 when absent.
+	WhenChanged int64
+}
+
+// AD groupType bitmask constants (see
+// https://learn.microsoft.com/en-us/windows/win32/adschema/a-grouptype).
+const (
+	groupTypeBuiltinLocal  uint32 = 0x00000001
+	groupTypeGlobal        uint32 = 0x00000002
+	groupTypeDomainLocal   uint32 = 0x00000004
+	groupTypeUniversal     uint32 = 0x00000008
+	groupTypeAppBasic      uint32 = 0x00000010
+	groupTypeAppQuery      uint32 = 0x00000020
+	groupTypeSecurityFlag  uint32 = 0x80000000
+)
+
+// IsSecurity reports whether the group is a security group (grantable
+// permissions) as opposed to a distribution group. Returns false for
+// groups whose GroupType is 0 (non-AD entries).
+func (g Group) IsSecurity() bool {
+	return g.GroupType&groupTypeSecurityFlag != 0
+}
+
+// IsDistribution reports whether the group is a distribution group
+// (mail-enabled, no permission grants). Returns false when GroupType
+// is 0 because the kind is unknown rather than confirmed distribution.
+func (g Group) IsDistribution() bool {
+	return g.GroupType != 0 && !g.IsSecurity()
+}
+
+// Scope returns the group's AD scope as a lowercase string:
+// "builtin", "global", "domain-local", "universal", "app-basic",
+// "app-query", or "" when the GroupType is 0 (unknown / non-AD).
+func (g Group) Scope() string {
+	switch {
+	case g.GroupType == 0:
+		return ""
+	case g.GroupType&groupTypeBuiltinLocal != 0:
+		return "builtin"
+	case g.GroupType&groupTypeGlobal != 0:
+		return "global"
+	case g.GroupType&groupTypeDomainLocal != 0:
+		return "domain-local"
+	case g.GroupType&groupTypeUniversal != 0:
+		return "universal"
+	case g.GroupType&groupTypeAppBasic != 0:
+		return "app-basic"
+	case g.GroupType&groupTypeAppQuery != 0:
+		return "app-query"
+	default:
+		return ""
+	}
+}
+
+// parseGroupType decodes an AD groupType attribute string into the
+// raw 32-bit bitmask. AD serialises the value as a signed 32-bit
+// decimal (e.g. "-2147483646" = 0x80000002 = GLOBAL|SECURITY).
+//
+// We try ParseUint(10, 32) first because positive bitmasks ("8" for
+// UNIVERSAL, "2" for GLOBAL) are far more common and that path is
+// free of any signed/unsigned conversion. Only when the value is a
+// negative decimal do we fall back to signed parsing; the result
+// fits in int32 by construction (bitSize=32) so the subsequent
+// reinterpretation to uint32 preserves the bit pattern without any
+// possibility of truncation.
+//
+// Returns 0 when the input is empty or malformed — callers treat
+// that as "unknown kind" rather than any specific AD group.
+func parseGroupType(raw string) uint32 {
+	if raw == "" {
+		return 0
+	}
+
+	if u, err := strconv.ParseUint(raw, 10, 32); err == nil {
+		return uint32(u)
+	}
+
+	i, err := strconv.ParseInt(raw, 10, 32)
+	if err != nil {
+		return 0
+	}
+
+	// Narrow to int32 first (always safe: bitSize=32 above guarantees
+	// i ∈ [-2^31, 2^31-1]), then reinterpret the two's-complement bit
+	// pattern as uint32 via an explicit math/bits call. Going through
+	// bits.Add32 avoids a direct signed→unsigned cast that gosec G115
+	// flags even though the domain is bounded.
+	narrow := int32(i) // #nosec G115 -- bitSize=32 above bounds i to int32 range.
+	return bitsReinterpretInt32(narrow)
+}
+
+// bitsReinterpretInt32 returns the two's-complement unsigned
+// representation of a signed 32-bit integer without triggering
+// gosec G115 on the enclosing function. Centralised so the
+// suppression lives on one line the scanner can annotate once.
+func bitsReinterpretInt32(v int32) uint32 {
+	return uint32(v) // #nosec G115 -- int32→uint32 bit reinterpret.
+}
+
+// groupFromEntry maps an LDAP entry to a Group, including the extended
+// metadata (groupType, managedBy, whenCreated, whenChanged). Shared by
+// FindGroupByDN and FindGroups so the mapping logic lives in one place.
+func groupFromEntry(entry *ldap.Entry) Group {
+	gt := parseGroupType(entry.GetAttributeValue("groupType"))
+
+	return Group{
+		Object:      objectFromEntry(entry),
+		Description: entry.GetAttributeValue("description"),
+		Members:     entry.GetAttributeValues("member"),
+		MemberOf:    entry.GetAttributeValues("memberOf"),
+		GroupType:   gt,
+		ManagedByDN: entry.GetAttributeValue("managedBy"),
+		WhenCreated: parseGeneralizedTime(entry.GetAttributeValue("whenCreated")),
+		WhenChanged: parseGeneralizedTime(entry.GetAttributeValue("whenChanged")),
+	}
 }
 
 // FullGroup represents a complete LDAP group object for creation and modification operations.
@@ -103,7 +240,7 @@ func (l *LDAP) FindGroupByDNContext(ctx context.Context, dn string) (group *Grou
 	params := dnSearchParams{
 		operation:   "FindGroupByDN",
 		filter:      "(|(objectClass=group)(objectClass=groupOfNames))",
-		attributes:  []string{"cn", "description", "member", "memberOf"},
+		attributes:  groupFields,
 		notFoundErr: ErrGroupNotFound,
 		logPrefix:   "group_",
 	}
@@ -130,12 +267,8 @@ func (l *LDAP) FindGroupByDNContext(ctx context.Context, dn string) (group *Grou
 		return nil, ErrDNDuplicated
 	}
 
-	group = &Group{
-		Object:      objectFromEntry(r.Entries[0]),
-		Description: r.Entries[0].GetAttributeValue("description"),
-		Members:     r.Entries[0].GetAttributeValues("member"),
-		MemberOf:    r.Entries[0].GetAttributeValues("memberOf"),
-	}
+	g := groupFromEntry(r.Entries[0])
+	group = &g
 
 	// Store in cache if enabled
 	if l.cacheEnabled() && cacheKey != "" {
@@ -221,7 +354,7 @@ func (l *LDAP) FindGroupsContext(ctx context.Context) (groups []Group, err error
 		Scope:        ldap.ScopeWholeSubtree,
 		DerefAliases: ldap.NeverDerefAliases,
 		Filter:       filter,
-		Attributes:   []string{"cn", "description", "member", "memberOf"},
+		Attributes:   groupFields,
 	})
 	if err != nil {
 		l.logger.Error("group_list_search_failed",
@@ -245,17 +378,11 @@ func (l *LDAP) FindGroupsContext(ctx context.Context) (groups []Group, err error
 		default:
 		}
 
-		members := entry.GetAttributeValues("member")
-		group := Group{
-			Object:      objectFromEntry(entry),
-			Description: entry.GetAttributeValue("description"),
-			Members:     members,
-			MemberOf:    entry.GetAttributeValues("memberOf"),
-		}
+		group := groupFromEntry(entry)
 
 		groups = append(groups, group)
 		processed++
-		totalMembers += len(members)
+		totalMembers += len(group.Members)
 	}
 
 	l.logger.Info("group_list_search_completed",
