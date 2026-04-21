@@ -10,6 +10,13 @@ permissions: {}
 jobs:
   create:
     uses: netresearch/.github/.github/workflows/golib-create-release.yml@main
+    with:
+      # cosign 3.x on the current reusable hits
+      # "create bundle file: open : no such file or directory" —
+      # disable keyless signing until the template is fixed. GitHub
+      # artifact attestation (attest: true default) still provides
+      # provenance for every asset.
+      cosign-sign: false
     permissions:
       contents: write
       id-token: write
