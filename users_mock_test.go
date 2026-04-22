@@ -177,6 +177,60 @@ func TestUserFromEntryConversion(t *testing.T) {
 		assert.NotNil(t, user.Mail)
 		assert.Equal(t, "first@example.com", *user.Mail) // Takes first value
 	})
+
+	t.Run("adminCount=1 sets AdminCount true", func(t *testing.T) {
+		entry := CreateTestEntry("cn=priv,ou=users,dc=example,dc=com", map[string][]string{
+			"cn":         {"priv"},
+			"adminCount": {"1"},
+		})
+
+		user, err := userFromEntry(entry)
+		require.NoError(t, err)
+		assert.True(t, user.AdminCount,
+			"adminCount=1 should map to AdminCount=true")
+	})
+
+	t.Run("adminCount=0 sets AdminCount false", func(t *testing.T) {
+		// AD uses 0 or the attribute's absence interchangeably for
+		// non-privileged users; both must yield AdminCount=false.
+		entry := CreateTestEntry("cn=plain,ou=users,dc=example,dc=com", map[string][]string{
+			"cn":         {"plain"},
+			"adminCount": {"0"},
+		})
+
+		user, err := userFromEntry(entry)
+		require.NoError(t, err)
+		assert.False(t, user.AdminCount,
+			"adminCount=0 should map to AdminCount=false")
+	})
+
+	t.Run("no adminCount attribute → AdminCount false", func(t *testing.T) {
+		// OpenLDAP inetOrgPerson never carries adminCount. The mapping
+		// must not mis-flag plain users as privileged.
+		entry := CreateTestEntry("cn=plain2,ou=users,dc=example,dc=com", map[string][]string{
+			"cn": {"plain2"},
+		})
+
+		user, err := userFromEntry(entry)
+		require.NoError(t, err)
+		assert.False(t, user.AdminCount,
+			"missing adminCount must map to AdminCount=false (OpenLDAP case)")
+	})
+
+	t.Run("adminCount=2 treated as non-privileged (only 1 is the AD signal)", func(t *testing.T) {
+		// AD only ever sets adminCount=1. Any other non-zero value is
+		// unexpected and safest treated as not privileged — the
+		// strict-match semantics protect against garbled data.
+		entry := CreateTestEntry("cn=weird,ou=users,dc=example,dc=com", map[string][]string{
+			"cn":         {"weird"},
+			"adminCount": {"2"},
+		})
+
+		user, err := userFromEntry(entry)
+		require.NoError(t, err)
+		assert.False(t, user.AdminCount,
+			"adminCount=2 is not a valid AD privileged marker; AdminCount must stay false")
+	})
 }
 
 // TestUserMethods tests User struct methods

@@ -39,6 +39,11 @@ var (
 		"manager", "telephoneNumber", "mobile", "physicalDeliveryOfficeName",
 		// Security posture
 		"accountExpires", "pwdLastSet", "lockoutTime",
+		// Privileged-account marker — AD sets adminCount=1 on users who are
+		// (or were) members of a protected group (Domain Admins, Enterprise
+		// Admins, Administrators, …). Used by clients to tag privileged
+		// accounts without walking nested group membership.
+		"adminCount",
 		// Audit
 		"whenCreated", "whenChanged",
 	}
@@ -93,6 +98,21 @@ type User struct {
 	// LockoutTime is the Unix-seconds timestamp of the most recent lockout,
 	// 0 when the account is not currently locked.
 	LockoutTime int64
+	// AdminCount is true when AD has marked this user as privileged by
+	// setting `adminCount=1`. AD applies this marker to members of its
+	// protected groups (Domain Admins, Enterprise Admins, Administrators,
+	// Account Operators, Backup Operators, etc.) via adminSDHolder.
+	//
+	// Notes for callers:
+	//   - adminCount is AD-only. OpenLDAP directories never set it,
+	//     so AdminCount is always false on OpenLDAP entries.
+	//   - adminCount is STICKY: AD does not clear it when a user is
+	//     removed from a protected group. A true value therefore means
+	//     "is OR was privileged at some point" — still a strong signal
+	//     for UI flagging, but not a perfect real-time membership check.
+	//   - For an authoritative real-time answer, fall back to walking
+	//     Groups against the well-known protected-group DNs/SIDs.
+	AdminCount bool
 	// WhenCreated is the Unix-seconds timestamp at which the entry was created.
 	WhenCreated int64
 	// WhenChanged is the Unix-seconds timestamp at which the entry was last modified.
@@ -151,6 +171,7 @@ func userFromEntry(entry *ldap.Entry) (*User, error) {
 		PwdLastSet:         pwdLastSet,
 		MustChangePassword: mustChange,
 		LockoutTime:        parseFileTimeSeconds(entry.GetAttributeValue("lockoutTime")),
+		AdminCount:         entry.GetAttributeValue("adminCount") == "1",
 		WhenCreated:        parseGeneralizedTime(entry.GetAttributeValue("whenCreated")),
 		WhenChanged:        parseGeneralizedTime(entry.GetAttributeValue("whenChanged")),
 		Groups:             entry.GetAttributeValues("memberOf"),

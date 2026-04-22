@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`(*LDAP).DisableUser(dn)` / `EnableUser(dn)` and their `*Context` variants.**
+  Flip the `ACCOUNTDISABLE` bit (0x2) on AD `userAccountControl`, preserving every other flag via a read-modify-write. Idempotent — a second disable on an already-disabled account is a no-op, not an error.
+- **`(*LDAP).DisableComputer(dn)` / `EnableComputer(dn)` and their `*Context` variants.** Same mechanism as user, same idempotency. Preserves `WORKSTATION_TRUST_ACCOUNT` and any other UAC flags on the entry.
+- **`ACCOUNTDISABLE` exported constant** (`uint32 = 0x2`) for callers who want to compose their own UAC writes.
+- **`User.AdminCount bool`** — mapped from the `adminCount` AD attribute; `true` when AD has flagged the user as privileged via `adminSDHolder` (members of Domain Admins / Enterprise Admins / Administrators / Account Operators / Backup Operators, etc.). `false` on OpenLDAP entries which never set this attribute. The field is sticky: AD does not clear it when a user leaves a protected group, so `AdminCount=true` means "is OR was privileged", not a perfect real-time check. Documented inline on the struct field.
+- `adminCount` added to the internal `userFields` attribute list fetched by every user search.
+
+### Notes
+
+- Disable/Enable require Active Directory. OpenLDAP `inetOrgPerson` has no portable disable attribute; calls return a clear error ("userAccountControl attribute missing on … (not an Active Directory entry?)") instead of a silent no-op.
+- Disable/Enable are NOT atomic across concurrent callers — the read-modify-write window is visible to parallel UAC writes on the same DN. The ACCOUNTDISABLE-bit case converges to whichever write commits last; callers needing strict ordering should serialise their admin operations.
+
 ---
 
 ## [v1.11.0] - 2026-04-22
