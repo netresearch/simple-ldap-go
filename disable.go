@@ -36,6 +36,7 @@ package ldap
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -110,17 +111,20 @@ func (l *LDAP) EnableComputerContext(ctx context.Context, dn string) error {
 // surface ErrUserNotFound and computers surface ErrComputerNotFound).
 //
 // Connection and permission errors are wrapped via WrapLDAPError.
+//
+// Implementation note: the read-modify steps are split into two pure
+// helpers (classifyUACSearchResult and applyUACBitToEntry) so the
+// error-mapping and bit-arithmetic branches are exercisable from
+// unit tests without an LDAP server. updateUACBit itself only
+// orchestrates conn → search → classify → apply → modify and is
+// covered by the offline-server connection-error test in disable_test.go.
 func (l *LDAP) updateUACBit(ctx context.Context, dn string, bit uint32, set bool, notFoundErr error) error {
 	conn, err := l.GetConnectionContext(ctx)
 	if err != nil {
 		return connectionError("modify", "uac", err)
 	}
 	defer func() {
-		if releaseErr := l.ReleaseConnection(conn); releaseErr != nil {
-			l.logger.Debug("connection_close_error",
-				slog.String("operation", "updateUACBit"),
-				slog.String("error", releaseErr.Error()))
-		}
+		l.logConnectionReleaseError("updateUACBit", l.ReleaseConnection(conn))
 	}()
 
 	searchReq := ldap.NewSearchRequest(
@@ -136,44 +140,17 @@ func (l *LDAP) updateUACBit(ctx context.Context, dn string, bit uint32, set bool
 	// Single base-object lookup — Search rather than SearchWithPaging
 	// because there is at most one entry by definition (ScopeBaseObject
 	// + SizeLimit=1) and paging adds an unnecessary control round-trip.
-	sr, err := conn.Search(searchReq)
-	if err != nil {
-		// AD typically reports a missing DN as LDAPResultNoSuchObject
-		// on the search itself rather than an empty result set. Map
-		// that to the caller-supplied sentinel so the error shape
-		// matches the rest of the API (FindUserByDN, FindComputerByDN).
-		if ldapErr, ok := err.(*ldap.Error); ok && ldapErr.ResultCode == ldap.LDAPResultNoSuchObject {
-			return fmt.Errorf("%w: %s", notFoundErr, dn)
-		}
-		return WrapLDAPError("SearchUAC", l.config.Server, err)
+	sr, searchErr := conn.Search(searchReq)
+	entry, mapErr := classifyUACSearchResult(sr, searchErr, dn, notFoundErr, l.config.Server)
+	if mapErr != nil {
+		return mapErr
 	}
 
-	if len(sr.Entries) == 0 {
-		return fmt.Errorf("%w: %s", notFoundErr, dn)
+	_, next, changed, applyErr := applyUACBitToEntry(entry, bit, set)
+	if applyErr != nil {
+		return applyErr
 	}
-
-	raw := sr.Entries[0].GetAttributeValue("userAccountControl")
-	if raw == "" {
-		// No userAccountControl on the entry — only AD has this
-		// attribute. Return a clear error so OpenLDAP callers get a
-		// useful message instead of a silent no-op.
-		return fmt.Errorf("userAccountControl attribute missing on %s (not an Active Directory entry?)", dn)
-	}
-
-	current64, err := strconv.ParseUint(raw, 10, 32)
-	if err != nil {
-		return fmt.Errorf("parse userAccountControl %q on %s: %w", raw, dn, err)
-	}
-
-	current := uint32(current64)
-	var next uint32
-	if set {
-		next = current | bit
-	} else {
-		next = current &^ bit
-	}
-
-	if next == current {
+	if !changed {
 		// Already in the desired state — nothing to do. Writing the
 		// same value is harmless but we skip the round-trip.
 		return nil
@@ -182,4 +159,83 @@ func (l *LDAP) updateUACBit(ctx context.Context, dn string, bit uint32, set bool
 	return l.ModifyUserContext(ctx, dn, map[string][]string{
 		"userAccountControl": {strconv.FormatUint(uint64(next), 10)},
 	})
+}
+
+// logConnectionReleaseError emits a debug log line when releasing a
+// connection back to the pool fails. Extracted so the (rare but
+// non-trivial) defer path can be unit-tested without an LDAP server.
+// A nil err is the success path and is silent.
+func (l *LDAP) logConnectionReleaseError(operation string, err error) {
+	if err == nil {
+		return
+	}
+	l.logger.Debug("connection_close_error",
+		slog.String("operation", operation),
+		slog.String("error", err.Error()))
+}
+
+// classifyUACSearchResult maps a base-object search result + error
+// into either the single matching entry or a typed error. Pure
+// function used by updateUACBit so the LDAPResultNoSuchObject /
+// empty-result-set / wrap branches are unit-testable.
+//
+// Returns:
+//   - the matching entry on success (sr.Entries[0])
+//   - notFoundErr (wrapped with dn) when the search reported
+//     LDAPResultNoSuchObject *or* when the result set is empty
+//   - a WrapLDAPError("SearchUAC", server, ...) for any other search error
+//
+// server is passed through to WrapLDAPError; in production this is
+// l.config.Server.
+func classifyUACSearchResult(sr *ldap.SearchResult, searchErr error, dn string, notFoundErr error, server string) (*ldap.Entry, error) {
+	if searchErr != nil {
+		// AD typically reports a missing DN as LDAPResultNoSuchObject
+		// on the search itself rather than an empty result set. Map
+		// that to the caller-supplied sentinel so the error shape
+		// matches the rest of the API (FindUserByDN, FindComputerByDN).
+		var ldapErr *ldap.Error
+		if errors.As(searchErr, &ldapErr) && ldapErr.ResultCode == ldap.LDAPResultNoSuchObject {
+			return nil, fmt.Errorf("%w: %s", notFoundErr, dn)
+		}
+		return nil, WrapLDAPError("SearchUAC", server, searchErr)
+	}
+	if sr == nil || len(sr.Entries) == 0 {
+		return nil, fmt.Errorf("%w: %s", notFoundErr, dn)
+	}
+	return sr.Entries[0], nil
+}
+
+// applyUACBitToEntry computes the new userAccountControl value for a
+// single LDAP entry. Pure function — no I/O. Returns:
+//
+//   - current: the parsed current UAC value
+//   - next:    current with bit set or cleared per `set`
+//   - changed: true iff next != current (caller can short-circuit
+//     the Modify when this is false)
+//   - err:     non-nil when the entry has no userAccountControl
+//     attribute (not AD), or when the attribute value can't be parsed
+//     as uint32. Both shapes match what updateUACBit returned before
+//     extraction.
+//
+// The dn is taken from entry.DN for error messages; entry.DN is
+// always populated by go-ldap on a base-object search.
+func applyUACBitToEntry(entry *ldap.Entry, bit uint32, set bool) (current, next uint32, changed bool, err error) {
+	raw := entry.GetAttributeValue("userAccountControl")
+	if raw == "" {
+		// No userAccountControl on the entry — only AD has this
+		// attribute. Return a clear error so OpenLDAP callers get a
+		// useful message instead of a silent no-op.
+		return 0, 0, false, fmt.Errorf("userAccountControl attribute missing on %s (not an Active Directory entry?)", entry.DN)
+	}
+	current64, parseErr := strconv.ParseUint(raw, 10, 32)
+	if parseErr != nil {
+		return 0, 0, false, fmt.Errorf("parse userAccountControl %q on %s: %w", raw, entry.DN, parseErr)
+	}
+	current = uint32(current64)
+	if set {
+		next = current | bit
+	} else {
+		next = current &^ bit
+	}
+	return current, next, next != current, nil
 }
