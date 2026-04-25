@@ -26,10 +26,14 @@ func TestACCOUNTDISABLEConstant(t *testing.T) {
 // userAccountControl), but we CAN prove the methods exist, take a
 // context, and surface a useful error instead of a nil-pointer
 // panic when they can't connect.
+//
+// Server is `ldap://test:389` so isExampleServerName() short-circuits
+// createDirectConnection() before any real DNS / TCP dial. Test runs
+// offline, finishes fast, no network flakes.
 func TestDisableEnableUser_NoConnection(t *testing.T) {
 	client := &LDAP{
 		config: &Config{
-			Server: "ldap://nonexistent.invalid:389",
+			Server: "ldap://test:389",
 			BaseDN: "dc=example,dc=com",
 		},
 		logger: slog.Default(),
