@@ -13,12 +13,18 @@ package ldap
 //
 // Semantics:
 //   - DisableUser/DisableComputer SET the ACCOUNTDISABLE bit. If the
-//     bit is already set, the write is still issued (idempotent),
-//     which is harmless.
-//   - EnableUser/EnableComputer CLEAR the bit. Same idempotency note.
+//     bit is already set, the call is a no-op — no Modify is sent —
+//     so callers that retry or invoke optimistically incur a single
+//     round-trip search and nothing else.
+//   - EnableUser/EnableComputer CLEAR the bit. Same no-op behaviour
+//     when the bit is already clear.
 //   - All four only make sense on AD. OpenLDAP inetOrgPerson and
 //     groupOfNames have no portable disable mechanism. Callers that
 //     mix directory kinds should gate on Config.IsActiveDirectory.
+//   - Missing-DN errors surface as ErrUserNotFound (DisableUser /
+//     EnableUser) or ErrComputerNotFound (DisableComputer /
+//     EnableComputer), regardless of whether AD returns
+//     LDAPResultNoSuchObject on the search or an empty result set.
 //
 // Concurrency: read-modify-write IS NOT atomic. Two concurrent
 // Disable+Enable races can drop one of the writes' effects on other
@@ -31,6 +37,7 @@ package ldap
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strconv"
 
 	"github.com/go-ldap/ldap/v3"
@@ -54,7 +61,7 @@ func (l *LDAP) DisableUser(dn string) error {
 
 // DisableUserContext is the context-aware variant of DisableUser.
 func (l *LDAP) DisableUserContext(ctx context.Context, dn string) error {
-	return l.updateUACBit(ctx, dn, ACCOUNTDISABLE, true)
+	return l.updateUACBit(ctx, dn, ACCOUNTDISABLE, true, ErrUserNotFound)
 }
 
 // EnableUser clears the ACCOUNTDISABLE flag (0x2) on the user's
@@ -68,7 +75,7 @@ func (l *LDAP) EnableUser(dn string) error {
 
 // EnableUserContext is the context-aware variant of EnableUser.
 func (l *LDAP) EnableUserContext(ctx context.Context, dn string) error {
-	return l.updateUACBit(ctx, dn, ACCOUNTDISABLE, false)
+	return l.updateUACBit(ctx, dn, ACCOUNTDISABLE, false, ErrUserNotFound)
 }
 
 // DisableComputer mirrors DisableUser for computer accounts. AD
@@ -81,7 +88,7 @@ func (l *LDAP) DisableComputer(dn string) error {
 
 // DisableComputerContext is the context-aware variant of DisableComputer.
 func (l *LDAP) DisableComputerContext(ctx context.Context, dn string) error {
-	return l.updateUACBit(ctx, dn, ACCOUNTDISABLE, true)
+	return l.updateUACBit(ctx, dn, ACCOUNTDISABLE, true, ErrComputerNotFound)
 }
 
 // EnableComputer clears ACCOUNTDISABLE on a computer account,
@@ -92,24 +99,29 @@ func (l *LDAP) EnableComputer(dn string) error {
 
 // EnableComputerContext is the context-aware variant of EnableComputer.
 func (l *LDAP) EnableComputerContext(ctx context.Context, dn string) error {
-	return l.updateUACBit(ctx, dn, ACCOUNTDISABLE, false)
+	return l.updateUACBit(ctx, dn, ACCOUNTDISABLE, false, ErrComputerNotFound)
 }
 
 // updateUACBit is the shared read-modify-write body for all four
 // Disable*/Enable* methods. `set=true` ORs `bit` into the current
 // userAccountControl, `set=false` clears it. Preserves every other
-// UAC flag by reading the attribute first.
+// UAC flag by reading the attribute first. notFoundErr is the
+// sentinel returned when AD reports the DN is missing (so users
+// surface ErrUserNotFound and computers surface ErrComputerNotFound).
 //
-// Error shape matches the rest of the simple-ldap-go API: returns
-// ErrUserNotFound (or a generic ldap.Error for computers, since we
-// don't search by kind), and connection/permission errors wrapped
-// via WrapLDAPError.
-func (l *LDAP) updateUACBit(ctx context.Context, dn string, bit uint32, set bool) error {
+// Connection and permission errors are wrapped via WrapLDAPError.
+func (l *LDAP) updateUACBit(ctx context.Context, dn string, bit uint32, set bool, notFoundErr error) error {
 	conn, err := l.GetConnectionContext(ctx)
 	if err != nil {
 		return connectionError("modify", "uac", err)
 	}
-	defer func() { _ = l.ReleaseConnection(conn) }()
+	defer func() {
+		if releaseErr := l.ReleaseConnection(conn); releaseErr != nil {
+			l.logger.Debug("connection_close_error",
+				slog.String("operation", "updateUACBit"),
+				slog.String("error", releaseErr.Error()))
+		}
+	}()
 
 	searchReq := ldap.NewSearchRequest(
 		dn,
@@ -121,13 +133,23 @@ func (l *LDAP) updateUACBit(ctx context.Context, dn string, bit uint32, set bool
 		nil,
 	)
 
-	sr, err := conn.SearchWithPaging(searchReq, 1)
+	// Single base-object lookup — Search rather than SearchWithPaging
+	// because there is at most one entry by definition (ScopeBaseObject
+	// + SizeLimit=1) and paging adds an unnecessary control round-trip.
+	sr, err := conn.Search(searchReq)
 	if err != nil {
+		// AD typically reports a missing DN as LDAPResultNoSuchObject
+		// on the search itself rather than an empty result set. Map
+		// that to the caller-supplied sentinel so the error shape
+		// matches the rest of the API (FindUserByDN, FindComputerByDN).
+		if ldapErr, ok := err.(*ldap.Error); ok && ldapErr.ResultCode == ldap.LDAPResultNoSuchObject {
+			return fmt.Errorf("%w: %s", notFoundErr, dn)
+		}
 		return WrapLDAPError("SearchUAC", l.config.Server, err)
 	}
 
 	if len(sr.Entries) == 0 {
-		return fmt.Errorf("%w: %s", ErrUserNotFound, dn)
+		return fmt.Errorf("%w: %s", notFoundErr, dn)
 	}
 
 	raw := sr.Entries[0].GetAttributeValue("userAccountControl")
