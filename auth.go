@@ -19,6 +19,53 @@ var (
 	ErrActiveDirectoryMustBeLDAPS = errors.New("ActiveDirectory servers must be connected to via LDAPS to change passwords")
 )
 
+// passwordWrite carries the values a single password write needs, in both the
+// forms the two directory families require.
+//
+// An empty oldEncoded/oldPassword marks an administrative reset: the caller does
+// not know the current password and is authorised by the rights of the account
+// it is bound as, rather than by knowledge of the existing secret.
+type passwordWrite struct {
+	userDN string
+
+	// Active Directory path: UTF-16LE, quote-wrapped values for unicodePwd.
+	oldEncoded string
+	newEncoded string
+
+	// RFC 3062 path: plaintext, hashed server-side by the directory.
+	oldPassword string
+	newPassword string
+}
+
+// writePassword applies a password change using the mechanism the directory
+// actually supports.
+//
+// Active Directory does not implement RFC 3062 and requires writing the
+// Microsoft-specific unicodePwd attribute. Every other directory (OpenLDAP,
+// 389 DS, …) has no such attribute and rejects that write with result 17
+// "Undefined Attribute Type"; they implement RFC 3062 Password Modify, which
+// additionally lets the server apply its configured hashing scheme instead of
+// storing whatever the client sends.
+func (l *LDAP) writePassword(c *ldap.Conn, w passwordWrite) error {
+	if !l.config.IsActiveDirectory {
+		_, err := c.PasswordModify(ldap.NewPasswordModifyRequest(w.userDN, w.oldPassword, w.newPassword))
+		return err
+	}
+
+	modifyRequest := ldap.NewModifyRequest(w.userDN, nil)
+	if w.oldEncoded == "" {
+		// Administrative reset.
+		modifyRequest.Replace("unicodePwd", []string{w.newEncoded})
+	} else {
+		// Self-service change: DELETE old + ADD new is Microsoft's documented
+		// approach — it proves knowledge of the current password without
+		// requiring reset rights.
+		modifyRequest.Delete("unicodePwd", []string{w.oldEncoded})
+		modifyRequest.Add("unicodePwd", []string{w.newEncoded})
+	}
+	return c.Modify(modifyRequest)
+}
+
 // warnCleartextPasswordWrite logs when a non-AD password write is about to go
 // over an unencrypted connection.
 //
@@ -523,29 +570,19 @@ func (l *LDAP) ChangePasswordForSAMAccountNameContext(ctx context.Context, sAMAc
 		}
 	}()
 
+	// Supplying the old password lets a non-AD server enforce password policy
+	// (history, minimum age) on a self-service change.
+	_, oldPlain := oldCreds.GetCredentials()
+	_, newPlain := newCreds.GetCredentials()
+
 	userDN := user.DN()
-
-	if l.config.IsActiveDirectory {
-		// Active Directory does not implement RFC 3062 and requires writing the
-		// Microsoft-specific unicodePwd attribute. DELETE old + ADD new is
-		// Microsoft's documented approach for a self-service change: it proves
-		// knowledge of the current password without granting reset rights.
-		modifyRequest := ldap.NewModifyRequest(userDN, nil)
-		modifyRequest.Delete("unicodePwd", []string{oldEncoded})
-		modifyRequest.Add("unicodePwd", []string{newEncoded})
-		err = c.Modify(modifyRequest)
-	} else {
-		// Every other directory (OpenLDAP, 389 DS, …) has no unicodePwd attribute
-		// and rejects that write with result 17 "Undefined Attribute Type". They
-		// implement RFC 3062 Password Modify, which also lets the server apply its
-		// configured hashing scheme rather than storing whatever the client sends.
-		// Passing the old password lets the server enforce password policy
-		// (history, minimum age) on a self-service change.
-		_, oldPlain := oldCreds.GetCredentials()
-		_, newPlain := newCreds.GetCredentials()
-		_, err = c.PasswordModify(ldap.NewPasswordModifyRequest(userDN, oldPlain, newPlain))
-	}
-
+	err = l.writePassword(c, passwordWrite{
+		userDN:      userDN,
+		oldEncoded:  oldEncoded,
+		newEncoded:  newEncoded,
+		oldPassword: oldPlain,
+		newPassword: newPlain,
+	})
 	if err != nil {
 		l.logger.Error("password_change_failed",
 			slog.String("operation", "ChangePasswordForSAMAccountName"),
@@ -673,22 +710,14 @@ func (l *LDAP) ResetPasswordForSAMAccountNameContext(ctx context.Context, sAMAcc
 	}
 	defer func() { _ = l.ReleaseConnection(c) }()
 
+	// Empty old password marks this as an administrative reset: authorised by the
+	// rights of the bound service account, not by knowledge of the current secret.
 	userDN := user.DN()
-
-	if l.config.IsActiveDirectory {
-		// REPLACE for an administrative reset — unlike a self-service change, the
-		// caller does not know the current password and is instead bound as an
-		// account holding reset rights.
-		modifyRequest := ldap.NewModifyRequest(userDN, nil)
-		modifyRequest.Replace("unicodePwd", []string{newEncoded})
-		err = c.Modify(modifyRequest)
-	} else {
-		// RFC 3062 with an empty old password: the directory authorises the change
-		// from the bound service account's rights rather than from knowledge of the
-		// existing password. See the AD branch above for why this split exists.
-		_, err = c.PasswordModify(ldap.NewPasswordModifyRequest(userDN, "", newPassword))
-	}
-
+	err = l.writePassword(c, passwordWrite{
+		userDN:      userDN,
+		newEncoded:  newEncoded,
+		newPassword: newPassword,
+	})
 	if err != nil {
 		l.logger.Error("password_reset_modify_failed",
 			slog.String("operation", "ResetPasswordForSAMAccountName"),
