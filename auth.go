@@ -19,6 +19,27 @@ var (
 	ErrActiveDirectoryMustBeLDAPS = errors.New("ActiveDirectory servers must be connected to via LDAPS to change passwords")
 )
 
+// warnCleartextPasswordWrite logs when a non-AD password write is about to go
+// over an unencrypted connection.
+//
+// Active Directory is refused outright in that situation (ErrActiveDirectoryMustBeLDAPS).
+// Non-AD directories are not, because plain ldap:// is a legitimate setup behind
+// a trusted transport — a stunnel/service-mesh sidecar, or a loopback-only test
+// stack. But the RFC 3062 request carries the new password in the clear, so an
+// operator who did not intend that should hear about it. This warns rather than
+// failing so existing deployments keep working.
+func (l *LDAP) warnCleartextPasswordWrite(operation, maskedUsername string) {
+	if l.config.IsActiveDirectory || strings.HasPrefix(l.config.Server, "ldaps://") {
+		return
+	}
+	l.logger.Warn("password_write_over_cleartext_connection",
+		slog.String("operation", operation),
+		slog.String("username_masked", maskedUsername),
+		slog.String("server", l.config.Server),
+		slog.String("risk", "the new password is transmitted unencrypted"),
+		slog.String("recommendation", "use ldaps:// or StartTLS, or ensure the transport is otherwise encrypted"))
+}
+
 // CheckPasswordForSAMAccountName validates a user's password by attempting to bind with their credentials.
 // This method finds the user by their sAMAccountName and then attempts authentication.
 //
@@ -441,6 +462,7 @@ func (l *LDAP) ChangePasswordForSAMAccountNameContext(ctx context.Context, sAMAc
 			slog.String("server", l.config.Server))
 		return ErrActiveDirectoryMustBeLDAPS
 	}
+	l.warnCleartextPasswordWrite("ChangePasswordForSAMAccountName", maskedUsername)
 
 	// Check for context cancellation before starting
 	select {
@@ -463,15 +485,20 @@ func (l *LDAP) ChangePasswordForSAMAccountNameContext(ctx context.Context, sAMAc
 		return fmt.Errorf("failed to find user %s for password change: %w", sAMAccountName, err)
 	}
 
-	// Encode both passwords for Active Directory
-	oldEncoded, newEncoded, err := l.encodePasswordPair(oldCreds, newCreds, sAMAccountName)
-	if err != nil {
-		l.logger.Error("password_change_encoding_failed",
-			slog.String("operation", "ChangePasswordForSAMAccountName"),
-			slog.String("username_masked", maskedUsername),
-			slog.String("error", err.Error()),
-			slog.Duration("duration", time.Since(start)))
-		return fmt.Errorf("failed to encode passwords for user %s: %w", sAMAccountName, err)
+	// Only Active Directory needs the UTF-16LE encoding: it is a property of the
+	// unicodePwd attribute, not of LDAP. Directories reached over RFC 3062 take
+	// the plaintext and hash it server-side, so encoding there would corrupt it.
+	var oldEncoded, newEncoded string
+	if l.config.IsActiveDirectory {
+		oldEncoded, newEncoded, err = l.encodePasswordPair(oldCreds, newCreds, sAMAccountName)
+		if err != nil {
+			l.logger.Error("password_change_encoding_failed",
+				slog.String("operation", "ChangePasswordForSAMAccountName"),
+				slog.String("username_masked", maskedUsername),
+				slog.String("error", err.Error()),
+				slog.Duration("duration", time.Since(start)))
+			return fmt.Errorf("failed to encode passwords for user %s: %w", sAMAccountName, err)
+		}
 	}
 
 	// Check for context cancellation before LDAP operations
@@ -496,16 +523,29 @@ func (l *LDAP) ChangePasswordForSAMAccountNameContext(ctx context.Context, sAMAc
 		}
 	}()
 
-	// Create modify request for password change
 	userDN := user.DN()
-	modifyRequest := ldap.NewModifyRequest(userDN, nil)
 
-	// Delete old password and add new password (Microsoft's recommended approach)
-	modifyRequest.Delete("unicodePwd", []string{oldEncoded})
-	modifyRequest.Add("unicodePwd", []string{newEncoded})
+	if l.config.IsActiveDirectory {
+		// Active Directory does not implement RFC 3062 and requires writing the
+		// Microsoft-specific unicodePwd attribute. DELETE old + ADD new is
+		// Microsoft's documented approach for a self-service change: it proves
+		// knowledge of the current password without granting reset rights.
+		modifyRequest := ldap.NewModifyRequest(userDN, nil)
+		modifyRequest.Delete("unicodePwd", []string{oldEncoded})
+		modifyRequest.Add("unicodePwd", []string{newEncoded})
+		err = c.Modify(modifyRequest)
+	} else {
+		// Every other directory (OpenLDAP, 389 DS, …) has no unicodePwd attribute
+		// and rejects that write with result 17 "Undefined Attribute Type". They
+		// implement RFC 3062 Password Modify, which also lets the server apply its
+		// configured hashing scheme rather than storing whatever the client sends.
+		// Passing the old password lets the server enforce password policy
+		// (history, minimum age) on a self-service change.
+		_, oldPlain := oldCreds.GetCredentials()
+		_, newPlain := newCreds.GetCredentials()
+		_, err = c.PasswordModify(ldap.NewPasswordModifyRequest(userDN, oldPlain, newPlain))
+	}
 
-	// Perform the password change
-	err = c.Modify(modifyRequest)
 	if err != nil {
 		l.logger.Error("password_change_failed",
 			slog.String("operation", "ChangePasswordForSAMAccountName"),
@@ -565,11 +605,17 @@ func (l *LDAP) ResetPasswordForSAMAccountNameContext(ctx context.Context, sAMAcc
 
 	start := time.Now()
 
-	// Encode new password for LDAP (UTF-16LE with quotes)
-	// For admin reset, we don't need SecureCredential validation - just encoding
-	newEncoded, err := encodePassword(newPassword)
-	if err != nil {
-		return fmt.Errorf("failed to encode new password: %w", err)
+	// Encode the new password for Active Directory (UTF-16LE with quotes).
+	// For admin reset, we don't need SecureCredential validation - just encoding.
+	// Non-AD directories take the plaintext over RFC 3062 and hash it themselves,
+	// so this encoding must not be applied to them.
+	var newEncoded string
+	if l.config.IsActiveDirectory {
+		var err error
+		newEncoded, err = encodePassword(newPassword)
+		if err != nil {
+			return fmt.Errorf("failed to encode new password: %w", err)
+		}
 	}
 
 	// Mask sensitive data for logging
@@ -587,6 +633,7 @@ func (l *LDAP) ResetPasswordForSAMAccountNameContext(ctx context.Context, sAMAcc
 			slog.String("server", l.config.Server))
 		return ErrActiveDirectoryMustBeLDAPS
 	}
+	l.warnCleartextPasswordWrite("ResetPasswordForSAMAccountName", maskedUsername)
 
 	// Check for context cancellation before starting
 	select {
@@ -626,14 +673,22 @@ func (l *LDAP) ResetPasswordForSAMAccountNameContext(ctx context.Context, sAMAcc
 	}
 	defer func() { _ = l.ReleaseConnection(c) }()
 
-	// Create modify request - REPLACE operation for administrative reset
-	// This is different from password change which uses DELETE+ADD
 	userDN := user.DN()
-	modifyRequest := ldap.NewModifyRequest(userDN, nil)
-	modifyRequest.Replace("unicodePwd", []string{newEncoded})
 
-	// Execute modify operation
-	err = c.Modify(modifyRequest)
+	if l.config.IsActiveDirectory {
+		// REPLACE for an administrative reset — unlike a self-service change, the
+		// caller does not know the current password and is instead bound as an
+		// account holding reset rights.
+		modifyRequest := ldap.NewModifyRequest(userDN, nil)
+		modifyRequest.Replace("unicodePwd", []string{newEncoded})
+		err = c.Modify(modifyRequest)
+	} else {
+		// RFC 3062 with an empty old password: the directory authorises the change
+		// from the bound service account's rights rather than from knowledge of the
+		// existing password. See the AD branch above for why this split exists.
+		_, err = c.PasswordModify(ldap.NewPasswordModifyRequest(userDN, "", newPassword))
+	}
+
 	if err != nil {
 		l.logger.Error("password_reset_modify_failed",
 			slog.String("operation", "ResetPasswordForSAMAccountName"),
