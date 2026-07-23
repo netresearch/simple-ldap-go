@@ -577,13 +577,43 @@ func (l *LDAP) ChangePasswordForSAMAccountNameContext(ctx context.Context, sAMAc
 		}
 	}()
 
-	// Supplying the old password lets a non-AD server enforce password policy
-	// (history, minimum age) on a self-service change.
 	_, oldPlain := oldCreds.GetCredentials()
 	_, newPlain := newCreds.GetCredentials()
 
 	userDN := user.DN()
-	err = l.writePassword(c, passwordWrite{
+
+	writeConn := c
+	if !l.config.IsActiveDirectory {
+		// RFC 3062 authorises a self-service change from the BIND IDENTITY, not
+		// from the request contents. A directory refuses to verify oldPasswd for a
+		// caller that lacks write access to the target entry — slapd answers
+		// result 53 "unwilling to verify old password" — so the pooled connection,
+		// bound as the read-only service account, cannot perform this operation.
+		//
+		// Bind as the user instead. That is the flow RFC 3062 describes, and the
+		// bind itself proves knowledge of the current password.
+		//
+		// This must be a dedicated connection: binding a pooled one as an end user
+		// would leak that identity to whichever caller borrows it next.
+		userConn, bindErr := l.dialAndBind(ctx, userDN, oldPlain)
+		if bindErr != nil {
+			l.logger.Warn("password_change_user_bind_failed",
+				slog.String("operation", "ChangePasswordForSAMAccountName"),
+				slog.String("username_masked", maskedUsername),
+				slog.String("dn", userDN),
+				slog.String("error", bindErr.Error()),
+				slog.Duration("duration", time.Since(start)))
+
+			ldapErr := NewLDAPError("ChangePasswordForSAMAccountName", l.config.Server, bindErr).
+				WithDN(userDN).WithContext("samAccountName", sAMAccountName)
+
+			return fmt.Errorf("failed to authenticate user %s for password change: %w", sAMAccountName, ldapErr)
+		}
+		defer func() { _ = userConn.Close() }()
+		writeConn = userConn
+	}
+
+	err = l.writePassword(writeConn, passwordWrite{
 		userDN:      userDN,
 		oldEncoded:  oldEncoded,
 		newEncoded:  newEncoded,
