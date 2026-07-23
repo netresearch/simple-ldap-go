@@ -135,6 +135,51 @@ func (tc *TestContainer) populateTestData(t *testing.T) {
 
 	// Create test computers
 	tc.createTestComputers(t, conn)
+
+	// Create a read-only service account and grant it directory-wide read.
+	tc.createReadOnlyServiceAccount(t, conn)
+}
+
+// ReadOnlyDN / ReadOnlyPassword identify a service account that can SEARCH the
+// directory but cannot write any entry.
+//
+// This models how an application actually binds. Tests that assert a write
+// succeeds must not bind as cn=admin: the superuser can write every entry, so it
+// masks any defect that depends on the caller's privileges. An RFC 3062
+// self-service password change is exactly such a case — the directory authorises
+// it from the bind identity, and slapd answers result 53 "unwilling to verify old
+// password" when the bound account cannot write the target.
+func (tc *TestContainer) ReadOnlyDN() string { return fmt.Sprintf("cn=readonly,%s", tc.BaseDN) }
+
+// ReadOnlyPassword is the password for ReadOnlyDN.
+func (tc *TestContainer) ReadOnlyPassword() string { return "readonly123" }
+
+// createReadOnlyServiceAccount adds the account and an olcAccess rule granting it
+// read across the tree. The rule is inserted ahead of the defaults and ends in
+// "by * break" so the container's own ACLs still apply to everyone else.
+func (tc *TestContainer) createReadOnlyServiceAccount(t *testing.T, conn *ldap.Conn) {
+	addReq := ldap.NewAddRequest(tc.ReadOnlyDN(), nil)
+	addReq.Attribute("objectClass", []string{"simpleSecurityObject", "organizationalRole"})
+	addReq.Attribute("cn", []string{"readonly"})
+	addReq.Attribute("description", []string{"Read-only service account for tests"})
+	addReq.Attribute("userPassword", []string{tc.ReadOnlyPassword()})
+	if err := conn.Add(addReq); err != nil {
+		if !ldap.IsErrorWithCode(err, ldap.LDAPResultEntryAlreadyExists) {
+			require.NoError(t, err, "create read-only service account")
+		}
+	}
+
+	// olcAccess lives in cn=config, which takes its own bind.
+	cfgConn, err := ldap.DialURL(tc.Config.Server)
+	require.NoError(t, err, "dial for cn=config")
+	defer func() { _ = cfgConn.Close() }()
+	require.NoError(t, cfgConn.Bind("cn=admin,cn=config", "config123"), "bind cn=config")
+
+	mod := ldap.NewModifyRequest("olcDatabase={1}mdb,cn=config", nil)
+	mod.Add("olcAccess", []string{
+		fmt.Sprintf(`{0}to * by dn="%s" read by * break`, tc.ReadOnlyDN()),
+	})
+	require.NoError(t, cfgConn.Modify(mod), "grant read to the service account")
 }
 
 // createOU creates an organizational unit

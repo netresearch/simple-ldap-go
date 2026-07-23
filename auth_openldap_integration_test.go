@@ -65,18 +65,26 @@ func TestIntegration_OpenLDAP_PasswordWrites(t *testing.T) {
 			"the old password must stop working")
 	})
 
-	t.Run("self-service change sets a usable password", func(t *testing.T) {
-		client, err := New(tc.Config, tc.AdminUser, tc.AdminPass)
+	t.Run("self-service change works from an unprivileged service bind", func(t *testing.T) {
+		// The client must NOT be bound as an account with write access to the
+		// target. A real deployment binds a read-only service account, and RFC 3062
+		// authorises a change from the bind identity — so a privileged bind here
+		// would mask the failure that account actually hits. An earlier revision of
+		// this test used tc.AdminUser and passed while production got
+		// result 53 "unwilling to verify old password".
+		admin, err := New(tc.Config, tc.AdminUser, tc.AdminPass)
 		require.NoError(t, err)
 
-		// Start from a known state rather than depending on subtest ordering.
 		const startPassword = "Start1!Password"
-		require.NoError(t, client.ResetPasswordForSAMAccountName(td.DisabledUserUID, startPassword))
+		require.NoError(t, admin.ResetPasswordForSAMAccountName(td.DisabledUserUID, startPassword))
+
+		client, err := New(tc.Config, tc.ReadOnlyDN(), tc.ReadOnlyPassword())
+		require.NoError(t, err, "client bound as a service account that can read but not write")
 
 		const changedPassword = "Changed1!Password"
 		require.NoError(t,
 			client.ChangePasswordForSAMAccountName(td.DisabledUserUID, startPassword, changedPassword),
-			"change must not fail on OpenLDAP (regression: unicodePwd, result 17)")
+			"change must succeed even though the service bind cannot write the target entry")
 
 		userDN := fmt.Sprintf("uid=%s,%s", td.DisabledUserUID, tc.UsersOU)
 		assert.NoError(t, bindAs(t, tc, userDN, changedPassword),

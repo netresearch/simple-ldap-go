@@ -674,8 +674,21 @@ func (l *LDAP) BulkFindUsersBySAMAccountName(ctx context.Context, samAccountName
 	return result, nil
 }
 
-// createDirectConnection creates a new LDAP connection without using the pool
+// createDirectConnection creates a new LDAP connection without using the pool,
+// bound as the client's configured service account.
 func (l *LDAP) createDirectConnection(ctx context.Context) (*ldap.Conn, error) {
+	return l.dialAndBind(ctx, l.user, l.password)
+}
+
+// dialAndBind creates a new unpooled connection bound as the given identity.
+//
+// Callers that need a specific bind identity — an RFC 3062 self-service password
+// change, which the directory authorises from the bind rather than from the
+// request — must use this rather than the pool. Binding a pooled connection as
+// an end user would leak that identity to whichever caller borrows it next.
+//
+// The returned connection is not managed by the pool; close it directly.
+func (l *LDAP) dialAndBind(ctx context.Context, bindDN, bindPassword string) (*ldap.Conn, error) {
 	// Check context first
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -725,11 +738,11 @@ func (l *LDAP) createDirectConnection(ctx context.Context) (*ldap.Conn, error) {
 	}
 
 	// Bind with credentials
-	if err := conn.Bind(l.user, l.password); err != nil {
+	if err := conn.Bind(bindDN, bindPassword); err != nil {
 		_ = conn.Close()
 		l.logger.Error("ldap_bind_failed",
 			slog.String("server", l.config.Server),
-			slog.String("user", l.user),
+			slog.String("user", bindDN),
 			slog.String("error", err.Error()),
 			slog.Duration("duration", time.Since(start)))
 		return nil, fmt.Errorf("failed to bind: %w", err)
@@ -737,7 +750,7 @@ func (l *LDAP) createDirectConnection(ctx context.Context) (*ldap.Conn, error) {
 
 	l.logger.Debug("ldap_connection_established",
 		slog.String("server", l.config.Server),
-		slog.String("user", l.user),
+		slog.String("user", bindDN),
 		slog.Duration("duration", time.Since(start)))
 
 	return conn, nil

@@ -2,6 +2,8 @@ package ldap
 
 import (
 	"bytes"
+	"context"
+	"io"
 	"log/slog"
 	"strings"
 	"testing"
@@ -113,4 +115,39 @@ func TestWarnCleartextPasswordWrite(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestDialAndBind_ErrorPaths covers the failure branches of the connection
+// helper that the self-service change path relies on. The happy path is covered
+// by the OpenLDAP integration test; these are the branches a live server never
+// exercises.
+func TestDialAndBind_ErrorPaths(t *testing.T) {
+	newLDAP := func(server string) *LDAP {
+		return &LDAP{
+			config: &Config{Server: server, BaseDN: "dc=example,dc=org"},
+			logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+		}
+	}
+
+	t.Run("cancelled context returns before dialing", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		conn, err := newLDAP("ldap://127.0.0.1:1").dialAndBind(ctx, "cn=x,dc=example,dc=org", "pw")
+		require.Error(t, err)
+		assert.Nil(t, conn)
+		assert.ErrorIs(t, err, context.Canceled,
+			"a cancelled context must surface as such, not as a dial failure")
+	})
+
+	t.Run("unreachable server surfaces a dial error", func(t *testing.T) {
+		// Port 1 is reserved and refuses connections, so this fails at dial
+		// rather than hanging.
+		conn, err := newLDAP("ldap://127.0.0.1:1").dialAndBind(
+			context.Background(), "cn=x,dc=example,dc=org", "pw")
+		require.Error(t, err)
+		assert.Nil(t, conn)
+		assert.Contains(t, err.Error(), "failed to dial",
+			"the error must name the dial step so a misconfigured host is diagnosable")
+	})
 }

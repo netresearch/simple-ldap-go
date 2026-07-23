@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Self-service password change now binds as the user on non-AD directories.** v1.12.1 stopped `ChangePasswordForSAMAccountName` writing `unicodePwd` to OpenLDAP, but it still issued the RFC 3062 Password Modify on the *pooled* connection — bound as the caller's service account. RFC 3062 authorises a self-service change from the bind identity, so a directory refuses to verify `oldPasswd` for a caller that cannot write the target entry; slapd answers `LDAP Result Code 53 "Unwilling To Perform": unwilling to verify old password`. Any deployment binding a read-only service account (the normal arrangement) therefore still could not change a password. The non-AD path now opens a dedicated connection bound as the user with their current password, which is the flow RFC 3062 describes and which makes the bind itself the proof of the old password. The administrative reset path is unchanged: it legitimately uses the service-account connection with no old password.
+- A wrong current password now fails at the bind rather than at the modify, so the returned error names an authentication failure instead of a server-side refusal.
+
+### Changed
+
+- `createDirectConnection` delegates to a new internal `dialAndBind`, so a connection can be opened under a specific identity. The user-bound connection is deliberately unpooled — binding a pooled connection as an end user would leak that identity to the next caller that borrowed it.
+
+### Added
+
+- The integration harness now provisions a read-only service account (`ReadOnlyDN`/`ReadOnlyPassword`) with a directory-wide read grant. Tests asserting a write must not bind as `cn=admin`: the superuser can write every entry and so masks any defect that depends on the caller's privileges. The v1.12.1 self-service test did exactly that — it passed while real deployments failed. The rewritten test binds as the read-only account and fails against v1.12.1.
+
 ---
 
 ## [v1.12.1] - 2026-07-23
