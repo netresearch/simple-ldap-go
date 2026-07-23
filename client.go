@@ -30,6 +30,7 @@ type LDAP struct {
 	connPool         *ConnectionPool
 	circuitBreaker   *CircuitBreaker
 	operationTimeout time.Duration // Timeout for LDAP operations (set via WithTimeout option)
+	policies         *policyCache  // memoised ppolicy pwdMaxAge per policy DN
 }
 
 // Config contains the configuration for LDAP connections
@@ -38,10 +39,17 @@ type Config struct {
 	Port              int
 	BaseDN            string
 	IsActiveDirectory bool
-	TLSConfig         *tls.Config
-	DialTimeout       time.Duration
-	ReadTimeout       time.Duration
-	WriteTimeout      time.Duration
+
+	// PasswordPolicyDN names the OpenLDAP ppolicy entry that governs users
+	// whose own entry carries no pwdPolicySubentry. It is only consulted for
+	// password-expiry lookups on non-Active-Directory servers; Active
+	// Directory reports expiry per user without it. Empty means expiry is
+	// reported as unknown rather than guessed.
+	PasswordPolicyDN string
+	TLSConfig        *tls.Config
+	DialTimeout      time.Duration
+	ReadTimeout      time.Duration
+	WriteTimeout     time.Duration
 
 	// Additional configuration options
 	Pool        *PoolConfig
@@ -127,6 +135,7 @@ func New(config Config, username, password string, opts ...Option) (*LDAP, error
 		user:     username,
 		password: password,
 		logger:   logger,
+		policies: newPolicyCache(),
 	}
 
 	// Apply functional options before initialization

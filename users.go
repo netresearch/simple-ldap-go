@@ -39,6 +39,13 @@ var (
 		"manager", "telephoneNumber", "mobile", "physicalDeliveryOfficeName",
 		// Security posture
 		"accountExpires", "pwdLastSet", "lockoutTime",
+		// Password expiry. msDS-UserPasswordExpiryTimeComputed is an Active
+		// Directory *constructed* attribute — the server folds the domain
+		// policy and any Password Settings Object into it, so it is only
+		// returned when named explicitly. pwdChangedTime and pwdPolicySubentry
+		// are the OpenLDAP ppolicy counterparts and are *operational*, which
+		// likewise excludes them from a default search.
+		"msDS-UserPasswordExpiryTimeComputed", "pwdChangedTime", "pwdPolicySubentry",
 		// Privileged-account marker — AD sets adminCount=1 on users who are
 		// (or were) members of a protected group (Domain Admins, Enterprise
 		// Admins, Administrators, …). Used by clients to tag privileged
@@ -88,6 +95,21 @@ type User struct {
 	//   -1 — never expires (AD's sentinel 9223372036854775807 = 0x7FFFFFFFFFFFFFFF)
 	//   >0 — concrete expiry timestamp in Unix seconds.
 	AccountExpires int64
+	// PasswordExpiresAt is the Unix-seconds timestamp at which the current
+	// password expires, as reported by Active Directory's constructed
+	// msDS-UserPasswordExpiryTimeComputed attribute.
+	//   0  — not reported (always the case on non-AD directories)
+	//   -1 — never expires
+	//   >0 — concrete expiry timestamp in Unix seconds.
+	// Use LDAP.PasswordExpiryFor for a directory-independent answer.
+	PasswordExpiresAt int64
+	// PwdChangedAt is the Unix-seconds timestamp from the OpenLDAP ppolicy
+	// operational attribute pwdChangedTime, or 0 when the overlay is not in
+	// use. Expiry is this plus the governing policy's pwdMaxAge.
+	PwdChangedAt int64
+	// PasswordPolicyDN is the ppolicy subentry governing this user, from
+	// pwdPolicySubentry. Empty means the directory's default policy applies.
+	PasswordPolicyDN string
 	// PwdLastSet is the Unix-seconds timestamp at which the user last changed
 	// their password, 0 when unset. When the AD value is 0 it means the user
 	// must change password at next logon; callers should consult MustChangePassword.
@@ -168,6 +190,9 @@ func userFromEntry(entry *ldap.Entry) (*User, error) {
 		Mobile:             entry.GetAttributeValue("mobile"),
 		Office:             entry.GetAttributeValue("physicalDeliveryOfficeName"),
 		AccountExpires:     parseAccountExpires(entry.GetAttributeValue("accountExpires")),
+		PasswordExpiresAt:  parseAccountExpires(entry.GetAttributeValue("msDS-UserPasswordExpiryTimeComputed")),
+		PwdChangedAt:       parseGeneralizedTime(entry.GetAttributeValue("pwdChangedTime")),
+		PasswordPolicyDN:   entry.GetAttributeValue("pwdPolicySubentry"),
 		PwdLastSet:         pwdLastSet,
 		MustChangePassword: mustChange,
 		LockoutTime:        parseFileTimeSeconds(entry.GetAttributeValue("lockoutTime")),
@@ -290,9 +315,15 @@ func (l *LDAP) FindUserByDNContext(ctx context.Context, dn string) (user *User, 
 
 	// Use generic DN search function to eliminate code duplication
 	params := dnSearchParams{
-		operation:   "FindUserByDN",
-		filter:      "(|(objectClass=user)(objectClass=inetOrgPerson)(objectClass=person))",
-		attributes:  []string{"memberOf", "cn", "sAMAccountName", "uid", "userAccountControl", "description", "mail"},
+		operation: "FindUserByDN",
+		filter:    "(|(objectClass=user)(objectClass=inetOrgPerson)(objectClass=person))",
+		// Same attribute list as every other user search. It used to be a
+		// shorter hand-written set, which silently returned a User with the
+		// security-posture and audit fields zeroed — pwdLastSet,
+		// accountExpires, lockoutTime, whenCreated and now the password-expiry
+		// attributes — so the same type meant different things depending on
+		// which finder produced it.
+		attributes:  userFields,
 		notFoundErr: ErrUserNotFound,
 		logPrefix:   "user_",
 	}
