@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Password writes no longer assume Active Directory.** `ChangePasswordForSAMAccountName` and `ResetPasswordForSAMAccountName` (and their `*Context` variants) wrote the Microsoft-specific `unicodePwd` attribute unconditionally, with no branch on `Config.IsActiveDirectory`. OpenLDAP and other non-AD directories have no such attribute and rejected every write with `LDAP Result Code 17 "Undefined Attribute Type"`, so no password could be changed or reset on them at all — the failure was total, on the first attempt, with no configuration that avoided it. Both paths now branch: Active Directory keeps the `unicodePwd` write (DELETE+ADD for a self-service change, REPLACE for an administrative reset), and every other directory uses the RFC 3062 Password Modify extended operation, which also lets the server apply its configured hashing scheme instead of storing whatever the client sends. The AD-only UTF-16LE encoding is no longer applied on the non-AD path, where it would corrupt the password.
+- `CreateUser` already gated AD-only attributes on `IsActiveDirectory` for exactly this failure mode; the password paths had never received the same treatment.
+
+### Added
+
+- Integration coverage for password writes against a real OpenLDAP container (`auth_openldap_integration_test.go`). It binds with the new password after each write rather than only asserting the call returned no error — the previous mock-only coverage could not distinguish "the server accepted the request" from "the password actually changed", which is why the `unicodePwd` defect went unnoticed.
+- Warning log `password_write_over_cleartext_connection` when a non-AD password write goes over an unencrypted `ldap://` connection. The RFC 3062 request carries the new password in the clear, and since these writes previously always failed, this is the first release in which such a deployment can work at all. Active Directory is still refused outright (`ErrActiveDirectoryMustBeLDAPS`); non-AD only warns, because plain `ldap://` behind an already-encrypted transport is a legitimate setup and failing would break working deployments.
+
 ---
 
 ## [v1.12.0] - 2026-04-22
