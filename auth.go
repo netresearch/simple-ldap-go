@@ -51,19 +51,26 @@ func (l *LDAP) writePassword(c *ldap.Conn, w passwordWrite) error {
 		_, err := c.PasswordModify(ldap.NewPasswordModifyRequest(w.userDN, w.oldPassword, w.newPassword))
 		return err
 	}
+	return c.Modify(buildADPasswordModify(w))
+}
 
+// buildADPasswordModify constructs the unicodePwd modify request for Active
+// Directory. Split out from writePassword so the choice of operation can be
+// asserted without a live connection.
+//
+// An empty oldEncoded means an administrative reset, which uses REPLACE. A
+// self-service change instead uses DELETE old + ADD new — Microsoft's documented
+// approach, which proves knowledge of the current password and so does not
+// require the caller to hold reset rights.
+func buildADPasswordModify(w passwordWrite) *ldap.ModifyRequest {
 	modifyRequest := ldap.NewModifyRequest(w.userDN, nil)
 	if w.oldEncoded == "" {
-		// Administrative reset.
 		modifyRequest.Replace("unicodePwd", []string{w.newEncoded})
-	} else {
-		// Self-service change: DELETE old + ADD new is Microsoft's documented
-		// approach — it proves knowledge of the current password without
-		// requiring reset rights.
-		modifyRequest.Delete("unicodePwd", []string{w.oldEncoded})
-		modifyRequest.Add("unicodePwd", []string{w.newEncoded})
+		return modifyRequest
 	}
-	return c.Modify(modifyRequest)
+	modifyRequest.Delete("unicodePwd", []string{w.oldEncoded})
+	modifyRequest.Add("unicodePwd", []string{w.newEncoded})
+	return modifyRequest
 }
 
 // warnCleartextPasswordWrite logs when a non-AD password write is about to go
