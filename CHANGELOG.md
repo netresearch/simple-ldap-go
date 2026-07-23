@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v1.13.0] - 2026-07-23
+
+### Added
+
+- **Password-expiry reporting for Active Directory and OpenLDAP** ([#186](https://github.com/netresearch/simple-ldap-go/pull/186)). `PasswordExpiryFor(ctx, user)` returns a directory-independent answer to when a password expires, and `UsersWithExpiringPasswords(ctx, within)` returns the enabled users whose password expires inside a window, oldest deadline first. The result distinguishes four states — `expires` (with the moment), `never-expires`, `must-change`, `unknown` — rather than a bare timestamp, because they are not interchangeable: a caller that treats `unknown` as expiring would act on every account the directory happens to be quiet about.
+  - Active Directory resolves from the constructed `msDS-UserPasswordExpiryTimeComputed`, which folds in the domain policy and any Password Settings Object server-side, so no privileged read of the Password Settings Container is needed. New `User` fields `PasswordExpiresAt`, `PwdChangedAt`, `PasswordPolicyDN` expose the underlying attributes.
+  - OpenLDAP resolves from the ppolicy operational `pwdChangedTime` plus the governing policy's `pwdMaxAge`, taken from the entry's `pwdPolicySubentry` or the new `Config.PasswordPolicyDN`. `pwdMaxAge` is memoised per policy DN, so a directory scan costs one policy read per distinct policy rather than one per user.
+  - OpenLDAP has no `userAccountControl`, so every OpenLDAP user reads as enabled; a caller that must exclude deactivated OpenLDAP accounts has to do so by its own criterion.
+
+### Fixed
+
+- `FindUserByDNContext` requested a shorter attribute list than the other user searches, so it silently returned a `User` with `pwdLastSet`, `accountExpires`, `lockoutTime` and `whenCreated` zeroed — the same type meaning different things depending on which finder produced it. It now uses the shared `userFields` like every other user search.
+
+### CI
+
+- The codecov unit flag is declared as `unittests` to match what `go-check.yml` uploads under ([#187](https://github.com/netresearch/simple-ldap-go/pull/187)); the previous `unit` name left real unit coverage attributed to an undeclared flag while a stale one carried forward.
+
+---
+
 ## [v1.12.2] - 2026-07-23
 
 ### Fixed
