@@ -23,7 +23,12 @@ coverage:
         target: 100%
 
 flags:
-  unit:
+  # Must match the flag go-check.yml uploads unit coverage under, which is
+  # "unittests" (its codecov-flags default). Declaring "unit" here instead left
+  # the real upload attributed to an undeclared flag — dropped from the
+  # config-scoped patch rollup — while this declared-but-never-uploaded flag
+  # carried forward stale coverage, so unit-tested lines showed as uncovered.
+  unittests:
     paths:
       - "**/*.go"
     carryforward: true
