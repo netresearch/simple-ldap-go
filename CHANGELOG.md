@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [v1.12.2] - 2026-07-23
+
 ### Fixed
 
 - **Self-service password change now binds as the user on non-AD directories.** v1.12.1 stopped `ChangePasswordForSAMAccountName` writing `unicodePwd` to OpenLDAP, but it still issued the RFC 3062 Password Modify on the *pooled* connection — bound as the caller's service account. RFC 3062 authorises a self-service change from the bind identity, so a directory refuses to verify `oldPasswd` for a caller that cannot write the target entry; slapd answers `LDAP Result Code 53 "Unwilling To Perform": unwilling to verify old password`. Any deployment binding a read-only service account (the normal arrangement) therefore still could not change a password. The non-AD path now opens a dedicated connection bound as the user with their current password, which is the flow RFC 3062 describes and which makes the bind itself the proof of the old password. The administrative reset path is unchanged: it legitimately uses the service-account connection with no old password.
