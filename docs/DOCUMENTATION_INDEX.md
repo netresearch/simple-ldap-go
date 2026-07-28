@@ -3,7 +3,6 @@
 <div align="center">
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/netresearch/simple-ldap-go.svg)](https://pkg.go.dev/github.com/netresearch/simple-ldap-go)
-[![Go Report Card](https://goreportcard.com/badge/github.com/netresearch/simple-ldap-go)](https://goreportcard.com/report/github.com/netresearch/simple-ldap-go)
 
 **A comprehensive Go library for LDAP and Active Directory operations**
 
