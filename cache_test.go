@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -946,4 +947,26 @@ func BenchmarkCacheConcurrent(b *testing.B) {
 			i++
 		}
 	})
+}
+
+func TestClampInt32(t *testing.T) {
+	tests := []struct {
+		name string
+		in   int
+		want int32
+	}{
+		{"zero", 0, 0},
+		{"typical entry size", 1234, 1234},
+		{"max int32 passes through", math.MaxInt32, math.MaxInt32},
+		{"min int32 passes through", math.MinInt32, math.MinInt32},
+		{"above max saturates", math.MaxInt32 + 1, math.MaxInt32},
+		{"far above max saturates", math.MaxInt32 * 4, math.MaxInt32},
+		{"below min saturates", math.MinInt32 - 1, math.MinInt32},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, clampInt32(tt.in))
+		})
+	}
 }

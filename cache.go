@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -351,7 +352,7 @@ func (c *LRUCache) SetContext(ctx context.Context, key string, value any, ttl ti
 	}
 
 	// Compress large entries if enabled
-	if c.config.CompressionEnabled && entrySize > int32(c.config.CompressionThreshold) {
+	if c.config.CompressionEnabled && int64(entrySize) > int64(c.config.CompressionThreshold) {
 		if compressedValue, err := c.compressValue(value); err == nil {
 			entry.Value = compressedValue
 			entry.Compressed = true
@@ -382,7 +383,7 @@ func (c *LRUCache) SetContext(ctx context.Context, key string, value any, ttl ti
 	atomic.AddInt64(&c.stats.Sets, 1)
 
 	// Update max entries stat
-	currentEntries := int32(len(c.items))
+	currentEntries := clampInt32(len(c.items))
 	for {
 		maxEntries := atomic.LoadInt32(&c.stats.MaxEntries)
 		if currentEntries <= maxEntries || atomic.CompareAndSwapInt32(&c.stats.MaxEntries, maxEntries, currentEntries) {
@@ -536,7 +537,7 @@ func (c *LRUCache) GetWithRefresh(key string, refreshFunc func() (any, error)) (
 // Stats returns current cache statistics
 func (c *LRUCache) Stats() CacheStats {
 	c.mu.RLock()
-	totalEntries := int32(len(c.items))
+	totalEntries := clampInt32(len(c.items))
 	var negativeEntries int32
 	for _, entry := range c.items {
 		if entry.IsNegative {
@@ -679,12 +680,26 @@ func (c *LRUCache) evictForSpace(neededBytes int64) error {
 	return nil
 }
 
+// clampInt32 converts n to int32, saturating at the int32 bounds instead of
+// wrapping. Sizes and entry counts are tracked as int32 but computed as int; a
+// wrapped conversion would yield a negative size and corrupt the memory
+// accounting that drives eviction.
+func clampInt32(n int) int32 {
+	if n > math.MaxInt32 {
+		return math.MaxInt32
+	}
+	if n < math.MinInt32 {
+		return math.MinInt32
+	}
+	return int32(n)
+}
+
 // estimateEntrySize calculates approximate memory usage for a cache entry
 func (c *LRUCache) estimateEntrySize(key string, value any) int32 {
 	size := len(key) + 8 // Key string + basic overhead
 
 	if value == nil {
-		return int32(size + 16) // Base entry overhead
+		return clampInt32(size + 16) // Base entry overhead
 	}
 
 	switch v := value.(type) {
@@ -719,7 +734,7 @@ func (c *LRUCache) estimateEntrySize(key string, value any) int32 {
 		size += 256
 	}
 
-	return int32(size + 64) // Add overhead for CacheEntry struct
+	return clampInt32(size + 64) // Add overhead for CacheEntry struct
 }
 
 // compressValue compresses a value using gzip (placeholder implementation)
