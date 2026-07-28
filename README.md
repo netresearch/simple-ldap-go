@@ -4,7 +4,6 @@
 [![managed by netresearch/.github templates](https://img.shields.io/badge/template-netresearch%2F.github-2F99A4?logo=github)](https://github.com/netresearch/.github/tree/main/templates/go-app)
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/netresearch/simple-ldap-go.svg)](https://pkg.go.dev/github.com/netresearch/simple-ldap-go)
-[![Go Report Card](https://goreportcard.com/badge/github.com/netresearch/simple-ldap-go)](https://goreportcard.com/report/github.com/netresearch/simple-ldap-go)
 [![CI Status](https://github.com/netresearch/simple-ldap-go/actions/workflows/optimized-tests.yml/badge.svg)](https://github.com/netresearch/simple-ldap-go/actions/workflows/optimized-tests.yml)
 [![codecov](https://codecov.io/gh/netresearch/simple-ldap-go/graph/badge.svg)](https://codecov.io/gh/netresearch/simple-ldap-go)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/netresearch/simple-ldap-go)](https://go.dev/dl/)
