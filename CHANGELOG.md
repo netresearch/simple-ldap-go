@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `NewObject(cn, dn string) Object` ([#191](https://github.com/netresearch/simple-ldap-go/issues/191)). `Object.cn` and `Object.dn` were written only by `objectFromEntry`, so a consumer could not build a `User`, `Group` or `Computer` fixture with a DN through the public API — both downstream repos did it with reflection plus an `unsafe` write, which gosec flags as G103. A constructor rather than setters keeps the fields read-only after construction: an Object still cannot be edited to disagree with what the directory returned.
+
 ---
 
 ## [v1.13.0] - 2026-07-23

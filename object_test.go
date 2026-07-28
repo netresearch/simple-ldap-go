@@ -144,6 +144,97 @@ func TestObjectStructFields(t *testing.T) {
 	})
 }
 
+func TestNewObject(t *testing.T) {
+	tests := []struct {
+		name string
+		cn   string
+		dn   string
+	}{
+		{
+			name: "user distinguished name",
+			cn:   "John Doe",
+			dn:   "uid=jdoe,ou=people,dc=example,dc=com",
+		},
+		{
+			name: "empty cn",
+			cn:   "",
+			dn:   "cn=,ou=people,dc=example,dc=com",
+		},
+		{
+			name: "both empty",
+			cn:   "",
+			dn:   "",
+		},
+		{
+			name: "unicode cn",
+			cn:   "Пользователь",
+			dn:   "cn=Пользователь,ou=people,dc=example,dc=com",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			obj := NewObject(tt.cn, tt.dn)
+
+			assert.Equal(t, tt.cn, obj.CN())
+			assert.Equal(t, tt.dn, obj.DN())
+		})
+	}
+}
+
+func TestNewObjectMatchesObjectFromEntry(t *testing.T) {
+	entry := &ldap.Entry{
+		DN: "uid=jdoe,ou=people,dc=example,dc=com",
+		Attributes: []*ldap.EntryAttribute{
+			{
+				Name:   "cn",
+				Values: []string{"John Doe"},
+			},
+		},
+	}
+
+	assert.Equal(t, objectFromEntry(entry), NewObject("John Doe", "uid=jdoe,ou=people,dc=example,dc=com"))
+}
+
+func TestNewObjectComposesIntoFixtures(t *testing.T) {
+	t.Run("user", func(t *testing.T) {
+		user := User{
+			Object:         NewObject("Test User", "uid=testuser,ou=people,dc=example,dc=com"),
+			SAMAccountName: "testuser",
+			Enabled:        true,
+		}
+
+		assert.Equal(t, "uid=testuser,ou=people,dc=example,dc=com", user.DN())
+		assert.Equal(t, "Test User", user.CN())
+		assert.Equal(t, "testuser", user.SAMAccountName)
+		assert.True(t, user.Enabled)
+	})
+
+	t.Run("group", func(t *testing.T) {
+		group := Group{
+			Object:  NewObject("testgroup", "cn=testgroup,ou=groups,dc=example,dc=com"),
+			Members: []string{"uid=testuser,ou=people,dc=example,dc=com"},
+		}
+
+		assert.Equal(t, "cn=testgroup,ou=groups,dc=example,dc=com", group.DN())
+		assert.Equal(t, "testgroup", group.CN())
+		assert.Len(t, group.Members, 1)
+	})
+
+	t.Run("computer", func(t *testing.T) {
+		computer := Computer{
+			Object:         NewObject("TESTCOMPUTER", "cn=TESTCOMPUTER,ou=computers,dc=example,dc=com"),
+			SAMAccountName: "TESTCOMPUTER$",
+			OS:             "Windows 10 Pro",
+		}
+
+		assert.Equal(t, "cn=TESTCOMPUTER,ou=computers,dc=example,dc=com", computer.DN())
+		assert.Equal(t, "TESTCOMPUTER", computer.CN())
+		assert.Equal(t, "TESTCOMPUTER$", computer.SAMAccountName)
+		assert.Equal(t, "Windows 10 Pro", computer.OS)
+	})
+}
+
 func TestObjectInheritance(t *testing.T) {
 	// Test that structs embedding Object inherit its methods correctly
 	t.Run("user object inheritance", func(t *testing.T) {
