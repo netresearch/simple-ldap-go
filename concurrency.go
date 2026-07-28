@@ -105,7 +105,7 @@ func NewWorkerPool[T any](client *LDAP, config *WorkerPoolConfig) *WorkerPool[T]
 		config = DefaultWorkerPoolConfig()
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), config.Timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), config.Timeout) // #nosec G118 -- cancel is stored in WorkerPool.cancel and invoked by (*WorkerPool[T]).Close.
 
 	pool := &WorkerPool[T]{
 		workerCount: config.WorkerCount,
@@ -311,7 +311,7 @@ type PipelineStage[T, U any] struct {
 //	    fmt.Printf("Created user: %s\n", user.CN())
 //	}
 func NewPipeline[T, U any](ctx context.Context, logger *slog.Logger, bufferSize int) *Pipeline[T, U] {
-	pipelineCtx, cancel := context.WithCancel(ctx)
+	pipelineCtx, cancel := context.WithCancel(ctx) // #nosec G118 -- cancel is stored in Pipeline.cancel and invoked by (*Pipeline[T, U]).Close.
 
 	return &Pipeline[T, U]{
 		stages:    make([]PipelineStage[any, any], 0),
@@ -525,7 +525,7 @@ type FanOut[T, U any] struct {
 //	    fmt.Printf("Found user: %s\n", user.CN())
 //	}
 func NewFanOut[T, U any](ctx context.Context, logger *slog.Logger, bufferSize int) *FanOut[T, U] {
-	fanOutCtx, cancel := context.WithCancel(ctx)
+	fanOutCtx, cancel := context.WithCancel(ctx) // #nosec G118 -- cancel is stored in FanOut.cancel and invoked by (*FanOut[T, U]).Close.
 
 	return &FanOut[T, U]{
 		workers:    make([]func(context.Context, T) (U, error), 0),
@@ -676,7 +676,7 @@ type BatchProcessor[T any] struct {
 func NewBatchProcessor[T any](client *LDAP, batchSize int, timeout time.Duration,
 	processor func(context.Context, *LDAP, []T) error) *BatchProcessor[T] {
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(context.Background()) // #nosec G118 -- cancel is stored in BatchProcessor.cancel and invoked by (*BatchProcessor[T]).Close.
 
 	bp := &BatchProcessor[T]{
 		client:    client,

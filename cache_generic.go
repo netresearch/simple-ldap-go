@@ -266,9 +266,10 @@ func (c *GenericLRUCache[T]) Set(key string, value T, ttl time.Duration) error {
 
 	// Update stats
 	atomic.AddInt64(&c.stats.Sets, 1)
-	atomic.StoreInt32(&c.stats.TotalEntries, int32(len(c.items)))
-	if int32(len(c.items)) > atomic.LoadInt32(&c.stats.MaxEntries) {
-		atomic.StoreInt32(&c.stats.MaxEntries, int32(len(c.items)))
+	entryCount := clampInt32(len(c.items))
+	atomic.StoreInt32(&c.stats.TotalEntries, entryCount)
+	if entryCount > atomic.LoadInt32(&c.stats.MaxEntries) {
+		atomic.StoreInt32(&c.stats.MaxEntries, entryCount)
 	}
 
 	return nil
@@ -400,7 +401,7 @@ func (c *GenericLRUCache[T]) SetNegative(key string, ttl time.Duration) error {
 
 	// Update stats
 	atomic.AddInt32(&c.stats.NegativeEntries, 1)
-	atomic.StoreInt32(&c.stats.TotalEntries, int32(len(c.items)))
+	atomic.StoreInt32(&c.stats.TotalEntries, clampInt32(len(c.items)))
 
 	return nil
 }
@@ -411,7 +412,7 @@ func (c *GenericLRUCache[T]) Stats() CacheStats {
 	defer c.mu.RUnlock()
 
 	stats := c.stats
-	stats.TotalEntries = int32(len(c.items))
+	stats.TotalEntries = clampInt32(len(c.items))
 	stats.MemoryUsageBytes = atomic.LoadInt64(&c.memoryUsage)
 	stats.MemoryUsageMB = float64(stats.MemoryUsageBytes) / (1024 * 1024)
 
@@ -462,7 +463,7 @@ func (c *GenericLRUCache[T]) removeEntry(key string) {
 		if entry.IsNegative {
 			atomic.AddInt32(&c.stats.NegativeEntries, -1)
 		}
-		atomic.StoreInt32(&c.stats.TotalEntries, int32(len(c.items)))
+		atomic.StoreInt32(&c.stats.TotalEntries, clampInt32(len(c.items)))
 	}
 }
 
