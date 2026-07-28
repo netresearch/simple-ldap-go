@@ -7,9 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [v1.14.0] - 2026-07-28
+
 ### Added
 
 - `NewObject(cn, dn string) Object` ([#191](https://github.com/netresearch/simple-ldap-go/issues/191)). `Object.cn` and `Object.dn` were written only by `objectFromEntry`, so a consumer could not build a `User`, `Group` or `Computer` fixture with a DN through the public API — both downstream repos did it with reflection plus an `unsafe` write, which gosec flags as G103. A constructor rather than setters keeps the fields read-only after construction: an Object still cannot be edited to disagree with what the directory returned.
+
+### Fixed
+
+- **Cache size accounting no longer wraps.** Entry counts and byte sizes are computed as `int` and stored as `int32`; the conversion was unchecked, so a value past `MaxInt32` became negative and corrupted the memory accounting that drives eviction. Conversions now saturate at the `int32` bounds instead ([#190](https://github.com/netresearch/simple-ldap-go/pull/190)). Reaching that size takes a cache far larger than any realistic directory, so this is a latent defect rather than one anyone is likely to have hit.
+
+### CI
+
+- gosec became a blocking check in the shared workflow. The four `context.WithCancel` findings in `concurrency.go` are false positives — `WorkerPool`, `Pipeline`, `FanOut` and `BatchProcessor` each store the cancel function and invoke it from `Close()`, where a `defer cancel()` in the constructor would cancel immediately — and are annotated with that reason rather than suppressed blindly ([#190](https://github.com/netresearch/simple-ldap-go/pull/190)).
+- The Go toolchain directive moved to 1.26.5, clearing four standard-library advisories reported by govulncheck ([#190](https://github.com/netresearch/simple-ldap-go/pull/190), [#192](https://github.com/netresearch/simple-ldap-go/pull/192)). The `go` directive stays at 1.25.0, so consumers are not forced onto a newer language version.
 
 ---
 
