@@ -15,6 +15,7 @@ This document provides comprehensive security guidance for using the simple-ldap
 9. [Security Monitoring](#security-monitoring)
 10. [Best Practices](#best-practices)
 11. [Security Checklist](#security-checklist)
+12. [Verifying a Release](#verifying-a-release)
 
 ## Security Overview
 
@@ -649,6 +650,47 @@ func handleLDAPError(err error) {
 - [ ] Incident response procedures
 - [ ] Security metrics dashboard
 - [ ] Automated threat response
+
+## Verifying a Release
+
+Every release ships an SBOM in CycloneDX and SPDX form, a `checksums.txt` over
+them, and GitHub build provenance.
+
+The trust chain runs through the checksum file rather than through per-file
+signatures: `checksums.txt` lists the SHA-256 of both SBOMs, so verifying that
+one file and then the checksums establishes the whole set. Finding a single
+signature next to several artifacts is the expected shape, not a gap.
+
+```bash
+gh release download v1.14.0 --repo netresearch/simple-ldap-go
+
+# Build provenance for the checksum file.
+gh attestation verify checksums.txt \
+  --owner netresearch \
+  --signer-workflow netresearch/.github/.github/workflows/golib-create-release.yml
+
+# It vouches for the SBOMs.
+sha256sum -c checksums.txt
+```
+
+### Cosign signatures
+
+Releases **after v1.14.0** also carry `checksums.txt.sigstore.json`, a keyless
+Sigstore bundle over the same file. Signing was disabled between April and July
+2026 while a template defect was outstanding, so v1.14.0 and the releases before
+it have build provenance but no cosign bundle.
+
+```bash
+cosign verify-blob \
+  --bundle checksums.txt.sigstore.json \
+  --certificate-identity-regexp "^https://github\.com/netresearch/\.github/\.github/workflows/golib-create-release\.yml@" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+  checksums.txt
+```
+
+The identity is the **reusable** workflow, not this repository: keyless signing
+inside a called workflow carries that workflow's `job_workflow_ref`. Verifying
+against `netresearch/simple-ldap-go` will not match.
 
 ## Conclusion
 
