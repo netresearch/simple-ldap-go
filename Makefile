@@ -3,7 +3,7 @@
 .PHONY: test test-fast test-unit test-integration test-all test-parallel test-benchmark clean help
 
 # Default Go settings
-GO_VERSION := 1.23
+GO_VERSION := 1.26
 TIMEOUT_UNIT := 10s
 TIMEOUT_INTEGRATION := 300s
 TIMEOUT_ALL := 300s
