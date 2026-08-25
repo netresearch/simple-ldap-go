@@ -102,8 +102,8 @@ func TestWrapLDAPError_ContextErrors(t *testing.T) {
 func TestWrapLDAPError_NonLDAPError(t *testing.T) {
 	baseErr := errors.New("network timeout")
 	wrapped := WrapLDAPError("Search", "ldaps://srv", baseErr)
-	var ldapErr *LDAPError
-	require.True(t, errors.As(wrapped, &ldapErr))
+	ldapErr, ok := errors.AsType[*LDAPError](wrapped)
+	require.True(t, ok)
 	assert.Equal(t, "Search", ldapErr.Op)
 }
 
@@ -128,8 +128,8 @@ func TestClassifyLDAPError_AllCodes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ldapErr := &ldap.Error{ResultCode: tt.code, Err: errors.New("test")}
 			wrapped := WrapLDAPError("op", "srv", ldapErr)
-			var enhanced *LDAPError
-			require.True(t, errors.As(wrapped, &enhanced))
+			enhanced, ok := errors.AsType[*LDAPError](wrapped)
+			require.True(t, ok)
 			assert.Equal(t, int(tt.code), enhanced.Code)
 			if tt.sentinel != nil {
 				assert.True(t, errors.Is(enhanced.Err, tt.sentinel))
@@ -400,8 +400,8 @@ func TestAuthenticationError(t *testing.T) {
 	t.Run("with non-LDAPError", func(t *testing.T) {
 		err := authenticationError("Bind", "user1", errors.New("bad password"))
 		assert.Contains(t, err.Error(), "authentication failed for user1")
-		var ldapErr *LDAPError
-		require.True(t, errors.As(err, &ldapErr))
+		ldapErr, ok := errors.AsType[*LDAPError](err)
+		require.True(t, ok)
 		assert.Equal(t, "Bind", ldapErr.Op)
 	})
 

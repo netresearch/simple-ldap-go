@@ -67,10 +67,9 @@ func modernPatternsDemo() {
 	fmt.Println("\n=== Helper Functions (used internally) ===")
 	// These helper functions are used throughout the examples:
 	// - parseUserFromDN: Simulates parsing user from DN
-	// - stringPtr: Creates string pointers for struct fields
 	testDN := "CN=TestUser,DC=example,DC=com"
 	_ = parseUserFromDN(testDN)
-	_ = stringPtr("test-string")
+	_ = new("test-string")
 }
 
 // demonstrateModernClientCreation shows the functional options pattern
@@ -595,8 +594,7 @@ func demonstrateErrorHandling() {
 		fmt.Printf("✓ Enhanced error with context: %v\n", err)
 
 		// Check for specific error types
-		var ldapErr *ldap.LDAPError
-		if errors.As(err, &ldapErr) {
+		if ldapErr, ok := errors.AsType[*ldap.LDAPError](err); ok {
 			fmt.Printf("  - LDAP Error Code: %d\n", ldapErr.Code)
 			fmt.Printf("  - Server: %s\n", ldapErr.Server)
 			fmt.Printf("  - Operation: %s\n", ldapErr.Op)
@@ -618,12 +616,8 @@ func demonstrateErrorHandling() {
 func parseUserFromDN(dn string) *ldap.FullUser {
 	return &ldap.FullUser{
 		CN:             "Parsed User",
-		SAMAccountName: stringPtr("parsed"),
-		Description:    stringPtr(fmt.Sprintf("Parsed from %s", dn)),
+		SAMAccountName: new("parsed"),
+		Description:    new(fmt.Sprintf("Parsed from %s", dn)),
 	}
 }
 
-// Helper function to create string pointers
-func stringPtr(s string) *string {
-	return &s
-}

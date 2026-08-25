@@ -193,8 +193,7 @@ func classifyUACSearchResult(sr *ldap.SearchResult, searchErr error, dn string, 
 		// on the search itself rather than an empty result set. Map
 		// that to the caller-supplied sentinel so the error shape
 		// matches the rest of the API (FindUserByDN, FindComputerByDN).
-		var ldapErr *ldap.Error
-		if errors.As(searchErr, &ldapErr) && ldapErr.ResultCode == ldap.LDAPResultNoSuchObject {
+		if ldapErr, ok := errors.AsType[*ldap.Error](searchErr); ok && ldapErr.ResultCode == ldap.LDAPResultNoSuchObject {
 			return nil, fmt.Errorf("%w: %s", notFoundErr, dn)
 		}
 		return nil, WrapLDAPError("SearchUAC", server, searchErr)
