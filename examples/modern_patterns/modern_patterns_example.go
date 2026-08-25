@@ -69,7 +69,6 @@ func modernPatternsDemo() {
 	// - parseUserFromDN: Simulates parsing user from DN
 	testDN := "CN=TestUser,DC=example,DC=com"
 	_ = parseUserFromDN(testDN)
-	_ = new("test-string")
 }
 
 // demonstrateModernClientCreation shows the functional options pattern

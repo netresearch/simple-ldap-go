@@ -48,7 +48,7 @@ Instances of abusive, harassing, or otherwise unacceptable behavior may be repor
 
 ### Prerequisites
 
-- **Go** 1.25 or higher
+- **Go** 1.26 or higher
 - **Docker** (for integration tests with OpenLDAP)
 - **Git** for version control
 
