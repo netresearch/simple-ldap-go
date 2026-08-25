@@ -417,10 +417,7 @@ func TestMockPaginatedSearch(t *testing.T) {
 
 		// Simulate pagination
 		getPage := func(offset, size int) []*ldap.Entry {
-			end := offset + size
-			if end > len(allEntries) {
-				end = len(allEntries)
-			}
+			end := min(offset+size, len(allEntries))
 			if offset >= len(allEntries) {
 				return []*ldap.Entry{}
 			}
