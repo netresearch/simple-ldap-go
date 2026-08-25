@@ -5,6 +5,7 @@ package ldap
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/go-ldap/ldap/v3"
@@ -173,5 +174,41 @@ func TestIntegration_OpenLDAP_LongUID(t *testing.T) {
 		require.NoError(t, client.ChangePasswordForSAMAccountName(longUID, resetPassword, changedPassword))
 		assert.NoError(t, bindAs(t, tc, userDN, changedPassword),
 			"the changed password must actually bind")
+	})
+
+	t.Run("CreateUser accepts a long identifier and stores it as uid", func(t *testing.T) {
+		// CreateUser validated the identifier with the strict sAMAccountName
+		// rules even though it stores it into uid on non-AD servers, so a long
+		// identifier was rejected before any add. The created user must then be
+		// resolvable by that same long uid.
+		createUID := "created.longuid-xyz01"
+		require.Greater(t, len(createUID), 20)
+		path := "ou=people"
+
+		createdDN, err := client.CreateUser(FullUser{
+			CN:             "Created Long Uid",
+			FirstName:      "Created",
+			LastName:       "Uid",
+			SAMAccountName: &createUID,
+			Path:           &path,
+		}, "Create1!Password")
+		require.NoError(t, err,
+			"regression: CreateUser rejected a long uid as 'sAMAccountName too long'")
+
+		found, err := client.FindUserBySAMAccountName(createUID)
+		require.NoError(t, err)
+		// OpenLDAP normalizes the RDN attribute name to lowercase on read, so
+		// compare case-insensitively.
+		assert.True(t, strings.EqualFold(createdDN, found.DN()),
+			"created %q should be found by its long uid, got %q", createdDN, found.DN())
+	})
+
+	t.Run("identifier with DN metacharacters is handled without injection", func(t *testing.T) {
+		// ValidateUID admits ',' and '=' on non-AD servers; the timing-mitigation
+		// dummy bind interpolates the identifier into a DN, so it must be escaped.
+		// The user does not exist, so this must return a normal not-found/auth
+		// error rather than panic or bind against an injected DN.
+		_, err := client.CheckPasswordForSAMAccountName("x,cn=admin", "irrelevant")
+		require.Error(t, err)
 	})
 }

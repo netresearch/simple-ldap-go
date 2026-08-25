@@ -407,6 +407,7 @@ func TestValidateUID(t *testing.T) {
 		{"Valid single character", "j", true},
 		{"Valid starts with number", "1john", true},
 		{"Valid with at sign", "john@example.com", true},
+		{"Valid with DN metacharacters", "o=acme,cn=x", true},
 		{"Valid max length", strings.Repeat("a", 255), true},
 		{"Empty", "", false},
 		{"Too long", strings.Repeat("a", 256), false},
@@ -414,6 +415,10 @@ func TestValidateUID(t *testing.T) {
 		{"Invalid UTF-8", "john\xffdoe", false},
 		{"Leading space", " john", false},
 		{"Trailing space", "john ", false},
+		{"Leading NBSP", "\u00a0john", false},
+		{"Trailing ideographic space", "john\u3000", false},
+		{"Zero-width space", "ad\u200bmin", false},
+		{"Bidi override", "\u202ejohn", false},
 	}
 
 	for _, tt := range tests {

@@ -1246,8 +1246,8 @@ func (l *LDAP) CreateUserContext(ctx context.Context, user FullUser, password st
 		}()))
 
 	if user.SAMAccountName != nil {
-		if err := ValidateSAMAccountName(*user.SAMAccountName); err != nil {
-			return "", fmt.Errorf("invalid sAMAccountName: %w", err)
+		if err := l.validateAccountIdentifier(*user.SAMAccountName); err != nil {
+			return "", err
 		}
 	}
 

@@ -105,7 +105,9 @@ func (l *LDAP) warnCleartextPasswordWrite(operation, maskedUsername string) {
 //   - *User: The user object if authentication succeeds
 //   - error: ErrUserNotFound if the user doesn't exist, or authentication error if credentials are invalid
 //
-// This is commonly used for login validation in Active Directory environments.
+// The identifier is validated per server type: sAMAccountName rules when
+// Config.IsActiveDirectory is set, relaxed uid rules (see ValidateUID) otherwise.
+// It is commonly used for login validation in Active Directory environments.
 func (l *LDAP) CheckPasswordForSAMAccountName(sAMAccountName, password string) (*User, error) {
 	return l.CheckPasswordForSAMAccountNameContext(context.Background(), sAMAccountName, password)
 }
@@ -123,7 +125,9 @@ func (l *LDAP) CheckPasswordForSAMAccountName(sAMAccountName, password string) (
 //   - error: ErrUserNotFound if the user doesn't exist, authentication error if credentials are invalid,
 //     or context cancellation error
 //
-// This is commonly used for login validation in Active Directory environments.
+// The identifier is validated per server type: sAMAccountName rules when
+// Config.IsActiveDirectory is set, relaxed uid rules (see ValidateUID) otherwise.
+// It is commonly used for login validation in Active Directory environments.
 func (l *LDAP) CheckPasswordForSAMAccountNameContext(ctx context.Context, sAMAccountName, password string) (*User, error) {
 	if err := l.validateAccountIdentifier(sAMAccountName); err != nil {
 		return nil, err
@@ -216,8 +220,11 @@ func (l *LDAP) CheckPasswordForSAMAccountNameContext(ctx context.Context, sAMAcc
 		bindErr = c.Bind(userDN, credPassword)
 	} else {
 		// User doesn't exist - perform dummy bind to maintain constant timing
-		// Use a predictable dummy DN that won't exist to ensure bind fails
-		dummyDN := fmt.Sprintf("CN=nonexistent-%s,CN=Users,%s", sAMAccountName, l.config.BaseDN)
+		// Use a predictable dummy DN that won't exist to ensure bind fails.
+		// The identifier is escaped: non-AD uid validation admits DN
+		// metacharacters (",", "=", "+", "\", ...) that must not alter the
+		// DN structure of this bind.
+		dummyDN := fmt.Sprintf("CN=nonexistent-%s,CN=Users,%s", ldap.EscapeDN(sAMAccountName), l.config.BaseDN)
 		_ = c.Bind(dummyDN, credPassword) // Dummy bind for timing, ignore result
 		// Override bind error with user lookup error for proper error reporting
 		bindErr = userLookupErr
@@ -446,6 +453,9 @@ func encodePassword(password string) (string, error) {
 //   - User must provide their current password for verification
 //   - New password must meet the domain's password policy requirements
 //
+// The identifier is validated per server type: sAMAccountName rules when
+// Config.IsActiveDirectory is set, relaxed uid rules (see ValidateUID) otherwise.
+//
 // The password change uses the Microsoft-specific unicodePwd attribute with proper UTF-16LE encoding.
 // Reference: https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-adts/6e803168-f140-4d23-b2d3-c3a8ab5917d2
 func (l *LDAP) ChangePasswordForSAMAccountName(sAMAccountName, oldPassword, newPassword string) (err error) {
@@ -470,6 +480,9 @@ func (l *LDAP) ChangePasswordForSAMAccountName(sAMAccountName, oldPassword, newP
 //   - For Active Directory servers, LDAPS (SSL/TLS) connection is mandatory
 //   - User must provide their current password for verification
 //   - New password must meet the domain's password policy requirements
+//
+// The identifier is validated per server type: sAMAccountName rules when
+// Config.IsActiveDirectory is set, relaxed uid rules (see ValidateUID) otherwise.
 //
 // The password change uses the Microsoft-specific unicodePwd attribute with proper UTF-16LE encoding.
 // Reference: https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-adts/6e803168-f140-4d23-b2d3-c3a8ab5917d2
@@ -658,6 +671,9 @@ func (l *LDAP) ChangePasswordForSAMAccountNameContext(ctx context.Context, sAMAc
 //   - For Active Directory servers, LDAPS (SSL/TLS) connection is mandatory
 //   - The service account must have "Reset password" permission on the target user object
 //   - New password must meet the domain's password policy requirements
+//
+// The identifier is validated per server type: sAMAccountName rules when
+// Config.IsActiveDirectory is set, relaxed uid rules (see ValidateUID) otherwise.
 //
 // Security Notes:
 //   - This is an administrative operation that bypasses old password verification

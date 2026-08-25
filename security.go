@@ -289,28 +289,35 @@ func ValidateSAMAccountName(sam string) error {
 // OpenLDAP's uid attribute (RFC 4519) has none of the sAMAccountName
 // restrictions — no 20-character limit, digits may lead, "@" and "." are
 // legal — so only injection- and DoS-relevant properties are checked here.
-// Filter values are additionally escaped at query time.
+// Filter and DN values are additionally escaped at query time.
 func ValidateUID(uid string) error {
 	if uid == "" {
 		return fmt.Errorf("uid cannot be empty")
 	}
 
 	if len(uid) > MaxUIDLength {
-		return fmt.Errorf("uid too long: %d characters (max %d)", len(uid), MaxUIDLength)
+		return fmt.Errorf("uid too long: %d bytes (max %d)", len(uid), MaxUIDLength)
 	}
 
 	if !utf8.ValidString(uid) {
 		return fmt.Errorf("uid contains invalid UTF-8")
 	}
 
+	// Reject control characters (Cc) and format characters (Cf) anywhere: the
+	// latter includes zero-width spaces and bidi overrides, which produce
+	// visually identical but distinct identifiers in logs and cache keys.
 	for _, r := range uid {
-		if unicode.IsControl(r) {
-			return fmt.Errorf("uid contains control characters")
+		if unicode.IsControl(r) || unicode.Is(unicode.Cf, r) {
+			return fmt.Errorf("uid contains control or format characters")
 		}
 	}
 
-	if strings.HasPrefix(uid, " ") || strings.HasSuffix(uid, " ") {
-		return fmt.Errorf("uid cannot start or end with space")
+	// Reject leading/trailing whitespace of any kind, not just ASCII space
+	// (NBSP, ideographic space, …), which a directory would trim or mismatch.
+	first, _ := utf8.DecodeRuneInString(uid)
+	last, _ := utf8.DecodeLastRuneInString(uid)
+	if unicode.IsSpace(first) || unicode.IsSpace(last) {
+		return fmt.Errorf("uid cannot start or end with whitespace")
 	}
 
 	return nil

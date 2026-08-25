@@ -170,10 +170,14 @@ func TestCreateUser_CancelledContext(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestCreateUser_InvalidSAMAccountName(t *testing.T) {
+func TestCreateUser_InvalidIdentifier(t *testing.T) {
 	client := newExampleClient(t)
-	// Contains a space, which ValidateSAMAccountName rejects.
-	bad := "bad user"
+	// newExampleClient is non-AD, so the identifier is validated with the uid
+	// rules. A leading space is invalid there (and would be under sAMAccountName
+	// too), so creation is rejected before any connection is attempted. An
+	// interior space, by contrast, is now legal on OpenLDAP — that over-strict
+	// rejection was the subject of issue #666.
+	bad := " baduser"
 	_, err := client.CreateUser(FullUser{
 		CN:             "Bad User",
 		FirstName:      "Bad",
@@ -181,7 +185,7 @@ func TestCreateUser_InvalidSAMAccountName(t *testing.T) {
 		SAMAccountName: &bad,
 	}, "password")
 	require.Error(t, err)
-	require.ErrorContains(t, err, "invalid sAMAccountName")
+	require.ErrorContains(t, err, "invalid uid")
 }
 
 func TestModifyUser_ConnectionError(t *testing.T) {
