@@ -110,3 +110,68 @@ func TestIntegration_OpenLDAP_PasswordWrites(t *testing.T) {
 			"a rejected change must leave the existing password intact")
 	})
 }
+
+// TestIntegration_OpenLDAP_LongUID is a regression test for
+// netresearch/ldap-selfservice-password-changer#666.
+//
+// OpenLDAP permits uids longer than Active Directory's 20-character
+// sAMAccountName limit, but every entry point validated the identifier with the
+// AD rules before any directory query ran, so such users could not be resolved
+// and could never change or reset their password.
+func TestIntegration_OpenLDAP_LongUID(t *testing.T) {
+	tc := SetupTestContainer(t)
+	defer tc.Close(t)
+
+	require.False(t, tc.Config.IsActiveDirectory,
+		"fixture must be a non-AD directory for this regression test to mean anything")
+
+	// 22 characters — the length from the original report.
+	const longUID = "firstname.lastname-abc"
+	require.Len(t, longUID, 22)
+
+	userDN := fmt.Sprintf("uid=%s,%s", longUID, tc.UsersOU)
+
+	// Seed the user with a raw admin bind so the test does not depend on the
+	// CreateUser code path it is not about.
+	conn, err := ldap.DialURL(tc.Config.Server)
+	require.NoError(t, err)
+	defer func() { _ = conn.Close() }()
+	require.NoError(t, conn.Bind(tc.AdminUser, tc.AdminPass))
+
+	const initialPassword = "Initial1!Password"
+	addReq := ldap.NewAddRequest(userDN, nil)
+	addReq.Attribute("objectClass", []string{"inetOrgPerson", "posixAccount", "shadowAccount"})
+	addReq.Attribute("uid", []string{longUID})
+	addReq.Attribute("cn", []string{"Long Uid"})
+	addReq.Attribute("sn", []string{"Uid"})
+	addReq.Attribute("userPassword", []string{initialPassword})
+	addReq.Attribute("uidNumber", []string{"10099"})
+	addReq.Attribute("gidNumber", []string{"1000"})
+	addReq.Attribute("homeDirectory", []string{"/home/longuid"})
+	require.NoError(t, conn.Add(addReq))
+
+	client, err := New(tc.Config, tc.AdminUser, tc.AdminPass)
+	require.NoError(t, err)
+
+	const resetPassword = "Reset1!Password"
+
+	t.Run("user is found by long uid", func(t *testing.T) {
+		user, err := client.FindUserBySAMAccountName(longUID)
+		require.NoError(t, err,
+			"regression: was rejected as 'sAMAccountName too long' before any query")
+		assert.Equal(t, userDN, user.DN())
+	})
+
+	t.Run("administrative reset works for long uid", func(t *testing.T) {
+		require.NoError(t, client.ResetPasswordForSAMAccountName(longUID, resetPassword))
+		assert.NoError(t, bindAs(t, tc, userDN, resetPassword),
+			"the new password must actually bind")
+	})
+
+	t.Run("self-service change works for long uid", func(t *testing.T) {
+		const changedPassword = "Changed1!Password"
+		require.NoError(t, client.ChangePasswordForSAMAccountName(longUID, resetPassword, changedPassword))
+		assert.NoError(t, bindAs(t, tc, userDN, changedPassword),
+			"the changed password must actually bind")
+	})
+}
