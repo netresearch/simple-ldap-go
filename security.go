@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 	"unicode"
+	"unicode/utf8"
 )
 
 // Package-level compiled replacer to avoid per-call allocation
@@ -143,6 +144,9 @@ const (
 	MaxDNLength = 8000
 	// MaxSAMAccountNameLength defines the maximum length for sAMAccountName
 	MaxSAMAccountNameLength = 20
+	// MaxUIDLength bounds uid values on non-AD servers; RFC 4519 sets no limit,
+	// so this is a DoS guard, not a schema rule
+	MaxUIDLength = 255
 )
 
 // ValidateDN validates and normalizes a Distinguished Name (DN)
@@ -276,6 +280,55 @@ func ValidateSAMAccountName(sam string) error {
 
 	if strings.HasPrefix(sam, ".") || strings.HasSuffix(sam, ".") {
 		return fmt.Errorf("sAMAccountName cannot start or end with period")
+	}
+
+	return nil
+}
+
+// ValidateUID validates a user identifier for non-Active-Directory servers.
+// OpenLDAP's uid attribute (RFC 4519) has none of the sAMAccountName
+// restrictions — no 20-character limit, digits may lead, "@" and "." are
+// legal — so only injection- and DoS-relevant properties are checked here.
+// Filter values are additionally escaped at query time.
+func ValidateUID(uid string) error {
+	if uid == "" {
+		return fmt.Errorf("uid cannot be empty")
+	}
+
+	if len(uid) > MaxUIDLength {
+		return fmt.Errorf("uid too long: %d characters (max %d)", len(uid), MaxUIDLength)
+	}
+
+	if !utf8.ValidString(uid) {
+		return fmt.Errorf("uid contains invalid UTF-8")
+	}
+
+	for _, r := range uid {
+		if unicode.IsControl(r) {
+			return fmt.Errorf("uid contains control characters")
+		}
+	}
+
+	if strings.HasPrefix(uid, " ") || strings.HasSuffix(uid, " ") {
+		return fmt.Errorf("uid cannot start or end with space")
+	}
+
+	return nil
+}
+
+// validateAccountIdentifier validates a user account identifier according to
+// the configured directory type: strict sAMAccountName rules on Active
+// Directory, relaxed uid rules otherwise.
+func (l *LDAP) validateAccountIdentifier(name string) error {
+	if l.config.IsActiveDirectory {
+		if err := ValidateSAMAccountName(name); err != nil {
+			return fmt.Errorf("invalid sAMAccountName: %w", err)
+		}
+		return nil
+	}
+
+	if err := ValidateUID(name); err != nil {
+		return fmt.Errorf("invalid uid: %w", err)
 	}
 
 	return nil

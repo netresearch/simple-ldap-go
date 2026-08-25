@@ -125,8 +125,8 @@ func (l *LDAP) CheckPasswordForSAMAccountName(sAMAccountName, password string) (
 //
 // This is commonly used for login validation in Active Directory environments.
 func (l *LDAP) CheckPasswordForSAMAccountNameContext(ctx context.Context, sAMAccountName, password string) (*User, error) {
-	if err := ValidateSAMAccountName(sAMAccountName); err != nil {
-		return nil, fmt.Errorf("invalid sAMAccountName: %w", err)
+	if err := l.validateAccountIdentifier(sAMAccountName); err != nil {
+		return nil, err
 	}
 
 	// Check for context cancellation first
@@ -476,8 +476,8 @@ func (l *LDAP) ChangePasswordForSAMAccountName(sAMAccountName, oldPassword, newP
 func (l *LDAP) ChangePasswordForSAMAccountNameContext(ctx context.Context, sAMAccountName, oldPassword, newPassword string) (err error) {
 	start := time.Now()
 
-	if err := ValidateSAMAccountName(sAMAccountName); err != nil {
-		return fmt.Errorf("invalid sAMAccountName: %w", err)
+	if err := l.validateAccountIdentifier(sAMAccountName); err != nil {
+		return err
 	}
 
 	// Create secure credentials for password handling
@@ -673,8 +673,8 @@ func (l *LDAP) ResetPasswordForSAMAccountName(sAMAccountName, newPassword string
 
 // ResetPasswordForSAMAccountNameContext performs an administrative password reset with context support.
 func (l *LDAP) ResetPasswordForSAMAccountNameContext(ctx context.Context, sAMAccountName, newPassword string) error {
-	if err := ValidateSAMAccountName(sAMAccountName); err != nil {
-		return fmt.Errorf("invalid sAMAccountName: %w", err)
+	if err := l.validateAccountIdentifier(sAMAccountName); err != nil {
+		return err
 	}
 
 	start := time.Now()
