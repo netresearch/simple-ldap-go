@@ -52,25 +52,18 @@ func (b *UserBuilder) WithCN(cn string) *UserBuilder {
 	return b
 }
 
-// WithSAMAccountName sets the SAM account name for the user.
+// WithSAMAccountName sets the account identifier — sAMAccountName on Active
+// Directory, uid on other directories — for the user.
 //
-// This builder is Active-Directory-oriented and validates the value against the
-// AD sAMAccountName rules (max 20 characters, no metacharacters). Non-AD
-// (OpenLDAP) callers whose uids do not fit those rules should set
-// FullUser.SAMAccountName directly and call CreateUser, which validates the
-// identifier per server type (see validateAccountIdentifier / ValidateUID).
+// The value is validated with the permissive, server-neutral ValidateUID rules
+// (non-empty, at most 255 bytes, valid UTF-8, no control or format characters,
+// no leading or trailing whitespace). Active Directory's stricter sAMAccountName
+// rules (max 20 characters, no metacharacters) are applied by CreateUser when
+// the client is configured for AD; the builder has no server context, so it does
+// not reject long uids that are valid on OpenLDAP (#214).
 func (b *UserBuilder) WithSAMAccountName(samAccountName string) *UserBuilder {
-	if samAccountName == "" {
-		b.errors = append(b.errors, errors.New("SAMAccountName cannot be empty"))
-		return b
-	}
-	// Validate SAM account name format
-	if len(samAccountName) > 20 {
-		b.errors = append(b.errors, errors.New("SAMAccountName cannot exceed 20 characters"))
-		return b
-	}
-	if strings.ContainsAny(samAccountName, `"[]:;|=+*?<>/\,`) {
-		b.errors = append(b.errors, errors.New("SAMAccountName contains invalid characters"))
+	if err := ValidateUID(samAccountName); err != nil {
+		b.errors = append(b.errors, fmt.Errorf("invalid SAMAccountName: %w", err))
 		return b
 	}
 	b.user.SAMAccountName = &samAccountName

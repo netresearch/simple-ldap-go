@@ -84,6 +84,24 @@ func buildDummyBindDN(identifier, baseDN string) string {
 	return fmt.Sprintf("CN=nonexistent-%s,CN=Users,%s", ldap.EscapeDN(identifier), baseDN)
 }
 
+// rebindPooledConnToService restores the service-account identity on a pooled
+// connection after a password check rebound it as the end user. A pooled
+// connection is reused by the next caller, so leaving it bound as the verified
+// user leaks that identity to unrelated operations (#213). Non-pooled
+// connections are closed on release, so this is a no-op for them. If the rebind
+// fails the connection is closed rather than returned mis-bound to the pool.
+func (l *LDAP) rebindPooledConnToService(c *ldap.Conn, operation string) {
+	if l.connPool == nil {
+		return
+	}
+	if err := c.Bind(l.user, l.password); err != nil {
+		l.logger.Warn("connection_service_rebind_failed",
+			slog.String("operation", operation),
+			slog.String("error", err.Error()))
+		_ = c.Close()
+	}
+}
+
 // warnCleartextPasswordWrite logs when a non-AD password write is about to go
 // over an unencrypted connection.
 //
@@ -243,6 +261,11 @@ func (l *LDAP) CheckPasswordForSAMAccountNameContext(ctx context.Context, sAMAcc
 		userDN = dummyDN
 	}
 
+	// The verification bind above re-authenticated this connection as the end
+	// user (or the dummy identity); restore the service-account bind before it
+	// returns to the pool (#213).
+	l.rebindPooledConnToService(c, "CheckPasswordForSAMAccountName")
+
 	err = bindErr
 	if err != nil {
 		// Security monitoring: Record authentication failure
@@ -396,6 +419,11 @@ func (l *LDAP) CheckPasswordForDNContext(ctx context.Context, dn, password strin
 
 	_, credPassword := creds.GetCredentials()
 	err = c.Bind(user.DN(), credPassword)
+
+	// Restore the service-account bind before release; the verification result
+	// is kept in err (#213).
+	l.rebindPooledConnToService(c, "CheckPasswordForDN")
+
 	if err != nil {
 		// Security monitoring: Record authentication failure
 		if l.rateLimiter != nil {

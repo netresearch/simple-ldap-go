@@ -246,9 +246,18 @@ func TestValidator_ValidateAttribute(t *testing.T) {
 			expectWarn:  false,
 		},
 		{
-			name:        "Invalid SAM account name",
+			// "@" is a legal uid character; the samAccountName attribute is now
+			// validated with the permissive ValidateUID rules (#214).
+			name:        "SAM account name with @ is valid",
 			attrName:    "sAMAccountName",
 			attrValue:   "invalid@name",
+			expectValid: true,
+			expectWarn:  false,
+		},
+		{
+			name:        "SAM account name with control char is invalid",
+			attrName:    "sAMAccountName",
+			attrValue:   "bad\x01name",
 			expectValid: false,
 			expectWarn:  false,
 		},
