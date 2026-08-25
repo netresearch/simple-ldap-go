@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `ValidateUID(uid string) error` and `MaxUIDLength` (255): the relaxed identifier validation for non-Active-Directory servers — non-empty, at most 255 bytes, valid UTF-8, no control characters, no leading or trailing space ([#211](https://github.com/netresearch/simple-ldap-go/pull/211)).
+
+### Fixed
+
+- **OpenLDAP users with uids longer than 20 characters are no longer rejected.** `CheckPasswordForSAMAccountName`, `ChangePasswordForSAMAccountName`, `ResetPasswordForSAMAccountName`, `FindUserBySAMAccountName` and `CreateUser` validated every identifier with Active Directory's sAMAccountName rules (20-character limit, no leading digit, character blacklist) before any query ran, so such users could not be resolved and could never change or reset their password ([netresearch/ldap-selfservice-password-changer#666](https://github.com/netresearch/ldap-selfservice-password-changer/issues/666)). Validation is now chosen per `IsActiveDirectory`: the strict rules stay for AD, `ValidateUID` applies otherwise. Filter values were already escaped at query time, so the relaxation does not affect filter construction. `FindComputerBySAMAccountName` stays strict — sAMAccountName on computer objects is an AD-only concept ([#211](https://github.com/netresearch/simple-ldap-go/pull/211)).
+
 ---
 
 ## [v1.14.0] - 2026-07-28
