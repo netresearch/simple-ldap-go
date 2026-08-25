@@ -632,11 +632,11 @@ func TestValidateServerURL_EdgeCases(t *testing.T) {
 func TestValidateLDAPFilter_MaxNesting(t *testing.T) {
 	// Build filter with nesting depth > 20
 	filter := ""
-	for i := 0; i < 25; i++ {
+	for range 25 {
 		filter += "(&"
 	}
 	filter += "(cn=test)"
-	for i := 0; i < 25; i++ {
+	for range 25 {
 		filter += ")"
 	}
 	_, err := ValidateLDAPFilter(filter)
@@ -727,13 +727,13 @@ func TestSecureCredential_ConcurrentAccess(t *testing.T) {
 
 	go func() {
 		defer close(done)
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			cred.GetCredentials()
 			cred.IsExpired()
 		}
 	}()
 
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		cred.GetCredentials()
 		cred.IsExpired()
 	}
@@ -767,12 +767,12 @@ func TestLDAPError_WithContext_ThreadSafe(t *testing.T) {
 
 	go func() {
 		defer close(done)
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			_ = err.WithContext("key1", "val1")
 		}
 	}()
 
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		_ = err.WithContext("key2", "val2")
 	}
 	<-done

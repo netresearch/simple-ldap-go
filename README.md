@@ -309,7 +309,7 @@ Available error types:
 
 ## Requirements
 
-- Go 1.23.0 or later
+- Go 1.26.0 or later
 - Access to an LDAP server (OpenLDAP, Active Directory, etc.)
 - Appropriate credentials and permissions for desired operations
 

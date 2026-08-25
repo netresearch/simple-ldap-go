@@ -103,7 +103,7 @@ func TestConnectionPool_GetPut(t *testing.T) {
 		var connections []*ldap.Conn
 
 		// Get multiple connections
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			conn, err := pool.Get(ctx)
 			require.NoError(t, err)
 			connections = append(connections, conn)
@@ -149,11 +149,11 @@ func TestConnectionPool_Concurrency(t *testing.T) {
 
 	ctx := context.Background()
 
-	for i := 0; i < numGoroutines; i++ {
+	for i := range numGoroutines {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
-			for j := 0; j < operationsPerGoroutine; j++ {
+			for range operationsPerGoroutine {
 				conn, err := pool.Get(ctx)
 				if err != nil {
 					errors <- err
@@ -270,7 +270,7 @@ func TestConnectionPool_HealthChecks(t *testing.T) {
 
 	// Create some connections beyond minimum
 	var connections []*ldap.Conn
-	for i := 0; i < 4; i++ {
+	for range 4 {
 		conn, err := pool.Get(ctx)
 		if err != nil {
 			break
@@ -426,13 +426,13 @@ func TestLDAP_WithConnectionPool(t *testing.T) {
 
 		startTime := time.Now()
 
-		for i := 0; i < numGoroutines; i++ {
+		for i := range numGoroutines {
 			wg.Add(1)
 			go func(id int) {
 				defer wg.Done()
 				ctx := context.Background()
 
-				for j := 0; j < operationsPerGoroutine; j++ {
+				for range operationsPerGoroutine {
 					// Perform various operations
 					_, err := client.FindUsersContext(ctx)
 					if err != nil {
@@ -480,7 +480,7 @@ func TestLDAP_WithConnectionPool(t *testing.T) {
 		require.NotNil(t, initialStats)
 
 		// Perform several operations
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			_, err := client.FindUsersContext(ctx)
 			assert.NoError(t, err)
 		}
@@ -597,7 +597,7 @@ func TestLDAP_PooledConnectionInterface(t *testing.T) {
 		require.NotNil(t, initialStats)
 
 		// Get and immediately return connection multiple times
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			conn, err := client.GetConnectionContext(ctx)
 			require.NoError(t, err)
 			_ = conn.Close() // Should return to pool
@@ -1039,7 +1039,7 @@ func TestPoolConcurrency(t *testing.T) {
 		var wg sync.WaitGroup
 		wg.Add(numClients)
 
-		for i := 0; i < numClients; i++ {
+		for i := range numClients {
 			go func(idx int) {
 				defer wg.Done()
 				clients[idx], errors[idx] = New(*config, "user", "pass")
@@ -1049,7 +1049,7 @@ func TestPoolConcurrency(t *testing.T) {
 		// Wait for all goroutines to complete
 		wg.Wait()
 
-		for i := 0; i < numClients; i++ {
+		for i := range numClients {
 			assert.NoError(t, errors[i], "Client %d creation failed", i)
 			assert.NotNil(t, clients[i], "Client %d is nil", i)
 		}
@@ -1237,12 +1237,12 @@ func TestConnectionPool_GetWithCredentials(t *testing.T) {
 
 		errors := make(chan error, numGoroutines*numOpsPerGoroutine)
 
-		for i := 0; i < numGoroutines; i++ {
+		for i := range numGoroutines {
 			wg.Add(1)
 			go func(id int) {
 				defer wg.Done()
 
-				for j := 0; j < numOpsPerGoroutine; j++ {
+				for range numOpsPerGoroutine {
 					conn, err := pool.GetWithCredentials(ctx, user, password)
 					if err != nil {
 						errors <- err

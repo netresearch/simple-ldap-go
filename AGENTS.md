@@ -9,7 +9,7 @@ This file explains repo-wide conventions and where to find scoped rules.
 - Keep diffs small; add tests for new code paths
 - Ask first before: adding heavy deps, running full e2e suites, or repo-wide rewrites
 - Never commit secrets or sensitive data to the repository
-- Follow Go 1.24 conventions and idioms
+- Follow Go 1.26 conventions and idioms
 - Maintain minimum test coverage of 40%
 
 ## Minimal pre-commit checks

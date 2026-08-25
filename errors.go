@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"strings"
 	"sync"
 	"time"
@@ -150,8 +151,8 @@ func classifyLDAPError(op, server string, ldapErr *ldap.Error) error {
 // GetErrorContext extracts context information from an error.
 // Returns nil if the error doesn't contain context information.
 func GetErrorContext(err error) map[string]any {
-	var enhancedErr *LDAPError
-	if !errors.As(err, &enhancedErr) {
+	enhancedErr, ok := errors.AsType[*LDAPError](err)
+	if !ok {
 		return nil
 	}
 
@@ -160,9 +161,7 @@ func GetErrorContext(err error) map[string]any {
 
 	// Return a copy to prevent external modification
 	contextCopy := make(map[string]any)
-	for k, v := range enhancedErr.Context {
-		contextCopy[k] = v
-	}
+	maps.Copy(contextCopy, enhancedErr.Context)
 
 	return contextCopy
 }
@@ -170,8 +169,8 @@ func GetErrorContext(err error) map[string]any {
 // ExtractDN extracts the distinguished name from an LDAP error.
 // Returns empty string if no DN is available.
 func ExtractDN(err error) string {
-	var enhancedErr *LDAPError
-	if !errors.As(err, &enhancedErr) {
+	enhancedErr, ok := errors.AsType[*LDAPError](err)
+	if !ok {
 		return ""
 	}
 	return enhancedErr.DN
@@ -180,8 +179,8 @@ func ExtractDN(err error) string {
 // ExtractOperation extracts the operation name from an LDAP error.
 // Returns empty string if no operation is available.
 func ExtractOperation(err error) string {
-	var enhancedErr *LDAPError
-	if !errors.As(err, &enhancedErr) {
+	enhancedErr, ok := errors.AsType[*LDAPError](err)
+	if !ok {
 		return ""
 	}
 	return enhancedErr.Op
@@ -190,8 +189,8 @@ func ExtractOperation(err error) string {
 // GetLDAPResultCode extracts the LDAP result code from an error.
 // Returns 0 if no LDAP result code is available.
 func GetLDAPResultCode(err error) int {
-	var enhancedErr *LDAPError
-	if !errors.As(err, &enhancedErr) {
+	enhancedErr, ok := errors.AsType[*LDAPError](err)
+	if !ok {
 		return 0
 	}
 	return enhancedErr.Code
@@ -257,35 +256,36 @@ func isLDAPCodeMatch(err error, codes ...uint16) bool {
 // FormatErrorWithContext returns a detailed error description including context information.
 // Sensitive information is masked to prevent data leakage.
 func FormatErrorWithContext(err error) string {
-	var enhancedErr *LDAPError
-	if !errors.As(err, &enhancedErr) {
+	enhancedErr, ok := errors.AsType[*LDAPError](err)
+	if !ok {
 		return err.Error()
 	}
 
-	msg := enhancedErr.Error()
+	var msg strings.Builder
+	msg.WriteString(enhancedErr.Error())
 
 	if enhancedErr.Code != 0 {
-		msg += fmt.Sprintf(" (LDAP code: %d)", enhancedErr.Code)
+		fmt.Fprintf(&msg, " (LDAP code: %d)", enhancedErr.Code)
 	}
 
 	// Thread-safe access to context
 	enhancedErr.mu.RLock()
 	contextLen := len(enhancedErr.Context)
 	if contextLen > 0 {
-		msg += " - Context:"
+		msg.WriteString(" - Context:")
 		for key, value := range enhancedErr.Context {
 			// Mask sensitive context values
 			maskedValue := maskContextValue(key, value)
-			msg += fmt.Sprintf(" %s=%v", key, maskedValue)
+			fmt.Fprintf(&msg, " %s=%v", key, maskedValue)
 		}
 	}
 	enhancedErr.mu.RUnlock()
 
 	if !enhancedErr.Timestamp.IsZero() {
-		msg += fmt.Sprintf(" (occurred at: %s)", enhancedErr.Timestamp.Format(time.RFC3339))
+		fmt.Fprintf(&msg, " (occurred at: %s)", enhancedErr.Timestamp.Format(time.RFC3339))
 	}
 
-	return msg
+	return msg.String()
 }
 
 // ErrorSeverity represents the severity level of an error.
@@ -422,8 +422,7 @@ func NewValidationError(field string, value any, message, code string) *Validati
 
 // IsValidationErrorCode checks if a validation error has a specific code.
 func IsValidationErrorCode(err error, code string) bool {
-	var validationErr *ValidationError
-	if errors.As(err, &validationErr) {
+	if validationErr, ok := errors.AsType[*ValidationError](err); ok {
 		return validationErr.Code == code
 	}
 	return false

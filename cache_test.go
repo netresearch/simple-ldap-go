@@ -144,7 +144,7 @@ func TestLRUCacheBasicOperations(t *testing.T) {
 
 	t.Run("clear cache", func(t *testing.T) {
 		// Add multiple entries
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			key := fmt.Sprintf("key_%d", i)
 			value := fmt.Sprintf("value_%d", i)
 			err := cache.Set(key, value, 0)
@@ -154,7 +154,7 @@ func TestLRUCacheBasicOperations(t *testing.T) {
 		cache.Clear()
 
 		// Verify all entries are gone
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			key := fmt.Sprintf("key_%d", i)
 			_, found := cache.Get(key)
 			assert.False(t, found)
@@ -493,7 +493,7 @@ func TestCacheMemoryManagement(t *testing.T) {
 		// Add entries until we approach memory limit
 		largeValue := strings.Repeat("x", 10*1024) // 10KB string
 
-		for i := 0; i < 200; i++ { // Try to add ~2MB of data
+		for i := range 200 { // Try to add ~2MB of data
 			key := fmt.Sprintf("large_key_%d", i)
 			err := cache.Set(key, largeValue, 0)
 			// Should eventually start failing or evicting
@@ -568,7 +568,7 @@ func TestCacheStatistics(t *testing.T) {
 		atomic.StoreInt64(&cache.stats.Evictions, 0)
 
 		// Perform operations
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			_ = cache.Set(fmt.Sprintf("key%d", i), fmt.Sprintf("value%d", i), 0)
 		}
 
@@ -590,7 +590,7 @@ func TestCacheStatistics(t *testing.T) {
 		cache.Clear()
 
 		// Perform some operations
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			_ = cache.Set(fmt.Sprintf("key%d", i), "value", 0)
 			cache.Get(fmt.Sprintf("key%d", i))
 		}
@@ -619,10 +619,10 @@ func TestCacheConcurrency(t *testing.T) {
 		var wg sync.WaitGroup
 
 		wg.Add(numGoroutines)
-		for i := 0; i < numGoroutines; i++ {
+		for i := range numGoroutines {
 			go func(id int) {
 				defer wg.Done()
-				for j := 0; j < numOperations; j++ {
+				for j := range numOperations {
 					key := fmt.Sprintf("key_%d_%d", id, j)
 					value := fmt.Sprintf("value_%d_%d", id, j)
 
@@ -644,7 +644,7 @@ func TestCacheConcurrency(t *testing.T) {
 
 	t.Run("concurrent delete", func(t *testing.T) {
 		// Pre-populate cache
-		for i := 0; i < 50; i++ {
+		for i := range 50 {
 			_ = cache.Set(fmt.Sprintf("del_key_%d", i), fmt.Sprintf("value_%d", i), 0)
 		}
 
@@ -652,10 +652,10 @@ func TestCacheConcurrency(t *testing.T) {
 		var wg sync.WaitGroup
 
 		wg.Add(numGoroutines)
-		for i := 0; i < numGoroutines; i++ {
+		for i := range numGoroutines {
 			go func(id int) {
 				defer wg.Done()
-				for j := 0; j < 5; j++ {
+				for j := range 5 {
 					key := fmt.Sprintf("del_key_%d", id*5+j)
 					cache.Delete(key)
 				}
@@ -670,10 +670,10 @@ func TestCacheConcurrency(t *testing.T) {
 		numReaders := 10
 
 		wg.Add(numReaders)
-		for i := 0; i < numReaders; i++ {
+		for range numReaders {
 			go func() {
 				defer wg.Done()
-				for j := 0; j < 100; j++ {
+				for range 100 {
 					stats := cache.Stats()
 					assert.NotNil(t, stats)
 					time.Sleep(time.Microsecond)
@@ -748,7 +748,7 @@ func TestCacheBackgroundTasks(t *testing.T) {
 
 	t.Run("expired entries cleaned up", func(t *testing.T) {
 		// Add entries with short TTL
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			key := fmt.Sprintf("expire_%d", i)
 			_ = cache.Set(key, "value", 50*time.Millisecond)
 		}
@@ -757,7 +757,7 @@ func TestCacheBackgroundTasks(t *testing.T) {
 		time.Sleep(150 * time.Millisecond)
 
 		// Entries should be gone
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			key := fmt.Sprintf("expire_%d", i)
 			_, found := cache.Get(key)
 			assert.False(t, found)
@@ -901,7 +901,7 @@ func BenchmarkLRUCacheGet(b *testing.B) {
 	defer func() { _ = cache.Close() }()
 
 	// Pre-populate cache
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		key := fmt.Sprintf("key_%d", i)
 		value := fmt.Sprintf("value_%d", i)
 		_ = cache.Set(key, value, 0)

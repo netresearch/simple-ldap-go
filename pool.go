@@ -860,9 +860,7 @@ func (p *ConnectionPool) closeConnection(conn *pooledConnection) {
 // startBackgroundTasks starts health checking and cleanup routines
 func (p *ConnectionPool) startBackgroundTasks() {
 	// Health check routine
-	p.wg.Add(1)
-	go func() {
-		defer p.wg.Done()
+	p.wg.Go(func() {
 		ticker := time.NewTicker(p.config.HealthCheckInterval)
 		defer ticker.Stop()
 
@@ -874,12 +872,10 @@ func (p *ConnectionPool) startBackgroundTasks() {
 				return
 			}
 		}
-	}()
+	})
 
 	// Cleanup routine for idle connections
-	p.wg.Add(1)
-	go func() {
-		defer p.wg.Done()
+	p.wg.Go(func() {
 		ticker := time.NewTicker(p.config.MaxIdleTime / 2) // Check twice per idle period
 		defer ticker.Stop()
 
@@ -891,13 +887,11 @@ func (p *ConnectionPool) startBackgroundTasks() {
 				return
 			}
 		}
-	}()
+	})
 
 	// Leak monitoring routine for self-healing
 	if p.config.EnableSelfHealing {
-		p.wg.Add(1)
-		go func() {
-			defer p.wg.Done()
+		p.wg.Go(func() {
 			// Run leak detection every half of the detection threshold to catch leaks early
 			ticker := time.NewTicker(p.config.LeakDetectionThreshold / 2)
 			defer ticker.Stop()
@@ -910,7 +904,7 @@ func (p *ConnectionPool) startBackgroundTasks() {
 					return
 				}
 			}
-		}()
+		})
 	}
 }
 

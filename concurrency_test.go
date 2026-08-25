@@ -133,7 +133,7 @@ func TestWorkerPoolSubmitAndResults(t *testing.T) {
 		done := make(chan struct{})
 		go func() {
 			defer close(done)
-			for i := 0; i < len(workItems); i++ {
+			for range workItems {
 				select {
 				case result := <-resultsChan:
 					results = append(results, result)
@@ -264,7 +264,7 @@ func TestWorkerPoolConcurrency(t *testing.T) {
 		submissionErrors := make(chan error, numItems)
 
 		// Submit items concurrently
-		for i := 0; i < numItems; i++ {
+		for i := range numItems {
 			submissionWg.Add(1)
 			go func(id int) {
 				defer submissionWg.Done()
@@ -292,7 +292,7 @@ func TestWorkerPoolConcurrency(t *testing.T) {
 
 		// Collect all results
 		results := make([]WorkResult[int], 0, numItems)
-		for i := 0; i < numItems; i++ {
+		for i := range numItems {
 			select {
 			case result := <-pool.Results():
 				results = append(results, result)
@@ -422,7 +422,7 @@ func TestWorkerPoolStats(t *testing.T) {
 		assert.Equal(t, time.Duration(0), stats.AverageDuration)
 
 		// Submit successful work
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			err := pool.Submit(WorkItem[string]{
 				ID:   fmt.Sprintf("success_%d", i),
 				Data: "test",
@@ -445,7 +445,7 @@ func TestWorkerPoolStats(t *testing.T) {
 		assert.NoError(t, err)
 
 		// Wait for all results
-		for i := 0; i < 4; i++ {
+		for range 4 {
 			<-pool.Results()
 		}
 
@@ -776,7 +776,7 @@ func TestPipelineAddStage(t *testing.T) {
 		p := NewPipeline[string, string](ctx, logger, 10)
 		defer p.Close()
 
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			p.AddStage(fmt.Sprintf("stage_%d", i), func(ctx context.Context, input any) (any, error) {
 				return input, nil
 			}, 1)
@@ -968,7 +968,7 @@ func TestPipelineParallelWorkers(t *testing.T) {
 		go p.Start()
 
 		numItems := 20
-		for i := 0; i < numItems; i++ {
+		for i := range numItems {
 			p.Input() <- i
 		}
 		close(p.Input())
@@ -1120,7 +1120,7 @@ func TestFanOutProcessing(t *testing.T) {
 		fo := NewFanOut[int, int](ctx, logger, 50)
 
 		var workerCounts [3]atomic.Int32
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			idx := i
 			fo.AddWorker(func(ctx context.Context, v int) (int, error) {
 				workerCounts[idx].Add(1)
@@ -1132,7 +1132,7 @@ func TestFanOutProcessing(t *testing.T) {
 		go fo.Start()
 
 		numItems := 30
-		for i := 0; i < numItems; i++ {
+		for i := range numItems {
 			fo.Input() <- i
 		}
 		close(fo.Input())
@@ -1146,7 +1146,7 @@ func TestFanOutProcessing(t *testing.T) {
 
 		// All workers should have processed some items
 		totalProcessed := int32(0)
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			totalProcessed += workerCounts[i].Load()
 		}
 		assert.Equal(t, int32(numItems), totalProcessed)
@@ -1463,13 +1463,13 @@ func TestSemaphoreAcquireRelease(t *testing.T) {
 		ctx := context.Background()
 
 		// Acquire all permits
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			err := sem.Acquire(ctx)
 			require.NoError(t, err)
 		}
 
 		// Release all permits
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			err := sem.Release()
 			require.NoError(t, err)
 		}
@@ -1606,10 +1606,8 @@ func TestSemaphoreWithSemaphore(t *testing.T) {
 		var maxSeen atomic.Int32
 
 		var wg sync.WaitGroup
-		for i := 0; i < 20; i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+		for range 20 {
+			wg.Go(func() {
 				_ = sem.WithSemaphore(ctx, func() error {
 					c := current.Add(1)
 					for {
@@ -1622,7 +1620,7 @@ func TestSemaphoreWithSemaphore(t *testing.T) {
 					current.Add(-1)
 					return nil
 				})
-			}()
+			})
 		}
 
 		wg.Wait()
@@ -1844,7 +1842,7 @@ func TestWorkerPoolResultChannelFull(t *testing.T) {
 		}()
 
 		// Submit items
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			_ = pool.Submit(WorkItem[int]{
 				ID:   fmt.Sprintf("item_%d", i),
 				Data: i,
@@ -1878,7 +1876,7 @@ func TestWorkerPoolErrorMetrics(t *testing.T) {
 		pool := NewWorkerPool[int](client, config)
 
 		// Submit mix of success and failure
-		for i := 0; i < 4; i++ {
+		for i := range 4 {
 			idx := i
 			_ = pool.Submit(WorkItem[int]{
 				ID:   fmt.Sprintf("item_%d", idx),
@@ -1893,7 +1891,7 @@ func TestWorkerPoolErrorMetrics(t *testing.T) {
 		}
 
 		// Drain results
-		for i := 0; i < 4; i++ {
+		for range 4 {
 			<-pool.Results()
 		}
 

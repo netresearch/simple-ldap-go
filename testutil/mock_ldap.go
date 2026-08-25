@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 
@@ -193,19 +194,14 @@ func (m *MockLDAPConn) setupDefaultFunctions() {
 			for _, change := range req.Changes {
 				switch change.Modification.Type {
 				case "member":
-					if change.Operation == ldap.AddAttribute {
+					switch change.Operation {
+					case ldap.AddAttribute:
 						group.Members = append(group.Members, change.Modification.Vals...)
-					} else if change.Operation == ldap.DeleteAttribute {
+					case ldap.DeleteAttribute:
 						// Remove members
 						newMembers := []string{}
 						for _, member := range group.Members {
-							remove := false
-							for _, val := range change.Modification.Vals {
-								if member == val {
-									remove = true
-									break
-								}
-							}
+							remove := slices.Contains(change.Modification.Vals, member)
 							if !remove {
 								newMembers = append(newMembers, member)
 							}

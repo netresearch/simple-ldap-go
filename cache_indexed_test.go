@@ -88,7 +88,7 @@ func TestIndexedUserCacheBasicOperations(t *testing.T) {
 
 	t.Run("clear removes all entries and indexes", func(t *testing.T) {
 		// Add multiple users
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			user := CreateTestUser(fmt.Sprintf("user%d", i), fmt.Sprintf("user%d", i), "", "", true)
 			_ = cache.Set(fmt.Sprintf("key_%d", i), user, 0)
 		}
@@ -291,7 +291,7 @@ func TestIndexedGroupCache(t *testing.T) {
 
 	t.Run("clear removes all groups and indexes", func(t *testing.T) {
 		// Add multiple groups
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			group := CreateTestGroup(fmt.Sprintf("group%d", i), "", []string{fmt.Sprintf("member%d", i)})
 			_ = cache.Set(fmt.Sprintf("group_key_%d", i), group, 0)
 		}
@@ -380,10 +380,10 @@ func TestIndexedCacheConcurrency(t *testing.T) {
 		var wg sync.WaitGroup
 
 		wg.Add(numGoroutines)
-		for i := 0; i < numGoroutines; i++ {
+		for i := range numGoroutines {
 			go func(id int) {
 				defer wg.Done()
-				for j := 0; j < numOperations; j++ {
+				for j := range numOperations {
 					user := CreateTestUser(fmt.Sprintf("user%d_%d", id, j), fmt.Sprintf("user%d_%d", id, j), "", "", true)
 
 					// Set
@@ -409,7 +409,7 @@ func TestIndexedCacheConcurrency(t *testing.T) {
 
 	t.Run("concurrent delete operations", func(t *testing.T) {
 		// Pre-populate cache
-		for i := 0; i < 100; i++ {
+		for i := range 100 {
 			user := CreateTestUser(fmt.Sprintf("deluser%d", i), fmt.Sprintf("deluser%d", i), "", "", true)
 			_ = cache.Set(fmt.Sprintf("del_key_%d", i), user, 0)
 		}
@@ -418,10 +418,10 @@ func TestIndexedCacheConcurrency(t *testing.T) {
 		numGoroutines := 10
 
 		wg.Add(numGoroutines)
-		for i := 0; i < numGoroutines; i++ {
+		for i := range numGoroutines {
 			go func(id int) {
 				defer wg.Done()
-				for j := 0; j < 10; j++ {
+				for j := range 10 {
 					key := fmt.Sprintf("del_key_%d", id*10+j)
 					cache.Delete(key)
 				}
@@ -458,7 +458,7 @@ func TestIndexedCacheLRUBehavior(t *testing.T) {
 		}
 
 		// Fill cache to capacity
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			_ = cache.Set(fmt.Sprintf("key_%d", i), users[i], 0)
 		}
 

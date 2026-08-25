@@ -6,7 +6,7 @@ This directory contains practical examples demonstrating how to use the simple-l
 
 Before running these examples, you need:
 
-1. **Go 1.23.0 or later**
+1. **Go 1.26.0 or later**
 2. **Access to an LDAP server** (generic LDAP or Active Directory)
 3. **Appropriate credentials** with necessary permissions for the operations you want to perform
 

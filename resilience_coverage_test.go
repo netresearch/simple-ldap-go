@@ -42,8 +42,8 @@ func TestTimeoutManagerExecuteWithAdaptiveTimeout(t *testing.T) {
 		})
 		assert.Error(t, err)
 		// Must be a TimeoutError wrapping the deadline exceeded
-		var timeoutErr *TimeoutError
-		require.True(t, errors.As(err, &timeoutErr), "error should be a TimeoutError, got: %v", err)
+		timeoutErr, ok := errors.AsType[*TimeoutError](err)
+		require.True(t, ok, "error should be a TimeoutError, got: %v", err)
 		assert.True(t, timeoutErr.Timeout())
 	})
 
@@ -95,7 +95,7 @@ func TestTimeoutManagerGetAdaptiveTimeout(t *testing.T) {
 		tm := NewTimeoutManager(100*time.Millisecond, 500*time.Millisecond, 10.0)
 
 		// Record many timeouts to drive up adaptive offset
-		for i := 0; i < 20; i++ {
+		for range 20 {
 			tm.RecordOperationResult("bounded_op", 100*time.Millisecond, false)
 		}
 
@@ -304,8 +304,8 @@ func TestBulkheadExecute(t *testing.T) {
 			return nil
 		})
 		assert.Error(t, err)
-		var timeoutErr *TimeoutError
-		assert.True(t, errors.As(err, &timeoutErr))
+		_, ok := errors.AsType[*TimeoutError](err)
+		assert.True(t, ok)
 
 		// Clean up
 		<-bh.semaphore
@@ -406,10 +406,10 @@ func TestCircuitBreakerGetSuccessRate(t *testing.T) {
 		}, nil)
 
 		// 3 successes, 2 failures
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			_ = cb.Execute(func() error { return nil })
 		}
-		for i := 0; i < 2; i++ {
+		for range 2 {
 			_ = cb.Execute(func() error { return errors.New("fail") })
 		}
 
@@ -456,7 +456,7 @@ func TestBulkheadConcurrentExecution(t *testing.T) {
 	var wg sync.WaitGroup
 	results := make([]error, 10)
 
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()

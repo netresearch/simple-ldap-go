@@ -172,7 +172,7 @@ func TestMockRetryLogic(t *testing.T) {
 
 		// Simple retry logic test
 		var lastErr error
-		for i := 0; i < maxRetries; i++ {
+		for range maxRetries {
 			lastErr = retryFunc()
 			if lastErr == nil {
 				break
@@ -195,7 +195,7 @@ func TestMockRetryLogic(t *testing.T) {
 		}
 
 		var lastErr error
-		for i := 0; i < maxRetries; i++ {
+		for range maxRetries {
 			lastErr = retryFunc()
 			if lastErr == nil {
 				break
@@ -229,7 +229,7 @@ func TestMockConcurrentOperations(t *testing.T) {
 		wg.Add(numGoroutines)
 
 		errors := make([]error, numGoroutines)
-		for i := 0; i < numGoroutines; i++ {
+		for i := range numGoroutines {
 			go func(idx int) {
 				defer wg.Done()
 				req := ldap.NewSearchRequest(
@@ -261,7 +261,7 @@ func TestMockConcurrentOperations(t *testing.T) {
 		var wg sync.WaitGroup
 		wg.Add(numGoroutines * 3) // 3 operations per goroutine
 
-		for i := 0; i < numGoroutines; i++ {
+		for range numGoroutines {
 			// Add operation
 			go func() {
 				defer wg.Done()
@@ -353,7 +353,7 @@ func TestMockConnectionPool(t *testing.T) {
 
 		// Get all available connections
 		var releases []func()
-		for i := 0; i < maxConnections; i++ {
+		for range maxConnections {
 			release, err := getConnection()
 			require.NoError(t, err)
 			releases = append(releases, release)
@@ -406,7 +406,7 @@ func TestMockPaginatedSearch(t *testing.T) {
 
 		// Create mock entries
 		allEntries := make([]*ldap.Entry, totalEntries)
-		for i := 0; i < totalEntries; i++ {
+		for i := range totalEntries {
 			allEntries[i] = &ldap.Entry{
 				DN: fmt.Sprintf("cn=user%d,dc=example,dc=com", i),
 				Attributes: []*ldap.EntryAttribute{
@@ -417,10 +417,7 @@ func TestMockPaginatedSearch(t *testing.T) {
 
 		// Simulate pagination
 		getPage := func(offset, size int) []*ldap.Entry {
-			end := offset + size
-			if end > len(allEntries) {
-				end = len(allEntries)
-			}
+			end := min(offset+size, len(allEntries))
 			if offset >= len(allEntries) {
 				return []*ldap.Entry{}
 			}

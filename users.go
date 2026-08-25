@@ -891,7 +891,7 @@ func (l *LDAP) FindUsersContext(ctx context.Context) (users []User, err error) {
 	if l.isExampleServer() {
 		// Create 150 mock users for examples
 		users = make([]User, 150)
-		for i := 0; i < 150; i++ {
+		for i := range 150 {
 			email := fmt.Sprintf("user%d@example.com", i+1)
 			users[i] = User{
 				Object: Object{

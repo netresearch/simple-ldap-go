@@ -264,8 +264,7 @@ func handleContextError(err error) {
 
 // extractLDAPError safely extracts enhanced LDAP error information
 func extractLDAPError(err error) *ldap.LDAPError {
-	var ldapErr *ldap.LDAPError
-	if errors.As(err, &ldapErr) {
+	if ldapErr, ok := errors.AsType[*ldap.LDAPError](err); ok {
 		return ldapErr
 	}
 	return nil

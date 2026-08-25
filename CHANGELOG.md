@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - On non-Active-Directory servers the five identifier-accepting entry points now return `invalid uid: …` where they previously returned `invalid sAMAccountName: …`, reflecting the relaxed validation. Callers that string-match the old message on non-AD directories must adjust ([#211](https://github.com/netresearch/simple-ldap-go/pull/211)).
+- **BREAKING**: the `go` directive moved from 1.25.0 to 1.26.0 — consumers must build with Go 1.26 or later (Go release policy: two most recent releases, now 1.26 + 1.27). The toolchain directive moved to go1.27.0. The fourteen `errors.As` call sites now use the type-safe `errors.AsType[T]` from Go 1.26, and `go fix` modernizers were applied across the codebase.
 
 ---
 

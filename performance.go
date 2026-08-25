@@ -3,8 +3,9 @@ package ldap
 import (
 	"context"
 	"log/slog"
+	"maps"
 	"runtime"
-	"sort"
+	"slices"
 	"sync"
 	"time"
 )
@@ -334,12 +335,8 @@ func (pm *PerformanceMonitor) GetStats() *PerformanceMetrics {
 	}
 
 	// Copy maps
-	for k, v := range pm.metrics.OperationsByType {
-		stats.OperationsByType[k] = v
-	}
-	for k, v := range pm.metrics.ErrorsByType {
-		stats.ErrorsByType[k] = v
-	}
+	maps.Copy(stats.OperationsByType, pm.metrics.OperationsByType)
+	maps.Copy(stats.ErrorsByType, pm.metrics.ErrorsByType)
 
 	// Add pool stats if available
 	if pm.pool != nil {
@@ -469,9 +466,7 @@ func (pm *PerformanceMonitor) calculatePercentiles() {
 	// Create a sorted copy
 	sorted := make([]time.Duration, len(pm.responseTimes))
 	copy(sorted, pm.responseTimes)
-	sort.Slice(sorted, func(i, j int) bool {
-		return sorted[i] < sorted[j]
-	})
+	slices.Sort(sorted)
 
 	// Calculate percentiles
 	pm.metrics.P50ResponseTime = sorted[len(sorted)*50/100]
@@ -498,18 +493,14 @@ func (pm *PerformanceMonitor) startBackgroundTasks() {
 	pm.done = make(chan struct{})
 
 	// Memory stats collection
-	pm.wg.Add(1)
-	go func() {
-		defer pm.wg.Done()
+	pm.wg.Go(func() {
 		pm.memoryStatsCollector()
-	}()
+	})
 
 	// Periodic cleanup of old metrics
-	pm.wg.Add(1)
-	go func() {
-		defer pm.wg.Done()
+	pm.wg.Go(func() {
 		pm.metricsCleanup()
-	}()
+	})
 }
 
 // memoryStatsCollector periodically collects memory and runtime statistics

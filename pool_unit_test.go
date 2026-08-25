@@ -515,7 +515,7 @@ func TestCleanupIdleConnectionsBelowMinimum(t *testing.T) {
 			MaxIdleTime:    5 * time.Minute,
 		})
 
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			pool.connections = append(pool.connections, &pooledConnection{})
 		}
 
@@ -907,7 +907,7 @@ func TestCleanupIdleConnectionsWithExpiredConnections(t *testing.T) {
 		})
 
 		// Add connections above minimum
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			pc := &pooledConnection{
 				conn:      nil,
 				lastUsed:  time.Now().Add(-1 * time.Second), // idle for 1 second
@@ -1046,7 +1046,6 @@ func TestGetUnhealthyConnectionFromChannel(t *testing.T) {
 	})
 }
 
-
 func TestClosePoolWithConnectionsInAvailableChannel(t *testing.T) {
 	t.Run("Close drains available channel", func(t *testing.T) {
 		pool := newTestPool(&PoolConfig{
@@ -1153,7 +1152,7 @@ func TestCleanupIdleConnectionsNonExpired(t *testing.T) {
 			lastUsed:  time.Now(), // Just used, not expired
 			isHealthy: true,
 		}
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			pool.connections = append(pool.connections, &pooledConnection{})
 		}
 		pool.available <- fresh
@@ -1322,7 +1321,6 @@ func TestWarmPoolWithFailedConnections(t *testing.T) {
 		assert.Error(t, err) // Connection to 127.0.0.1:1 will fail
 	})
 }
-
 
 func TestCreateConnectionDialFails(t *testing.T) {
 	t.Run("createConnection returns error when dial fails", func(t *testing.T) {

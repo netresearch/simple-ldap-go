@@ -366,7 +366,7 @@ func TestCacheRecordTimingsOverflow(t *testing.T) {
 	defer func() { _ = cache.Close() }()
 
 	// Record more than 1000 get times
-	for i := 0; i < 1100; i++ {
+	for i := range 1100 {
 		cache.recordGetTime(time.Duration(i) * time.Microsecond)
 	}
 
@@ -375,7 +375,7 @@ func TestCacheRecordTimingsOverflow(t *testing.T) {
 	cache.timingMu.Unlock()
 
 	// Record more than 1000 set times
-	for i := 0; i < 1100; i++ {
+	for i := range 1100 {
 		cache.recordSetTime(time.Duration(i) * time.Microsecond)
 	}
 
@@ -440,7 +440,7 @@ func TestCacheEvictForSpaceFullCoverage(t *testing.T) {
 
 		// Fill up to near memory limit
 		largeVal := strings.Repeat("a", 100*1024) // 100KB
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			_ = cache.Set(fmt.Sprintf("key%d", i), largeVal, 0)
 		}
 
@@ -454,9 +454,9 @@ func TestCacheEvictForSpaceFullCoverage(t *testing.T) {
 func TestCacheNewLRUCacheWithLogger(t *testing.T) {
 	logger := slog.Default()
 	cache, err := NewLRUCache(&CacheConfig{
-		Enabled:    true,
-		TTL:        time.Minute,
-		MaxSize:    10,
+		Enabled:     true,
+		TTL:         time.Minute,
+		MaxSize:     10,
 		MaxMemoryMB: 64,
 	}, logger)
 	require.NoError(t, err)

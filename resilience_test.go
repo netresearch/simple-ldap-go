@@ -28,7 +28,7 @@ func TestCircuitBreaker(t *testing.T) {
 		assert.Equal(t, StateCircuitClosed, CircuitBreakerState(cb.state.Load()))
 
 		// Simulate failures to trigger OPEN state
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			err := cb.Execute(func() error {
 				return errors.New("connection failed")
 			})
@@ -51,7 +51,7 @@ func TestCircuitBreaker(t *testing.T) {
 
 		// Next attempt should be allowed (HALF_OPEN state)
 		successCount := 0
-		for i := 0; i < 2; i++ {
+		for range 2 {
 			err = cb.Execute(func() error {
 				successCount++
 				return nil
@@ -72,18 +72,18 @@ func TestCircuitBreaker(t *testing.T) {
 		cb := NewCircuitBreaker("concurrent", config, slog.Default())
 
 		var wg sync.WaitGroup
-		var failures int64
-		var successes int64
+		var failures atomic.Int64
+		var successes atomic.Int64
 
 		// First, trigger failures to open the circuit
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			_ = cb.Execute(func() error {
 				return errors.New("failed")
 			})
 		}
 
 		// Now run concurrent requests - some should be blocked by open circuit
-		for i := 0; i < 50; i++ {
+		for i := range 50 {
 			wg.Add(1)
 			go func(i int) {
 				defer wg.Done()
@@ -93,9 +93,9 @@ func TestCircuitBreaker(t *testing.T) {
 				})
 
 				if err != nil {
-					atomic.AddInt64(&failures, 1)
+					failures.Add(1)
 				} else {
-					atomic.AddInt64(&successes, 1)
+					successes.Add(1)
 				}
 			}(i)
 		}
@@ -103,9 +103,9 @@ func TestCircuitBreaker(t *testing.T) {
 		wg.Wait()
 
 		// Should have failures due to open circuit breaker
-		assert.Greater(t, atomic.LoadInt64(&failures), int64(0))
+		assert.Greater(t, failures.Load(), int64(0))
 		// Should have fewer successes than total requests due to circuit breaker
-		assert.Less(t, atomic.LoadInt64(&successes), int64(50))
+		assert.Less(t, successes.Load(), int64(50))
 	})
 
 	t.Run("half open single failure reopens circuit", func(t *testing.T) {
@@ -117,7 +117,7 @@ func TestCircuitBreaker(t *testing.T) {
 		cb := NewCircuitBreaker("half-open-test", config, slog.Default())
 
 		// Trigger OPEN state
-		for i := 0; i < 2; i++ {
+		for range 2 {
 			_ = cb.Execute(func() error {
 				return errors.New("failed")
 			})
@@ -142,14 +142,14 @@ func TestCircuitBreaker(t *testing.T) {
 		cb := NewCircuitBreaker("stats", config, slog.Default())
 
 		// Execute some successful operations
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			_ = cb.Execute(func() error {
 				return nil
 			})
 		}
 
 		// Execute some failures
-		for i := 0; i < 2; i++ {
+		for range 2 {
 			_ = cb.Execute(func() error {
 				return errors.New("failed")
 			})
@@ -271,7 +271,7 @@ func TestLDAPCircuitBreakerIntegration(t *testing.T) {
 		ctx := context.Background()
 
 		// First failures should go through
-		for i := 0; i < 2; i++ {
+		for range 2 {
 			conn, err := client.GetConnectionProtectedContext(ctx)
 			assert.Error(t, err)
 			assert.Nil(t, conn)
