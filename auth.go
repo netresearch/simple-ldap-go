@@ -73,6 +73,17 @@ func buildADPasswordModify(w passwordWrite) *ldap.ModifyRequest {
 	return modifyRequest
 }
 
+// buildDummyBindDN constructs the non-existent DN used for the timing-mitigation
+// dummy bind when a user lookup fails. Split out so the escaping can be asserted
+// without a live connection.
+//
+// The identifier is escaped with ldap.EscapeDN because non-AD uid validation
+// admits DN metacharacters (",", "=", "+", "\", ...); without escaping they
+// would alter the DN structure of this bind.
+func buildDummyBindDN(identifier, baseDN string) string {
+	return fmt.Sprintf("CN=nonexistent-%s,CN=Users,%s", ldap.EscapeDN(identifier), baseDN)
+}
+
 // warnCleartextPasswordWrite logs when a non-AD password write is about to go
 // over an unencrypted connection.
 //
@@ -221,10 +232,7 @@ func (l *LDAP) CheckPasswordForSAMAccountNameContext(ctx context.Context, sAMAcc
 	} else {
 		// User doesn't exist - perform dummy bind to maintain constant timing
 		// Use a predictable dummy DN that won't exist to ensure bind fails.
-		// The identifier is escaped: non-AD uid validation admits DN
-		// metacharacters (",", "=", "+", "\", ...) that must not alter the
-		// DN structure of this bind.
-		dummyDN := fmt.Sprintf("CN=nonexistent-%s,CN=Users,%s", ldap.EscapeDN(sAMAccountName), l.config.BaseDN)
+		dummyDN := buildDummyBindDN(sAMAccountName, l.config.BaseDN)
 		_ = c.Bind(dummyDN, credPassword) // Dummy bind for timing, ignore result
 		// Override bind error with user lookup error for proper error reporting
 		bindErr = userLookupErr

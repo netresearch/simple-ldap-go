@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/go-ldap/ldap/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -510,4 +511,28 @@ func BenchmarkCheckPasswordForDN(b *testing.B) {
 			b.Fatal(err)
 		}
 	}
+}
+
+// TestBuildDummyBindDN_EscapesIdentifier guards the DN-injection fix on the
+// timing-mitigation dummy bind. Non-AD uid validation admits DN metacharacters,
+// so the identifier must be escaped before interpolation; otherwise a ',' or '='
+// in the identifier would add RDNs and change the DN structure.
+func TestBuildDummyBindDN_EscapesIdentifier(t *testing.T) {
+	const base = "dc=example,dc=org"
+
+	t.Run("plain identifier yields the fixed structure", func(t *testing.T) {
+		dn, err := ldap.ParseDN(buildDummyBindDN("jdoe", base))
+		require.NoError(t, err)
+		require.Len(t, dn.RDNs, 4) // CN=nonexistent-jdoe, CN=Users, dc=example, dc=org
+		assert.Equal(t, "nonexistent-jdoe", dn.RDNs[0].Attributes[0].Value)
+	})
+
+	t.Run("metacharacters do not inject extra RDNs", func(t *testing.T) {
+		// Without escaping, "x,cn=admin" would split into two RDNs and the first
+		// RDN's value would be "nonexistent-x".
+		dn, err := ldap.ParseDN(buildDummyBindDN("x,cn=admin", base))
+		require.NoError(t, err)
+		require.Len(t, dn.RDNs, 4)
+		assert.Equal(t, "nonexistent-x,cn=admin", dn.RDNs[0].Attributes[0].Value)
+	})
 }
