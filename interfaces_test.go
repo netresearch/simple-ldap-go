@@ -17,7 +17,7 @@ func TestInterfaceComplianceUserReader(t *testing.T) {
 	})
 
 	t.Run("UserReader interface methods", func(t *testing.T) {
-		userReaderType := reflect.TypeOf((*UserReader)(nil)).Elem()
+		userReaderType := reflect.TypeFor[UserReader]()
 		expectedMethods := []string{
 			"FindUserByDN",
 			"FindUserByDNContext",
@@ -42,13 +42,13 @@ func TestInterfaceComplianceUserWriter(t *testing.T) {
 	t.Run("UserWriter interface structure", func(t *testing.T) {
 		// Test interface structure exists, not implementation compliance
 		// LDAP doesn't fully implement UserWriter yet (missing UpdateUserPassword)
-		userWriterType := reflect.TypeOf((*UserWriter)(nil)).Elem()
+		userWriterType := reflect.TypeFor[UserWriter]()
 		assert.NotNil(t, userWriterType)
 		assert.Equal(t, "UserWriter", userWriterType.Name())
 	})
 
 	t.Run("UserWriter interface methods", func(t *testing.T) {
-		userWriterType := reflect.TypeOf((*UserWriter)(nil)).Elem()
+		userWriterType := reflect.TypeFor[UserWriter]()
 		expectedMethods := []string{
 			"CreateUser",
 			"CreateUserContext",
@@ -72,13 +72,13 @@ func TestInterfaceComplianceUserWriter(t *testing.T) {
 func TestInterfaceComplianceUserManager(t *testing.T) {
 	t.Run("UserManager interface structure", func(t *testing.T) {
 		// Test interface structure exists, not implementation compliance
-		userManagerType := reflect.TypeOf((*UserManager)(nil)).Elem()
+		userManagerType := reflect.TypeFor[UserManager]()
 		assert.NotNil(t, userManagerType)
 		assert.Equal(t, "UserManager", userManagerType.Name())
 	})
 
 	t.Run("UserManager embeds UserReader and UserWriter", func(t *testing.T) {
-		userManagerType := reflect.TypeOf((*UserManager)(nil)).Elem()
+		userManagerType := reflect.TypeFor[UserManager]()
 
 		// UserManager should have all methods from UserReader and UserWriter plus additional ones
 		expectedMethods := []string{
@@ -113,13 +113,13 @@ func TestInterfaceComplianceUserManager(t *testing.T) {
 func TestInterfaceComplianceGroupReader(t *testing.T) {
 	t.Run("GroupReader interface structure", func(t *testing.T) {
 		// Test interface structure exists, not implementation compliance
-		groupReaderType := reflect.TypeOf((*GroupReader)(nil)).Elem()
+		groupReaderType := reflect.TypeFor[GroupReader]()
 		assert.NotNil(t, groupReaderType)
 		assert.Equal(t, "GroupReader", groupReaderType.Name())
 	})
 
 	t.Run("GroupReader interface methods", func(t *testing.T) {
-		groupReaderType := reflect.TypeOf((*GroupReader)(nil)).Elem()
+		groupReaderType := reflect.TypeFor[GroupReader]()
 		expectedMethods := []string{
 			"FindGroupByDN",
 			"FindGroupByDNContext",
@@ -141,13 +141,13 @@ func TestInterfaceComplianceGroupReader(t *testing.T) {
 func TestInterfaceComplianceGroupWriter(t *testing.T) {
 	t.Run("GroupWriter interface structure", func(t *testing.T) {
 		// Test interface structure exists, not implementation compliance
-		groupWriterType := reflect.TypeOf((*GroupWriter)(nil)).Elem()
+		groupWriterType := reflect.TypeFor[GroupWriter]()
 		assert.NotNil(t, groupWriterType)
 		assert.Equal(t, "GroupWriter", groupWriterType.Name())
 	})
 
 	t.Run("GroupWriter interface methods", func(t *testing.T) {
-		groupWriterType := reflect.TypeOf((*GroupWriter)(nil)).Elem()
+		groupWriterType := reflect.TypeFor[GroupWriter]()
 		expectedMethods := []string{
 			"CreateGroup",
 			"CreateGroupContext",
@@ -173,13 +173,13 @@ func TestInterfaceComplianceGroupWriter(t *testing.T) {
 func TestInterfaceComplianceGroupManager(t *testing.T) {
 	t.Run("GroupManager interface structure", func(t *testing.T) {
 		// Test interface structure exists, not implementation compliance
-		groupManagerType := reflect.TypeOf((*GroupManager)(nil)).Elem()
+		groupManagerType := reflect.TypeFor[GroupManager]()
 		assert.NotNil(t, groupManagerType)
 		assert.Equal(t, "GroupManager", groupManagerType.Name())
 	})
 
 	t.Run("GroupManager embeds GroupReader and GroupWriter", func(t *testing.T) {
-		groupManagerType := reflect.TypeOf((*GroupManager)(nil)).Elem()
+		groupManagerType := reflect.TypeFor[GroupManager]()
 
 		expectedMethods := []string{
 			// From GroupReader
@@ -217,7 +217,7 @@ func TestInterfaceComplianceComputerReader(t *testing.T) {
 	})
 
 	t.Run("ComputerReader interface methods", func(t *testing.T) {
-		computerReaderType := reflect.TypeOf((*ComputerReader)(nil)).Elem()
+		computerReaderType := reflect.TypeFor[ComputerReader]()
 		expectedMethods := []string{
 			"FindComputerByDN",
 			"FindComputerByDNContext",
@@ -239,13 +239,13 @@ func TestInterfaceComplianceComputerReader(t *testing.T) {
 func TestInterfaceComplianceComputerWriter(t *testing.T) {
 	t.Run("ComputerWriter interface structure", func(t *testing.T) {
 		// Test interface structure exists, not implementation compliance
-		computerWriterType := reflect.TypeOf((*ComputerWriter)(nil)).Elem()
+		computerWriterType := reflect.TypeFor[ComputerWriter]()
 		assert.NotNil(t, computerWriterType)
 		assert.Equal(t, "ComputerWriter", computerWriterType.Name())
 	})
 
 	t.Run("ComputerWriter interface methods", func(t *testing.T) {
-		computerWriterType := reflect.TypeOf((*ComputerWriter)(nil)).Elem()
+		computerWriterType := reflect.TypeFor[ComputerWriter]()
 		expectedMethods := []string{
 			"CreateComputer",
 			"CreateComputerContext",
@@ -267,13 +267,13 @@ func TestInterfaceComplianceComputerWriter(t *testing.T) {
 func TestInterfaceComplianceComputerManager(t *testing.T) {
 	t.Run("ComputerManager interface structure", func(t *testing.T) {
 		// Test interface structure exists, not implementation compliance
-		computerManagerType := reflect.TypeOf((*ComputerManager)(nil)).Elem()
+		computerManagerType := reflect.TypeFor[ComputerManager]()
 		assert.NotNil(t, computerManagerType)
 		assert.Equal(t, "ComputerManager", computerManagerType.Name())
 	})
 
 	t.Run("ComputerManager embeds ComputerReader and ComputerWriter", func(t *testing.T) {
-		computerManagerType := reflect.TypeOf((*ComputerManager)(nil)).Elem()
+		computerManagerType := reflect.TypeFor[ComputerManager]()
 
 		expectedMethods := []string{
 			// From ComputerReader
@@ -300,13 +300,13 @@ func TestInterfaceComplianceComputerManager(t *testing.T) {
 func TestInterfaceComplianceDirectoryManager(t *testing.T) {
 	t.Run("DirectoryManager interface structure", func(t *testing.T) {
 		// Test interface structure exists, not implementation compliance
-		directoryManagerType := reflect.TypeOf((*DirectoryManager)(nil)).Elem()
+		directoryManagerType := reflect.TypeFor[DirectoryManager]()
 		assert.NotNil(t, directoryManagerType)
 		assert.Equal(t, "DirectoryManager", directoryManagerType.Name())
 	})
 
 	t.Run("DirectoryManager contains all management interfaces", func(t *testing.T) {
-		directoryManagerType := reflect.TypeOf((*DirectoryManager)(nil)).Elem()
+		directoryManagerType := reflect.TypeFor[DirectoryManager]()
 
 		// Should have methods from all embedded interfaces plus connection management
 		expectedConnectionMethods := []string{
@@ -348,41 +348,41 @@ func TestInterfaceComplianceDirectoryManager(t *testing.T) {
 func TestInterfaceSegregation(t *testing.T) {
 	t.Run("interfaces are properly segregated", func(t *testing.T) {
 		// UserReader should only have read methods
-		userReaderType := reflect.TypeOf((*UserReader)(nil)).Elem()
+		userReaderType := reflect.TypeFor[UserReader]()
 		assert.Equal(t, 6, userReaderType.NumMethod(), "UserReader should have exactly 6 read methods")
 
 		// UserWriter should only have write methods
-		userWriterType := reflect.TypeOf((*UserWriter)(nil)).Elem()
+		userWriterType := reflect.TypeFor[UserWriter]()
 		assert.Equal(t, 6, userWriterType.NumMethod(), "UserWriter should have exactly 6 write methods")
 
 		// GroupReader should only have read methods
-		groupReaderType := reflect.TypeOf((*GroupReader)(nil)).Elem()
+		groupReaderType := reflect.TypeFor[GroupReader]()
 		assert.Equal(t, 4, groupReaderType.NumMethod(), "GroupReader should have exactly 4 read methods")
 
 		// GroupWriter should only have write methods
-		groupWriterType := reflect.TypeOf((*GroupWriter)(nil)).Elem()
+		groupWriterType := reflect.TypeFor[GroupWriter]()
 		assert.Equal(t, 8, groupWriterType.NumMethod(), "GroupWriter should have exactly 8 write methods")
 
 		// ComputerReader should only have read methods
-		computerReaderType := reflect.TypeOf((*ComputerReader)(nil)).Elem()
+		computerReaderType := reflect.TypeFor[ComputerReader]()
 		assert.Equal(t, 4, computerReaderType.NumMethod(), "ComputerReader should have exactly 4 read methods")
 
 		// ComputerWriter should only have write methods
-		computerWriterType := reflect.TypeOf((*ComputerWriter)(nil)).Elem()
+		computerWriterType := reflect.TypeFor[ComputerWriter]()
 		assert.Equal(t, 4, computerWriterType.NumMethod(), "ComputerWriter should have exactly 4 write methods")
 	})
 
 	t.Run("manager interfaces properly combine readers and writers", func(t *testing.T) {
 		// UserManager should have all UserReader + UserWriter + additional methods
-		userManagerType := reflect.TypeOf((*UserManager)(nil)).Elem()
+		userManagerType := reflect.TypeFor[UserManager]()
 		assert.GreaterOrEqual(t, userManagerType.NumMethod(), 14, "UserManager should have at least 14 methods (6+6+2)")
 
 		// GroupManager should have all GroupReader + GroupWriter + additional methods
-		groupManagerType := reflect.TypeOf((*GroupManager)(nil)).Elem()
+		groupManagerType := reflect.TypeFor[GroupManager]()
 		assert.GreaterOrEqual(t, groupManagerType.NumMethod(), 14, "GroupManager should have at least 14 methods (4+8+2)")
 
 		// ComputerManager should have all ComputerReader + ComputerWriter methods
-		computerManagerType := reflect.TypeOf((*ComputerManager)(nil)).Elem()
+		computerManagerType := reflect.TypeFor[ComputerManager]()
 		assert.GreaterOrEqual(t, computerManagerType.NumMethod(), 8, "ComputerManager should have at least 8 methods (4+4)")
 	})
 }
@@ -390,7 +390,7 @@ func TestInterfaceSegregation(t *testing.T) {
 // TestInterfaceMethodSignatures tests that interface methods have correct signatures
 func TestInterfaceMethodSignatures(t *testing.T) {
 	t.Run("context methods have context parameter", func(t *testing.T) {
-		userReaderType := reflect.TypeOf((*UserReader)(nil)).Elem()
+		userReaderType := reflect.TypeFor[UserReader]()
 
 		// Test FindUserByDNContext signature
 		method, found := userReaderType.MethodByName("FindUserByDNContext")
@@ -406,11 +406,11 @@ func TestInterfaceMethodSignatures(t *testing.T) {
 
 		// Check return types - should be (*User, error)
 		assert.True(t, methodType.Out(0).String() == "*ldap.User" || methodType.Out(0).String() == "*main.User")
-		assert.True(t, methodType.Out(1).Implements(reflect.TypeOf((*error)(nil)).Elem()))
+		assert.True(t, methodType.Out(1).Implements(reflect.TypeFor[error]()))
 	})
 
 	t.Run("non-context methods don't have context parameter", func(t *testing.T) {
-		userReaderType := reflect.TypeOf((*UserReader)(nil)).Elem()
+		userReaderType := reflect.TypeFor[UserReader]()
 
 		// Test FindUserByDN signature
 		method, found := userReaderType.MethodByName("FindUserByDN")
@@ -428,7 +428,7 @@ func TestInterfaceMethodSignatures(t *testing.T) {
 // TestDirectoryManagerStructure tests DirectoryManager interface uses correct types
 func TestDirectoryManagerStructure(t *testing.T) {
 	t.Run("DirectoryManager has correct method signatures", func(t *testing.T) {
-		directoryManagerType := reflect.TypeOf((*DirectoryManager)(nil)).Elem()
+		directoryManagerType := reflect.TypeFor[DirectoryManager]()
 
 		// GetConnection should return (*ldap.Conn, error)
 		method, found := directoryManagerType.MethodByName("GetConnection")
@@ -503,12 +503,12 @@ func BenchmarkInterfaceReflection(b *testing.B) {
 	})
 
 	b.Run("method enumeration", func(b *testing.B) {
-		userManagerType := reflect.TypeOf((*UserManager)(nil)).Elem()
+		userManagerType := reflect.TypeFor[UserManager]()
 
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			for j := 0; j < userManagerType.NumMethod(); j++ {
-				_ = userManagerType.Method(j)
+			for method := range userManagerType.Methods() {
+				_ = method
 			}
 		}
 	})

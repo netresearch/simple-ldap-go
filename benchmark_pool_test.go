@@ -235,10 +235,8 @@ func BenchmarkConcurrentLoad(b *testing.B) {
 			startTime := time.Now()
 
 			var wg sync.WaitGroup
-			for i := 0; i < concurrency; i++ {
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
+			for range concurrency {
+				wg.Go(func() {
 					ctx := context.Background()
 
 					for j := 0; j < b.N/concurrency; j++ {
@@ -247,7 +245,7 @@ func BenchmarkConcurrentLoad(b *testing.B) {
 							atomic.AddInt64(&operations, 1)
 						}
 					}
-				}()
+				})
 			}
 			wg.Wait()
 
@@ -281,10 +279,8 @@ func BenchmarkConcurrentLoad(b *testing.B) {
 				startTime := time.Now()
 
 				var wg sync.WaitGroup
-				for i := 0; i < concurrency; i++ {
-					wg.Add(1)
-					go func() {
-						defer wg.Done()
+				for range concurrency {
+					wg.Go(func() {
 						ctx := context.Background()
 
 						for j := 0; j < b.N/concurrency; j++ {
@@ -293,7 +289,7 @@ func BenchmarkConcurrentLoad(b *testing.B) {
 								atomic.AddInt64(&operations, 1)
 							}
 						}
-					}()
+					})
 				}
 				wg.Wait()
 
@@ -372,9 +368,7 @@ func BenchmarkPoolEfficiency(b *testing.B) {
 
 			var wg sync.WaitGroup
 			for i := 0; i < scenario.concurrency; i++ {
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
+				wg.Go(func() {
 					ctx := context.Background()
 
 					for j := 0; j < scenario.operations; j++ {
@@ -386,7 +380,7 @@ func BenchmarkPoolEfficiency(b *testing.B) {
 							_ = conn.Close()
 						}
 					}
-				}()
+				})
 			}
 			wg.Wait()
 
@@ -407,12 +401,4 @@ func BenchmarkPoolEfficiency(b *testing.B) {
 				name, hitRatio, efficiency, connectionsPerOp, stats.TotalConnections)
 		})
 	}
-}
-
-// Helper function for minimum of two integers
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

@@ -369,7 +369,7 @@ func TestRateLimiterCheckLimit(t *testing.T) {
 	defer rl.Close()
 
 	// First 3 attempts should be allowed
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		if !rl.CheckLimit("user1") {
 			t.Errorf("Attempt %d should be allowed", i+1)
 		}
@@ -386,12 +386,10 @@ func TestRateLimiterConcurrentAccess(t *testing.T) {
 	defer rl.Close()
 
 	var wg sync.WaitGroup
-	for i := 0; i < 50; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range 50 {
+		wg.Go(func() {
 			rl.CheckLimit("concurrent-user")
-		}()
+		})
 	}
 	wg.Wait()
 }

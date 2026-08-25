@@ -92,13 +92,13 @@ func Example_concurrentOperations() {
 	var wg sync.WaitGroup
 	start := time.Now()
 
-	for i := 0; i < numWorkers; i++ {
+	for i := range numWorkers {
 		wg.Add(1)
 		go func(workerID int) {
 			defer wg.Done()
 
 			ctx := context.Background()
-			for j := 0; j < operationsPerWorker; j++ {
+			for j := range operationsPerWorker {
 				// Each operation will reuse connections from the pool
 				users, err := client.FindUsersContext(ctx)
 				if err != nil {

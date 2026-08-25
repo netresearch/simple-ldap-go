@@ -100,7 +100,7 @@ func TestCacheLRUEviction(t *testing.T) {
 	defer func() { _ = cache.Close() }()
 
 	// Fill cache to capacity
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		key := fmt.Sprintf("test:lru:%d", i)
 		value := fmt.Sprintf("value:%d", i)
 		if err := cache.Set(key, value, time.Hour); err != nil {
@@ -109,7 +109,7 @@ func TestCacheLRUEviction(t *testing.T) {
 	}
 
 	// All should exist
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		key := fmt.Sprintf("test:lru:%d", i)
 		if _, found := cache.Get(key); !found {
 			t.Errorf("Expected cache hit for key %d", i)
@@ -362,7 +362,7 @@ func BenchmarkCacheGet(b *testing.B) {
 	defer func() { _ = cache.Close() }()
 
 	// Pre-populate cache
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		key := fmt.Sprintf("bench:get:%d", i)
 		value := fmt.Sprintf("value:%d", i)
 		if err := cache.Set(key, value, time.Hour); err != nil {

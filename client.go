@@ -651,9 +651,7 @@ func (l *LDAP) BulkFindUsersBySAMAccountName(ctx context.Context, samAccountName
 	continueOnError := options != nil && options.ContinueOnError
 
 	for range concurrency {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for sam := range jobs {
 				user, err := l.FindUserBySAMAccountNameContext(ctx, sam)
 				if err != nil {
@@ -672,7 +670,7 @@ func (l *LDAP) BulkFindUsersBySAMAccountName(ctx context.Context, samAccountName
 				result[sam] = user
 				mu.Unlock()
 			}
-		}()
+		})
 	}
 
 	wg.Wait()

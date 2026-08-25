@@ -25,7 +25,7 @@ func BenchmarkIndexedUserCacheFindByDN(b *testing.B) {
 	defer func() { _ = cache.Close() }()
 
 	// Pre-populate cache with 1000 users
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		user := CreateTestUser(fmt.Sprintf("user%d", i), fmt.Sprintf("user%d", i), "", fmt.Sprintf("User %d", i), true)
 		_ = cache.Set(fmt.Sprintf("key_%d", i), user, 0)
 	}
@@ -55,7 +55,7 @@ func BenchmarkIndexedUserCacheFindBySAMAccountName(b *testing.B) {
 	defer func() { _ = cache.Close() }()
 
 	// Pre-populate cache with 1000 users
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		user := CreateTestUser(fmt.Sprintf("user%d", i), fmt.Sprintf("user%d", i), "", "", true)
 		_ = cache.Set(fmt.Sprintf("key_%d", i), user, 0)
 	}
@@ -86,7 +86,7 @@ func BenchmarkLinearSearchByDN(b *testing.B) {
 
 	// Pre-populate cache with 1000 users
 	users := make([]*User, 1000)
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		user := CreateTestUser(fmt.Sprintf("user%d", i), fmt.Sprintf("user%d", i), "", "", true)
 		users[i] = user
 		_ = cache.Set(fmt.Sprintf("key_%d", i), user, 0)
@@ -99,7 +99,7 @@ func BenchmarkLinearSearchByDN(b *testing.B) {
 			targetDN := fmt.Sprintf("cn=user%d,ou=users,dc=example,dc=com", i%1000)
 
 			// Linear search simulation
-			for j := 0; j < 1000; j++ {
+			for j := range 1000 {
 				user, found := cache.Get(fmt.Sprintf("key_%d", j))
 				if found && user != nil && user.DN() == targetDN {
 					break
@@ -173,7 +173,7 @@ func BenchmarkIndexedGroupCacheFindByDN(b *testing.B) {
 	defer func() { _ = cache.Close() }()
 
 	// Pre-populate cache with 1000 groups
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		group := CreateTestGroup(fmt.Sprintf("group%d", i), "", []string{"member1", "member2"})
 		_ = cache.Set(fmt.Sprintf("key_%d", i), group, 0)
 	}
@@ -203,7 +203,7 @@ func BenchmarkIndexedComputerCacheFindByDN(b *testing.B) {
 	defer func() { _ = cache.Close() }()
 
 	// Pre-populate cache with 1000 computers
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		computer := CreateTestComputer(fmt.Sprintf("COMPUTER%d", i), fmt.Sprintf("COMPUTER%d$", i), true)
 		_ = cache.Set(fmt.Sprintf("key_%d", i), computer, 0)
 	}
@@ -233,7 +233,7 @@ func BenchmarkIndexedComputerCacheFindBySAMAccountName(b *testing.B) {
 	defer func() { _ = cache.Close() }()
 
 	// Pre-populate cache with 1000 computers
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		computer := CreateTestComputer(fmt.Sprintf("COMPUTER%d", i), fmt.Sprintf("COMPUTER%d$", i), true)
 		_ = cache.Set(fmt.Sprintf("key_%d", i), computer, 0)
 	}
@@ -263,7 +263,7 @@ func BenchmarkIndexedCacheConcurrentMixed(b *testing.B) {
 	defer func() { _ = cache.Close() }()
 
 	// Pre-populate cache
-	for i := 0; i < 5000; i++ {
+	for i := range 5000 {
 		user := CreateTestUser(fmt.Sprintf("user%d", i), fmt.Sprintf("user%d", i), "", "", true)
 		_ = cache.Set(fmt.Sprintf("key_%d", i), user, 0)
 	}

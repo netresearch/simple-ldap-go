@@ -510,9 +510,7 @@ func (c *GenericLRUCache[T]) recordSetTime(d time.Duration) {
 func (c *GenericLRUCache[T]) startBackgroundTasks() {
 	c.ticker = time.NewTicker(c.config.RefreshInterval)
 
-	c.wg.Add(1)
-	go func() {
-		defer c.wg.Done()
+	c.wg.Go(func() {
 		for {
 			select {
 			case <-c.ticker.C:
@@ -521,7 +519,7 @@ func (c *GenericLRUCache[T]) startBackgroundTasks() {
 				return
 			}
 		}
-	}()
+	})
 }
 
 func (c *GenericLRUCache[T]) performMaintenance() {

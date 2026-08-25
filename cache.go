@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -790,9 +791,7 @@ func (c *LRUCache) calculateAverageTime(times []time.Duration) time.Duration {
 func (c *LRUCache) startBackgroundTasks() {
 	c.ticker = time.NewTicker(c.config.RefreshInterval)
 
-	c.wg.Add(1)
-	go func() {
-		defer c.wg.Done()
+	c.wg.Go(func() {
 		defer c.ticker.Stop()
 
 		for {
@@ -803,7 +802,7 @@ func (c *LRUCache) startBackgroundTasks() {
 				return
 			}
 		}
-	}()
+	})
 
 	c.logger.Debug("cache_background_tasks_started",
 		slog.Duration("refresh_interval", c.config.RefreshInterval))
@@ -881,13 +880,7 @@ func (c *LRUCache) RegisterCacheKey(primaryKey string, cacheKey string) {
 		c.keyIndex[primaryKey] = []string{cacheKey}
 	} else {
 		// Check if key already exists to avoid duplicates
-		found := false
-		for _, k := range keys {
-			if k == cacheKey {
-				found = true
-				break
-			}
-		}
+		found := slices.Contains(keys, cacheKey)
 		if !found {
 			c.keyIndex[primaryKey] = append(keys, cacheKey)
 		}

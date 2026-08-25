@@ -77,7 +77,7 @@ func TestIteratorsWithCircuitBreaker(t *testing.T) {
 		)
 
 		// Trigger circuit breaker to open
-		for i := 0; i < 2; i++ {
+		for range 2 {
 			for _, err := range client.SearchIter(ctx, searchRequest) {
 				if err != nil {
 					break
@@ -176,7 +176,7 @@ func TestIteratorsWithCircuitBreaker(t *testing.T) {
 		groupDN := "cn=admins,ou=groups,dc=example,dc=com"
 
 		// Trigger failures to open circuit
-		for i := 0; i < 2; i++ {
+		for range 2 {
 			for _, err := range client.GroupMembersIter(ctx, groupDN) {
 				if err != nil {
 					break
@@ -231,7 +231,7 @@ func TestIteratorsWithCircuitBreaker(t *testing.T) {
 		)
 
 		// Open the circuit
-		for i := 0; i < 2; i++ {
+		for range 2 {
 			for _, err := range client.SearchIter(ctx, searchRequest) {
 				if err != nil {
 					break
@@ -306,7 +306,7 @@ func TestIteratorsWithCircuitBreaker(t *testing.T) {
 
 		// Measure time for 5 failed attempts without circuit breaker
 		startNoCB := time.Now()
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			for _, err := range clientNoCB.SearchIter(ctx, searchRequest) {
 				if err != nil {
 					break
@@ -317,7 +317,7 @@ func TestIteratorsWithCircuitBreaker(t *testing.T) {
 
 		// Measure time for 5 failed attempts with circuit breaker (should be much faster)
 		startWithCB := time.Now()
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			for _, err := range clientWithCB.SearchIter(ctx, searchRequest) {
 				if err != nil {
 					break

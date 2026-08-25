@@ -121,7 +121,7 @@ func TestPerformanceMonitorCalculatePercentiles(t *testing.T) {
 	ctx := context.Background()
 
 	// Record enough operations to trigger percentile calculation (>= 10)
-	for i := 0; i < 20; i++ {
+	for i := range 20 {
 		duration := time.Duration(i+1) * time.Millisecond
 		pm.RecordOperation(ctx, "search", duration, false, nil, 1)
 	}
@@ -158,7 +158,7 @@ func TestPerformanceMonitorShouldSample(t *testing.T) {
 		defer func() { _ = pm.Close() }()
 
 		ctx := context.Background()
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			pm.RecordOperation(ctx, "op", time.Millisecond, false, nil, 1)
 		}
 
@@ -174,7 +174,7 @@ func TestPerformanceMonitorShouldSample(t *testing.T) {
 		defer func() { _ = pm.Close() }()
 
 		ctx := context.Background()
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			pm.RecordOperation(ctx, "op", time.Millisecond, false, nil, 1)
 		}
 
@@ -331,7 +331,7 @@ func TestPerformanceMonitorBufferTrimming(t *testing.T) {
 	defer func() { _ = pm.Close() }()
 
 	ctx := context.Background()
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		pm.RecordOperation(ctx, "op", time.Millisecond, false, nil, 1)
 	}
 

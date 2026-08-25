@@ -883,7 +883,7 @@ func (rl *RateLimiter) cleanup() {
 
 		// Remove oldest entries
 		toRemove := len(rl.entries) - rl.config.MaxEntries
-		for i := 0; i < toRemove; i++ {
+		for i := range toRemove {
 			delete(rl.entries, sortedEntries[i].id)
 			removed++
 		}
