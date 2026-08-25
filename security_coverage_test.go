@@ -8,6 +8,7 @@ import (
 	"errors"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -513,19 +514,23 @@ func TestMaskSensitiveData(t *testing.T) {
 		input  string
 		expect string
 	}{
-		{"test.com domain not masked", "ldaps://test.com", "ldaps://test.com"},
-		{"example.com not masked", "user@example.com", "user@example.com"},
-		{"CN=test not masked", "CN=test,DC=com", "CN=test,DC=com"},
-		{"TestOperation not masked", "TestOperation failed", "TestOperation failed"},
+		// No carve-out: test-looking inputs are masked like anything else (#215).
+		{"test.com domain masked", "ldaps://test.com", "ld************om"},
+		{"example.com masked", "user@example.com", "us************om"},
+		{"CN=test masked", "CN=test,DC=com", "CN**********om"},
+		{"TestOperation masked", "TestOperation failed", "Te****************ed"},
 		{"short string masked", "abc", "***"},
 		{"4 char string masked", "abcd", "***"},
 		{"5 char string masked", "abcde", "a***e"},
 		{"longer string masked", "sensitive_data", "se**********ta"},
+		// Rune-aware: a multibyte identifier is masked without splitting runes.
+		{"multibyte masked cleanly", "日本語ユーザー", "日本***ザー"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := maskSensitiveData(tt.input)
 			assert.Equal(t, tt.expect, result)
+			assert.True(t, utf8.ValidString(result), "masked output must be valid UTF-8")
 		})
 	}
 }

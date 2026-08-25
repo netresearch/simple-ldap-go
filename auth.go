@@ -165,12 +165,16 @@ func (l *LDAP) CheckPasswordForSAMAccountNameContext(ctx context.Context, sAMAcc
 	// Mask sensitive data for logging
 	maskedUsername := maskSensitiveData(sAMAccountName)
 
+	// Rate-limit and cache keys are folded so case variants of one account
+	// share a counter (see normalizeIdentifierKey / #216).
+	rlKey := normalizeIdentifierKey(sAMAccountName)
+
 	// Extract client IP from context for security monitoring
 	clientIP := extractClientIP(ctx)
 
 	// Security monitoring: Check rate limiting before authentication attempt
 	if l.rateLimiter != nil {
-		if !l.rateLimiter.CheckLimit(sAMAccountName) {
+		if !l.rateLimiter.CheckLimit(rlKey) {
 			l.logger.Warn("authentication_rate_limited",
 				slog.String("operation", "CheckPasswordForSAMAccountName"),
 				slog.String("username_masked", maskedUsername),
@@ -243,7 +247,7 @@ func (l *LDAP) CheckPasswordForSAMAccountNameContext(ctx context.Context, sAMAcc
 	if err != nil {
 		// Security monitoring: Record authentication failure
 		if l.rateLimiter != nil {
-			l.rateLimiter.RecordFailure(sAMAccountName)
+			l.rateLimiter.RecordFailure(rlKey)
 		}
 
 		// Determine error type for logging
@@ -269,7 +273,7 @@ func (l *LDAP) CheckPasswordForSAMAccountNameContext(ctx context.Context, sAMAcc
 
 	// Security monitoring: Record authentication success
 	if l.rateLimiter != nil {
-		l.rateLimiter.RecordSuccess(sAMAccountName)
+		l.rateLimiter.RecordSuccess(rlKey)
 	}
 
 	l.logger.Info("authentication_successful",
