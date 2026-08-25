@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 	"unicode"
+	"unicode/utf8"
 )
 
 // Package-level compiled replacer to avoid per-call allocation
@@ -143,6 +144,9 @@ const (
 	MaxDNLength = 8000
 	// MaxSAMAccountNameLength defines the maximum length for sAMAccountName
 	MaxSAMAccountNameLength = 20
+	// MaxUIDLength bounds uid values on non-AD servers; RFC 4519 sets no limit,
+	// so this is a DoS guard, not a schema rule
+	MaxUIDLength = 255
 )
 
 // ValidateDN validates and normalizes a Distinguished Name (DN)
@@ -276,6 +280,62 @@ func ValidateSAMAccountName(sam string) error {
 
 	if strings.HasPrefix(sam, ".") || strings.HasSuffix(sam, ".") {
 		return fmt.Errorf("sAMAccountName cannot start or end with period")
+	}
+
+	return nil
+}
+
+// ValidateUID validates a user identifier for non-Active-Directory servers.
+// OpenLDAP's uid attribute (RFC 4519) has none of the sAMAccountName
+// restrictions — no 20-character limit, digits may lead, "@" and "." are
+// legal — so only injection- and DoS-relevant properties are checked here.
+// Filter and DN values are additionally escaped at query time.
+func ValidateUID(uid string) error {
+	if uid == "" {
+		return fmt.Errorf("uid cannot be empty")
+	}
+
+	if len(uid) > MaxUIDLength {
+		return fmt.Errorf("uid too long: %d bytes (max %d)", len(uid), MaxUIDLength)
+	}
+
+	if !utf8.ValidString(uid) {
+		return fmt.Errorf("uid contains invalid UTF-8")
+	}
+
+	// Reject control characters (Cc) and format characters (Cf) anywhere: the
+	// latter includes zero-width spaces and bidi overrides, which produce
+	// visually identical but distinct identifiers in logs and cache keys.
+	for _, r := range uid {
+		if unicode.IsControl(r) || unicode.Is(unicode.Cf, r) {
+			return fmt.Errorf("uid contains control or format characters")
+		}
+	}
+
+	// Reject leading/trailing whitespace of any kind, not just ASCII space
+	// (NBSP, ideographic space, …), which a directory would trim or mismatch.
+	first, _ := utf8.DecodeRuneInString(uid)
+	last, _ := utf8.DecodeLastRuneInString(uid)
+	if unicode.IsSpace(first) || unicode.IsSpace(last) {
+		return fmt.Errorf("uid cannot start or end with whitespace")
+	}
+
+	return nil
+}
+
+// validateAccountIdentifier validates a user account identifier according to
+// the configured directory type: strict sAMAccountName rules on Active
+// Directory, relaxed uid rules otherwise.
+func (l *LDAP) validateAccountIdentifier(name string) error {
+	if l.config.IsActiveDirectory {
+		if err := ValidateSAMAccountName(name); err != nil {
+			return fmt.Errorf("invalid sAMAccountName: %w", err)
+		}
+		return nil
+	}
+
+	if err := ValidateUID(name); err != nil {
+		return fmt.Errorf("invalid uid: %w", err)
 	}
 
 	return nil

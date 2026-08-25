@@ -53,7 +53,12 @@ func (b *UserBuilder) WithCN(cn string) *UserBuilder {
 }
 
 // WithSAMAccountName sets the SAM account name for the user.
-// The SAM account name is required for Active Directory and will be validated.
+//
+// This builder is Active-Directory-oriented and validates the value against the
+// AD sAMAccountName rules (max 20 characters, no metacharacters). Non-AD
+// (OpenLDAP) callers whose uids do not fit those rules should set
+// FullUser.SAMAccountName directly and call CreateUser, which validates the
+// identifier per server type (see validateAccountIdentifier / ValidateUID).
 func (b *UserBuilder) WithSAMAccountName(samAccountName string) *UserBuilder {
 	if samAccountName == "" {
 		b.errors = append(b.errors, errors.New("SAMAccountName cannot be empty"))

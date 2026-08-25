@@ -414,8 +414,8 @@ func (l *LDAP) FindUserBySAMAccountName(sAMAccountName string) (user *User, err 
 // This method performs a subtree search starting from the configured BaseDN.
 // For OpenLDAP compatibility, it also searches for uid attribute when sAMAccountName is not found.
 func (l *LDAP) FindUserBySAMAccountNameContext(ctx context.Context, sAMAccountName string) (user *User, err error) {
-	if err := ValidateSAMAccountName(sAMAccountName); err != nil {
-		return nil, fmt.Errorf("invalid sAMAccountName: %w", err)
+	if err := l.validateAccountIdentifier(sAMAccountName); err != nil {
+		return nil, err
 	}
 
 	// Check for context cancellation first
@@ -1246,8 +1246,8 @@ func (l *LDAP) CreateUserContext(ctx context.Context, user FullUser, password st
 		}()))
 
 	if user.SAMAccountName != nil {
-		if err := ValidateSAMAccountName(*user.SAMAccountName); err != nil {
-			return "", fmt.Errorf("invalid sAMAccountName: %w", err)
+		if err := l.validateAccountIdentifier(*user.SAMAccountName); err != nil {
+			return "", err
 		}
 	}
 

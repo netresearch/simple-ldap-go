@@ -73,6 +73,17 @@ func buildADPasswordModify(w passwordWrite) *ldap.ModifyRequest {
 	return modifyRequest
 }
 
+// buildDummyBindDN constructs the non-existent DN used for the timing-mitigation
+// dummy bind when a user lookup fails. Split out so the escaping can be asserted
+// without a live connection.
+//
+// The identifier is escaped with ldap.EscapeDN because non-AD uid validation
+// admits DN metacharacters (",", "=", "+", "\", ...); without escaping they
+// would alter the DN structure of this bind.
+func buildDummyBindDN(identifier, baseDN string) string {
+	return fmt.Sprintf("CN=nonexistent-%s,CN=Users,%s", ldap.EscapeDN(identifier), baseDN)
+}
+
 // warnCleartextPasswordWrite logs when a non-AD password write is about to go
 // over an unencrypted connection.
 //
@@ -105,7 +116,9 @@ func (l *LDAP) warnCleartextPasswordWrite(operation, maskedUsername string) {
 //   - *User: The user object if authentication succeeds
 //   - error: ErrUserNotFound if the user doesn't exist, or authentication error if credentials are invalid
 //
-// This is commonly used for login validation in Active Directory environments.
+// The identifier is validated per server type: sAMAccountName rules when
+// Config.IsActiveDirectory is set, relaxed uid rules (see ValidateUID) otherwise.
+// It is commonly used for login validation in Active Directory environments.
 func (l *LDAP) CheckPasswordForSAMAccountName(sAMAccountName, password string) (*User, error) {
 	return l.CheckPasswordForSAMAccountNameContext(context.Background(), sAMAccountName, password)
 }
@@ -123,10 +136,12 @@ func (l *LDAP) CheckPasswordForSAMAccountName(sAMAccountName, password string) (
 //   - error: ErrUserNotFound if the user doesn't exist, authentication error if credentials are invalid,
 //     or context cancellation error
 //
-// This is commonly used for login validation in Active Directory environments.
+// The identifier is validated per server type: sAMAccountName rules when
+// Config.IsActiveDirectory is set, relaxed uid rules (see ValidateUID) otherwise.
+// It is commonly used for login validation in Active Directory environments.
 func (l *LDAP) CheckPasswordForSAMAccountNameContext(ctx context.Context, sAMAccountName, password string) (*User, error) {
-	if err := ValidateSAMAccountName(sAMAccountName); err != nil {
-		return nil, fmt.Errorf("invalid sAMAccountName: %w", err)
+	if err := l.validateAccountIdentifier(sAMAccountName); err != nil {
+		return nil, err
 	}
 
 	// Check for context cancellation first
@@ -216,8 +231,8 @@ func (l *LDAP) CheckPasswordForSAMAccountNameContext(ctx context.Context, sAMAcc
 		bindErr = c.Bind(userDN, credPassword)
 	} else {
 		// User doesn't exist - perform dummy bind to maintain constant timing
-		// Use a predictable dummy DN that won't exist to ensure bind fails
-		dummyDN := fmt.Sprintf("CN=nonexistent-%s,CN=Users,%s", sAMAccountName, l.config.BaseDN)
+		// Use a predictable dummy DN that won't exist to ensure bind fails.
+		dummyDN := buildDummyBindDN(sAMAccountName, l.config.BaseDN)
 		_ = c.Bind(dummyDN, credPassword) // Dummy bind for timing, ignore result
 		// Override bind error with user lookup error for proper error reporting
 		bindErr = userLookupErr
@@ -446,6 +461,9 @@ func encodePassword(password string) (string, error) {
 //   - User must provide their current password for verification
 //   - New password must meet the domain's password policy requirements
 //
+// The identifier is validated per server type: sAMAccountName rules when
+// Config.IsActiveDirectory is set, relaxed uid rules (see ValidateUID) otherwise.
+//
 // The password change uses the Microsoft-specific unicodePwd attribute with proper UTF-16LE encoding.
 // Reference: https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-adts/6e803168-f140-4d23-b2d3-c3a8ab5917d2
 func (l *LDAP) ChangePasswordForSAMAccountName(sAMAccountName, oldPassword, newPassword string) (err error) {
@@ -471,13 +489,16 @@ func (l *LDAP) ChangePasswordForSAMAccountName(sAMAccountName, oldPassword, newP
 //   - User must provide their current password for verification
 //   - New password must meet the domain's password policy requirements
 //
+// The identifier is validated per server type: sAMAccountName rules when
+// Config.IsActiveDirectory is set, relaxed uid rules (see ValidateUID) otherwise.
+//
 // The password change uses the Microsoft-specific unicodePwd attribute with proper UTF-16LE encoding.
 // Reference: https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-adts/6e803168-f140-4d23-b2d3-c3a8ab5917d2
 func (l *LDAP) ChangePasswordForSAMAccountNameContext(ctx context.Context, sAMAccountName, oldPassword, newPassword string) (err error) {
 	start := time.Now()
 
-	if err := ValidateSAMAccountName(sAMAccountName); err != nil {
-		return fmt.Errorf("invalid sAMAccountName: %w", err)
+	if err := l.validateAccountIdentifier(sAMAccountName); err != nil {
+		return err
 	}
 
 	// Create secure credentials for password handling
@@ -659,6 +680,9 @@ func (l *LDAP) ChangePasswordForSAMAccountNameContext(ctx context.Context, sAMAc
 //   - The service account must have "Reset password" permission on the target user object
 //   - New password must meet the domain's password policy requirements
 //
+// The identifier is validated per server type: sAMAccountName rules when
+// Config.IsActiveDirectory is set, relaxed uid rules (see ValidateUID) otherwise.
+//
 // Security Notes:
 //   - This is an administrative operation that bypasses old password verification
 //   - Requires elevated LDAP permissions (Reset password permission in AD)
@@ -673,8 +697,8 @@ func (l *LDAP) ResetPasswordForSAMAccountName(sAMAccountName, newPassword string
 
 // ResetPasswordForSAMAccountNameContext performs an administrative password reset with context support.
 func (l *LDAP) ResetPasswordForSAMAccountNameContext(ctx context.Context, sAMAccountName, newPassword string) error {
-	if err := ValidateSAMAccountName(sAMAccountName); err != nil {
-		return fmt.Errorf("invalid sAMAccountName: %w", err)
+	if err := l.validateAccountIdentifier(sAMAccountName); err != nil {
+		return err
 	}
 
 	start := time.Now()

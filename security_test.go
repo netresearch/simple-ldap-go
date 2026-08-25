@@ -360,7 +360,7 @@ func TestRateLimiterDoubleClose(t *testing.T) {
 
 func TestRateLimiterCheckLimit(t *testing.T) {
 	config := &RateLimiterConfig{
-		MaxAttempts:    3,
+		MaxAttempts:     3,
 		Window:          time.Minute,
 		LockoutDuration: time.Minute,
 		CleanupInterval: time.Hour,
@@ -394,4 +394,65 @@ func TestRateLimiterConcurrentAccess(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+}
+
+func TestValidateUID(t *testing.T) {
+	tests := []struct {
+		name        string
+		uid         string
+		expectValid bool
+	}{
+		{"Valid simple", "john", true},
+		{"Valid over 20 characters", "firstname.lastname-abc", true},
+		{"Valid single character", "j", true},
+		{"Valid starts with number", "1john", true},
+		{"Valid with at sign", "john@example.com", true},
+		{"Valid with DN metacharacters", "o=acme,cn=x", true},
+		{"Valid max length", strings.Repeat("a", 255), true},
+		{"Empty", "", false},
+		{"Too long", strings.Repeat("a", 256), false},
+		{"Control character", "john\x00doe", false},
+		{"Invalid UTF-8", "john\xffdoe", false},
+		{"Leading space", " john", false},
+		{"Trailing space", "john ", false},
+		{"Leading NBSP", "\u00a0john", false},
+		{"Trailing ideographic space", "john\u3000", false},
+		{"Zero-width space", "ad\u200bmin", false},
+		{"Bidi override", "\u202ejohn", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateUID(tt.uid)
+
+			if tt.expectValid && err != nil {
+				t.Errorf("Expected valid uid %q, but got error: %v", tt.uid, err)
+			}
+			if !tt.expectValid && err == nil {
+				t.Errorf("Expected invalid uid %q, but got no error", tt.uid)
+			}
+		})
+	}
+}
+
+func TestValidateAccountIdentifierServerAware(t *testing.T) {
+	// 22-character identifier from issue netresearch/ldap-selfservice-password-changer#666:
+	// legal as an OpenLDAP uid, over the sAMAccountName limit of 20.
+	longUID := "firstname.lastname-abc"
+
+	ad := &LDAP{config: &Config{IsActiveDirectory: true}}
+	openldap := &LDAP{config: &Config{IsActiveDirectory: false}}
+
+	if err := ad.validateAccountIdentifier(longUID); err == nil {
+		t.Errorf("expected AD mode to reject %d-character identifier", len(longUID))
+	}
+	if err := openldap.validateAccountIdentifier(longUID); err != nil {
+		t.Errorf("expected non-AD mode to accept %d-character uid, got: %v", len(longUID), err)
+	}
+	if err := openldap.validateAccountIdentifier(""); err == nil {
+		t.Error("expected non-AD mode to reject empty identifier")
+	}
+	if err := ad.validateAccountIdentifier("jdoe"); err != nil {
+		t.Errorf("expected AD mode to accept valid sAMAccountName, got: %v", err)
+	}
 }
