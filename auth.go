@@ -428,15 +428,10 @@ func (l *LDAP) CheckPasswordForDNContext(ctx context.Context, dn, password strin
 	default:
 	}
 
-	user, err := l.FindUserByDNContext(ctx, dn)
-	if err != nil {
-		l.logger.Error("authentication_user_lookup_failed",
-			slog.String("operation", "CheckPasswordForDN"),
-			slog.String("dn_masked", maskedDN),
-			slog.String("error", err.Error()),
-			slog.Duration("duration", time.Since(start)))
-		return nil, fmt.Errorf("failed to find user by DN %s: %w", dn, err)
-	}
+	// Timing attack mitigation (#219): always follow the lookup with a bind and
+	// the service rebind so existent and non-existent DNs take the same number
+	// of network round-trips, mirroring the sAMAccountName path.
+	user, userLookupErr := l.FindUserByDNContext(ctx, dn)
 
 	// Check for context cancellation before bind attempt
 	select {
@@ -449,6 +444,25 @@ func (l *LDAP) CheckPasswordForDNContext(ctx context.Context, dn, password strin
 	}
 
 	_, credPassword := creds.GetCredentials()
+	if userLookupErr != nil {
+		// DN doesn't resolve - perform dummy bind to maintain constant timing.
+		_ = c.Bind(buildDummyBindDN(dn, l.config.BaseDN), credPassword)
+		l.rebindPooledConnToService(c, "CheckPasswordForDN")
+
+		// An enumeration probe counts as a failed attempt, as on the
+		// sAMAccountName path.
+		if l.rateLimiter != nil {
+			l.rateLimiter.RecordFailure(rlKey)
+		}
+
+		l.logger.Error("authentication_user_lookup_failed",
+			slog.String("operation", "CheckPasswordForDN"),
+			slog.String("dn_masked", maskedDN),
+			slog.String("error", userLookupErr.Error()),
+			slog.Duration("duration", time.Since(start)))
+		return nil, fmt.Errorf("failed to find user by DN %s: %w", dn, userLookupErr)
+	}
+
 	err = c.Bind(user.DN(), credPassword)
 
 	// Restore the service-account bind before release; the verification result
