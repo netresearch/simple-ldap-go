@@ -838,7 +838,7 @@ func (l *LDAP) FindUserByMailContext(ctx context.Context, mail string) (user *Us
 			dnKey := fmt.Sprintf("user:dn:%s", user.DN())
 			l.cache.RegisterCacheKey(user.DN(), dnKey)
 			if user.SAMAccountName != "" {
-				samKey := fmt.Sprintf("user:sam:%s", user.SAMAccountName)
+				samKey := fmt.Sprintf("user:sam:%s", normalizeIdentifierKey(user.SAMAccountName))
 				l.cache.RegisterCacheKey(user.DN(), samKey)
 			}
 		}

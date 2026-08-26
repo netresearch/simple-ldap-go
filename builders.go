@@ -215,8 +215,8 @@ func (b *GroupBuilder) WithGroupType(groupType uint32) *GroupBuilder {
 
 // WithSAMAccountName sets the SAM account name for the group.
 func (b *GroupBuilder) WithSAMAccountName(samAccountName string) *GroupBuilder {
-	if samAccountName == "" {
-		b.errors = append(b.errors, errors.New("SAMAccountName cannot be empty"))
+	if err := ValidateUID(samAccountName); err != nil {
+		b.errors = append(b.errors, fmt.Errorf("invalid SAMAccountName: %w", err))
 		return b
 	}
 	b.group.SAMAccountName = samAccountName
@@ -308,8 +308,8 @@ func (b *ComputerBuilder) WithCN(cn string) *ComputerBuilder {
 // WithSAMAccountName sets the SAM account name for the computer.
 // Computer SAM account names should end with $ (dollar sign).
 func (b *ComputerBuilder) WithSAMAccountName(samAccountName string) *ComputerBuilder {
-	if samAccountName == "" {
-		b.errors = append(b.errors, errors.New("SAMAccountName cannot be empty"))
+	if err := ValidateUID(samAccountName); err != nil {
+		b.errors = append(b.errors, fmt.Errorf("invalid SAMAccountName: %w", err))
 		return b
 	}
 

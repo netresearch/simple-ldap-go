@@ -665,7 +665,7 @@ func TestGroupBuilderWithSAMAccountName(t *testing.T) {
 	t.Run("rejects empty SAMAccountName", func(t *testing.T) {
 		builder := NewGroupBuilder().WithSAMAccountName("")
 		assert.Len(t, builder.errors, 1)
-		assert.Contains(t, builder.errors[0].Error(), "SAMAccountName cannot be empty")
+		assert.Contains(t, builder.errors[0].Error(), "invalid SAMAccountName")
 	})
 }
 
@@ -808,7 +808,7 @@ func TestComputerBuilderWithSAMAccountName(t *testing.T) {
 	t.Run("rejects empty SAMAccountName", func(t *testing.T) {
 		builder := NewComputerBuilder().WithSAMAccountName("")
 		assert.Len(t, builder.errors, 1)
-		assert.Contains(t, builder.errors[0].Error(), "SAMAccountName cannot be empty")
+		assert.Contains(t, builder.errors[0].Error(), "invalid SAMAccountName")
 	})
 
 	t.Run("rejects SAMAccountName without dollar suffix", func(t *testing.T) {

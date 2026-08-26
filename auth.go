@@ -355,12 +355,16 @@ func (l *LDAP) CheckPasswordForDNContext(ctx context.Context, dn, password strin
 	// Mask sensitive data for logging (DN contains sensitive info)
 	maskedDN := maskSensitiveData(dn)
 
+	// Fold the rate-limit key so case variants of one DN share a lockout counter
+	// (LDAP DN matching is case-insensitive), as on the sAMAccountName path (#216).
+	rlKey := normalizeIdentifierKey(dn)
+
 	// Extract client IP from context for security monitoring
 	clientIP := extractClientIP(ctx)
 
 	// Security monitoring: Check rate limiting before authentication attempt
 	if l.rateLimiter != nil {
-		if !l.rateLimiter.CheckLimit(dn) {
+		if !l.rateLimiter.CheckLimit(rlKey) {
 			l.logger.Warn("authentication_rate_limited",
 				slog.String("operation", "CheckPasswordForDN"),
 				slog.String("dn_masked", maskedDN),
@@ -427,7 +431,7 @@ func (l *LDAP) CheckPasswordForDNContext(ctx context.Context, dn, password strin
 	if err != nil {
 		// Security monitoring: Record authentication failure
 		if l.rateLimiter != nil {
-			l.rateLimiter.RecordFailure(dn)
+			l.rateLimiter.RecordFailure(rlKey)
 		}
 
 		l.logger.Warn("authentication_failed",
@@ -442,7 +446,7 @@ func (l *LDAP) CheckPasswordForDNContext(ctx context.Context, dn, password strin
 
 	// Security monitoring: Record authentication success
 	if l.rateLimiter != nil {
-		l.rateLimiter.RecordSuccess(dn)
+		l.rateLimiter.RecordSuccess(rlKey)
 	}
 
 	l.logger.Info("authentication_successful",
