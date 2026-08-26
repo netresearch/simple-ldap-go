@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`CheckPasswordForDN` no longer leaks DN existence through timing.** The DN path returned early on a failed lookup with no bind attempt, so an attacker could distinguish existing from non-existing DNs by latency — the constant-time dummy bind that `CheckPasswordForSAMAccountName` has had all along was missing here, and the #217 service rebind had widened the gap by one round-trip on the existent path only. The not-found case now performs the same escaped dummy bind plus the service rebind, and the probe is recorded in the rate limiter's failure metric, as on the sAMAccountName path ([#219](https://github.com/netresearch/simple-ldap-go/issues/219)).
+
 ---
 
 ## [v1.15.0] - 2026-08-26
