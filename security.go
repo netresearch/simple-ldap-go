@@ -341,6 +341,16 @@ func (l *LDAP) validateAccountIdentifier(name string) error {
 	return nil
 }
 
+// normalizeIdentifierKey folds a user identifier to a stable key for rate
+// limiting and caching. LDAP uid/sAMAccountName matching is case-insensitive
+// (caseIgnoreMatch), so "Admin" and "admin" address one account and must share
+// a key; without this, case variants get independent lockout counters and cache
+// entries, letting an attacker reset the per-account attempt counter by rotating
+// case. Case folding only — collapsing Unicode confusables is out of scope (#216).
+func normalizeIdentifierKey(identifier string) string {
+	return strings.ToLower(identifier)
+}
+
 // ValidateEmail validates email address format
 func ValidateEmail(email string) error {
 	if email == "" {
@@ -1061,29 +1071,27 @@ func GetSecurityContext(ctx context.Context) *SecurityContext {
 	return NewSecurityContext()
 }
 
-// maskSensitiveData masks sensitive information for logging
+// maskSensitiveData masks sensitive information for logging by showing only the
+// first and last characters. It operates on runes, not bytes, so multibyte
+// identifiers (now valid on non-AD servers) are not split mid-rune into invalid
+// UTF-8. It has no carve-out for test-looking inputs: a masking control that
+// returns real data verbatim for values containing "example.com"/"test.com"
+// would leak production identifiers at those domains (#215).
 func maskSensitiveData(data string) string {
-	// Don't mask obvious test data - contains test domains or test values
-	if strings.Contains(data, "test.com") ||
-		strings.Contains(data, "example.com") ||
-		strings.Contains(data, "CN=test,") ||
-		strings.Contains(data, "TestOperation") {
-		return data
-	}
-
-	if len(data) <= 4 {
+	r := []rune(data)
+	if len(r) <= 4 {
 		return "***"
 	}
 
-	// Show first 2 and last 2 characters, mask the middle
+	// Show first and last runes, mask the middle.
 	visible := 2
-	if len(data) < 6 {
+	if len(r) < 6 {
 		visible = 1
 	}
 
-	prefix := data[:visible]
-	suffix := data[len(data)-visible:]
-	masked := strings.Repeat("*", len(data)-2*visible)
+	prefix := string(r[:visible])
+	suffix := string(r[len(r)-visible:])
+	masked := strings.Repeat("*", len(r)-2*visible)
 
 	return prefix + masked + suffix
 }

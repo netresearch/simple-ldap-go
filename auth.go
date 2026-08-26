@@ -84,6 +84,50 @@ func buildDummyBindDN(identifier, baseDN string) string {
 	return fmt.Sprintf("CN=nonexistent-%s,CN=Users,%s", ldap.EscapeDN(identifier), baseDN)
 }
 
+// normalizeDNKey folds a DN to a stable rate-limit key. It canonicalises via
+// ldap.ParseDN so case and insignificant whitespace variants of one DN (LDAP DN
+// equality ignores both) share a lockout counter; a malformed DN falls back to a
+// plain case-fold (#216).
+func normalizeDNKey(dn string) string {
+	parsed, err := ldap.ParseDN(dn)
+	if err != nil {
+		return normalizeIdentifierKey(dn)
+	}
+	var b strings.Builder
+	for i, rdn := range parsed.RDNs {
+		if i > 0 {
+			b.WriteByte(',')
+		}
+		for j, attr := range rdn.Attributes {
+			if j > 0 {
+				b.WriteByte('+')
+			}
+			b.WriteString(strings.ToLower(attr.Type))
+			b.WriteByte('=')
+			b.WriteString(strings.ToLower(attr.Value))
+		}
+	}
+	return b.String()
+}
+
+// rebindPooledConnToService restores the service-account identity on a pooled
+// connection after a password check rebound it as the end user. A pooled
+// connection is reused by the next caller, so leaving it bound as the verified
+// user leaks that identity to unrelated operations (#213). Non-pooled
+// connections are closed on release, so this is a no-op for them. If the rebind
+// fails the connection is closed rather than returned mis-bound to the pool.
+func (l *LDAP) rebindPooledConnToService(c *ldap.Conn, operation string) {
+	if l.connPool == nil {
+		return
+	}
+	if err := c.Bind(l.user, l.password); err != nil {
+		l.logger.Warn("connection_service_rebind_failed",
+			slog.String("operation", operation),
+			slog.String("error", err.Error()))
+		_ = c.Close()
+	}
+}
+
 // warnCleartextPasswordWrite logs when a non-AD password write is about to go
 // over an unencrypted connection.
 //
@@ -165,12 +209,16 @@ func (l *LDAP) CheckPasswordForSAMAccountNameContext(ctx context.Context, sAMAcc
 	// Mask sensitive data for logging
 	maskedUsername := maskSensitiveData(sAMAccountName)
 
+	// Rate-limit and cache keys are folded so case variants of one account
+	// share a counter (see normalizeIdentifierKey / #216).
+	rlKey := normalizeIdentifierKey(sAMAccountName)
+
 	// Extract client IP from context for security monitoring
 	clientIP := extractClientIP(ctx)
 
 	// Security monitoring: Check rate limiting before authentication attempt
 	if l.rateLimiter != nil {
-		if !l.rateLimiter.CheckLimit(sAMAccountName) {
+		if !l.rateLimiter.CheckLimit(rlKey) {
 			l.logger.Warn("authentication_rate_limited",
 				slog.String("operation", "CheckPasswordForSAMAccountName"),
 				slog.String("username_masked", maskedUsername),
@@ -239,11 +287,16 @@ func (l *LDAP) CheckPasswordForSAMAccountNameContext(ctx context.Context, sAMAcc
 		userDN = dummyDN
 	}
 
+	// The verification bind above re-authenticated this connection as the end
+	// user (or the dummy identity); restore the service-account bind before it
+	// returns to the pool (#213).
+	l.rebindPooledConnToService(c, "CheckPasswordForSAMAccountName")
+
 	err = bindErr
 	if err != nil {
 		// Security monitoring: Record authentication failure
 		if l.rateLimiter != nil {
-			l.rateLimiter.RecordFailure(sAMAccountName)
+			l.rateLimiter.RecordFailure(rlKey)
 		}
 
 		// Determine error type for logging
@@ -269,7 +322,7 @@ func (l *LDAP) CheckPasswordForSAMAccountNameContext(ctx context.Context, sAMAcc
 
 	// Security monitoring: Record authentication success
 	if l.rateLimiter != nil {
-		l.rateLimiter.RecordSuccess(sAMAccountName)
+		l.rateLimiter.RecordSuccess(rlKey)
 	}
 
 	l.logger.Info("authentication_successful",
@@ -328,12 +381,17 @@ func (l *LDAP) CheckPasswordForDNContext(ctx context.Context, dn, password strin
 	// Mask sensitive data for logging (DN contains sensitive info)
 	maskedDN := maskSensitiveData(dn)
 
+	// Fold the rate-limit key so case and whitespace variants of one DN share a
+	// lockout counter (LDAP DN equality ignores both), as on the sAMAccountName
+	// path (#216).
+	rlKey := normalizeDNKey(dn)
+
 	// Extract client IP from context for security monitoring
 	clientIP := extractClientIP(ctx)
 
 	// Security monitoring: Check rate limiting before authentication attempt
 	if l.rateLimiter != nil {
-		if !l.rateLimiter.CheckLimit(dn) {
+		if !l.rateLimiter.CheckLimit(rlKey) {
 			l.logger.Warn("authentication_rate_limited",
 				slog.String("operation", "CheckPasswordForDN"),
 				slog.String("dn_masked", maskedDN),
@@ -392,10 +450,15 @@ func (l *LDAP) CheckPasswordForDNContext(ctx context.Context, dn, password strin
 
 	_, credPassword := creds.GetCredentials()
 	err = c.Bind(user.DN(), credPassword)
+
+	// Restore the service-account bind before release; the verification result
+	// is kept in err (#213).
+	l.rebindPooledConnToService(c, "CheckPasswordForDN")
+
 	if err != nil {
 		// Security monitoring: Record authentication failure
 		if l.rateLimiter != nil {
-			l.rateLimiter.RecordFailure(dn)
+			l.rateLimiter.RecordFailure(rlKey)
 		}
 
 		l.logger.Warn("authentication_failed",
@@ -410,7 +473,7 @@ func (l *LDAP) CheckPasswordForDNContext(ctx context.Context, dn, password strin
 
 	// Security monitoring: Record authentication success
 	if l.rateLimiter != nil {
-		l.rateLimiter.RecordSuccess(dn)
+		l.rateLimiter.RecordSuccess(rlKey)
 	}
 
 	l.logger.Info("authentication_successful",

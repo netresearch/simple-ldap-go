@@ -397,10 +397,10 @@ func FuzzSAMAccountNameValidation(f *testing.F) {
 
 		_, err := builder.Build()
 
-		// Should not panic regardless of input
-		if len(samAccountName) == 0 {
-			assert.Error(t, err)
-		} else if len(samAccountName) > 20 {
+		// Should not panic regardless of input. The builder uses the server-neutral
+		// ValidateUID rules (#214): empty or over-255-byte identifiers are rejected;
+		// length up to 255 is accepted (AD's 20-char rule is enforced by CreateUser).
+		if len(samAccountName) == 0 || len(samAccountName) > 255 {
 			assert.Error(t, err)
 		}
 	})

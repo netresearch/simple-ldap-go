@@ -368,7 +368,7 @@ func (l *LDAP) FindUserByDNContext(ctx context.Context, dn string) (user *User, 
 			l.cache.RegisterCacheKey(user.DN(), mailKey)
 		}
 		if user.SAMAccountName != "" {
-			samKey := fmt.Sprintf("user:sam:%s", user.SAMAccountName)
+			samKey := fmt.Sprintf("user:sam:%s", normalizeIdentifierKey(user.SAMAccountName))
 			l.cache.RegisterCacheKey(user.DN(), samKey)
 		}
 	}
@@ -444,7 +444,7 @@ func (l *LDAP) FindUserBySAMAccountNameContext(ctx context.Context, sAMAccountNa
 	// Check cache if enabled
 	var cacheKey string
 	if l.cacheEnabled() {
-		cacheKey = fmt.Sprintf("user:sam:%s", sAMAccountName)
+		cacheKey = fmt.Sprintf("user:sam:%s", normalizeIdentifierKey(sAMAccountName))
 		if cached, found := l.cache.Get(cacheKey); found {
 			if cachedUser, ok := cached.(*User); ok {
 				cacheHit = true
@@ -838,7 +838,7 @@ func (l *LDAP) FindUserByMailContext(ctx context.Context, mail string) (user *Us
 			dnKey := fmt.Sprintf("user:dn:%s", user.DN())
 			l.cache.RegisterCacheKey(user.DN(), dnKey)
 			if user.SAMAccountName != "" {
-				samKey := fmt.Sprintf("user:sam:%s", user.SAMAccountName)
+				samKey := fmt.Sprintf("user:sam:%s", normalizeIdentifierKey(user.SAMAccountName))
 				l.cache.RegisterCacheKey(user.DN(), samKey)
 			}
 		}
@@ -1235,21 +1235,23 @@ func (l *LDAP) CreateUserContext(ctx context.Context, user FullUser, password st
 			l.perfMonitor.RecordOperation(ctx, "CreateUser", duration, false, err, resultCount)
 		}()
 	}
-	l.logger.Info("user_create_started",
-		slog.String("operation", "CreateUser"),
-		slog.String("cn", user.CN),
-		slog.String("sam_account_name", func() string {
-			if user.SAMAccountName != nil {
-				return *user.SAMAccountName
-			}
-			return "<nil>"
-		}()))
-
+	// Validate before logging so a rejected identifier (control/format chars,
+	// bidi overrides) never reaches the log, and mask what is logged (#215).
 	if user.SAMAccountName != nil {
 		if err := l.validateAccountIdentifier(*user.SAMAccountName); err != nil {
 			return "", err
 		}
 	}
+
+	l.logger.Info("user_create_started",
+		slog.String("operation", "CreateUser"),
+		slog.String("cn", user.CN),
+		slog.String("sam_account_name_masked", func() string {
+			if user.SAMAccountName != nil {
+				return maskSensitiveData(*user.SAMAccountName)
+			}
+			return "<nil>"
+		}()))
 
 	if user.ObjectClasses == nil {
 		// Default to the Active Directory "user" object chain on AD, and to the

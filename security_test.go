@@ -454,3 +454,21 @@ func TestValidateAccountIdentifierServerAware(t *testing.T) {
 		t.Errorf("expected AD mode to accept valid sAMAccountName, got: %v", err)
 	}
 }
+
+func TestNormalizeIdentifierKey(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"admin", "admin"},
+		{"Admin", "admin"},
+		{"ADMIN", "admin"},
+		{"John.Doe", "john.doe"},
+		{"MÜLLER", "müller"},
+	}
+	for _, c := range cases {
+		if got := normalizeIdentifierKey(c.in); got != c.want {
+			t.Errorf("normalizeIdentifierKey(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+	if normalizeIdentifierKey("Admin") != normalizeIdentifierKey("ADMIN") {
+		t.Error("case variants must fold to the same key")
+	}
+}

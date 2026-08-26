@@ -104,11 +104,11 @@ type ThreatContext struct {
 
 // ValidationResult contains the result of input validation
 type ValidationResult struct {
-	Valid           bool                   `json:"valid"`
-	NormalizedInput string                 `json:"normalized_input"`
-	Warnings        []string               `json:"warnings"`
-	Errors          []string               `json:"errors"`
-	ThreatContext   *ThreatContext         `json:"threat_context,omitempty"`
+	Valid           bool           `json:"valid"`
+	NormalizedInput string         `json:"normalized_input"`
+	Warnings        []string       `json:"warnings"`
+	Errors          []string       `json:"errors"`
+	ThreatContext   *ThreatContext `json:"threat_context,omitempty"`
 	Metadata        map[string]any `json:"metadata"`
 }
 
@@ -902,7 +902,12 @@ func (v *Validator) validateSpecificAttributeValue(attrName, attrValue string, r
 			result.Errors = append(result.Errors, "Invalid email format")
 		}
 	case "samaccountname":
-		// SAM account name validation
+		// This is an advisory threat-detection gate, deliberately kept stricter
+		// than the creation-path validation: it flags LDAP filter/DN metacharacters
+		// in an identifier. Relaxing it to the permissive uid rules was reverted
+		// after review — the creation path (UserBuilder / CreateUser, #214) accepts
+		// valid OpenLDAP uids, but this gate stays strict so it keeps signalling
+		// metacharacters that must be escaped before use.
 		if !reAlphaNumDot.MatchString(attrValue) {
 			result.Valid = false
 			result.Errors = append(result.Errors, "Invalid SAM account name format")

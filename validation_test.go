@@ -246,6 +246,8 @@ func TestValidator_ValidateAttribute(t *testing.T) {
 			expectWarn:  false,
 		},
 		{
+			// The standalone Validator is an advisory threat gate and stays strict:
+			// it flags metacharacters even though they are valid in an OpenLDAP uid.
 			name:        "Invalid SAM account name",
 			attrName:    "sAMAccountName",
 			attrValue:   "invalid@name",

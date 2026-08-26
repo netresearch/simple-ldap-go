@@ -314,10 +314,12 @@ func TestFormatErrorWithContext(t *testing.T) {
 	formatted := FormatErrorWithContext(ldapErr)
 
 	// Check that formatted error contains key information
+	// Server and DN are masked in formatted errors (maskSensitiveData no longer
+	// has a test-domain carve-out, #215), so derive the expected masked forms.
 	expectedSubstrings := []string{
 		"TestOperation",
-		"ldaps://test.com",
-		"CN=test,DC=example,DC=com",
+		maskSensitiveData("ldaps://test.com"),
+		maskSensitiveData("CN=test,DC=example,DC=com"),
 		"connection timeout",
 		"LDAP code:",
 		"timeout_seconds=30",

@@ -63,21 +63,22 @@ func TestUserBuilderWithSAMAccountName(t *testing.T) {
 	t.Run("rejects empty SAMAccountName", func(t *testing.T) {
 		builder := NewUserBuilder().WithSAMAccountName("")
 		assert.Len(t, builder.errors, 1)
-		assert.Contains(t, builder.errors[0].Error(), "SAMAccountName cannot be empty")
+		assert.Contains(t, builder.errors[0].Error(), "invalid SAMAccountName")
 	})
 
-	t.Run("rejects SAMAccountName over 20 characters", func(t *testing.T) {
+	t.Run("accepts SAMAccountName over 20 characters", func(t *testing.T) {
+		// Long uids are valid on OpenLDAP; AD's 20-char rule is enforced by
+		// CreateUser for AD clients, not by the server-neutral builder (#214).
 		builder := NewUserBuilder().WithSAMAccountName("thisusernameiswaytoolong")
-		assert.Len(t, builder.errors, 1)
-		assert.Contains(t, builder.errors[0].Error(), "cannot exceed 20 characters")
+		assert.Empty(t, builder.errors)
 	})
 
-	t.Run("rejects SAMAccountName with invalid characters", func(t *testing.T) {
-		invalidChars := []string{"[", "]", ":", ";", "|", "=", "+", "*", "?", "<", ">", "/", "\\", ","}
-		for _, char := range invalidChars {
+	t.Run("accepts SAMAccountName with metacharacters", func(t *testing.T) {
+		// These are legal in an OpenLDAP uid; filter and DN values are escaped at
+		// use. The builder no longer applies the AD metacharacter blacklist (#214).
+		for _, char := range []string{"[", "]", ":", ";", "|", "=", "+", "*", "?", "<", ">", "/", "\\", ","} {
 			builder := NewUserBuilder().WithSAMAccountName("user" + char + "name")
-			assert.Greater(t, len(builder.errors), 0)
-			assert.Contains(t, builder.errors[len(builder.errors)-1].Error(), "invalid characters")
+			assert.Empty(t, builder.errors, "metacharacter %q should be accepted", char)
 		}
 	})
 
@@ -430,24 +431,21 @@ func TestBuilderValidationRules(t *testing.T) {
 			shouldError bool
 			errorMsg    string
 		}{
+			// The builder now uses the permissive, server-neutral ValidateUID
+			// rules (#214). AD's stricter sAMAccountName rules are applied by
+			// CreateUser when the client is configured for AD.
 			{"valid", "jdoe", false, ""},
 			{"valid with numbers", "jdoe123", false, ""},
-			{"max length", strings.Repeat("a", 20), false, ""},
-			{"too long", strings.Repeat("a", 21), true, "exceed 20 characters"},
-			{"with quote", `john"doe`, true, "invalid characters"},
-			{"with bracket", "john[doe]", true, "invalid characters"},
-			{"with colon", "john:doe", true, "invalid characters"},
-			{"with semicolon", "john;doe", true, "invalid characters"},
-			{"with pipe", "john|doe", true, "invalid characters"},
-			{"with equals", "john=doe", true, "invalid characters"},
-			{"with plus", "john+doe", true, "invalid characters"},
-			{"with asterisk", "john*doe", true, "invalid characters"},
-			{"with question", "john?doe", true, "invalid characters"},
-			{"with less than", "john<doe", true, "invalid characters"},
-			{"with greater than", "john>doe", true, "invalid characters"},
-			{"with slash", "john/doe", true, "invalid characters"},
-			{"with backslash", `john\doe`, true, "invalid characters"},
-			{"with comma", "john,doe", true, "invalid characters"},
+			{"valid over 20 characters", strings.Repeat("a", 21), false, ""},
+			{"valid leading digit", "1john", false, ""},
+			{"valid email-style uid", "john.doe@example.com", false, ""},
+			{"valid with metacharacters", "o=acme,cn=john", false, ""},
+			{"valid max length", strings.Repeat("a", 255), false, ""},
+			{"empty", "", true, "invalid SAMAccountName"},
+			{"too long", strings.Repeat("a", 256), true, "too long"},
+			{"control character", "john\x00doe", true, "control"},
+			{"leading space", " john", true, "whitespace"},
+			{"trailing space", "john ", true, "whitespace"},
 		}
 
 		for _, tc := range testCases {
@@ -581,12 +579,12 @@ func TestBuilderErrorMessages(t *testing.T) {
 			{
 				"empty SAMAccountName",
 				NewUserBuilder().WithSAMAccountName(""),
-				"SAMAccountName cannot be empty",
+				"invalid SAMAccountName",
 			},
 			{
-				"long SAMAccountName",
-				NewUserBuilder().WithSAMAccountName(strings.Repeat("a", 21)),
-				"cannot exceed 20 characters",
+				"over-length SAMAccountName",
+				NewUserBuilder().WithSAMAccountName(strings.Repeat("a", 256)),
+				"too long",
 			},
 			{
 				"invalid email",
@@ -667,7 +665,7 @@ func TestGroupBuilderWithSAMAccountName(t *testing.T) {
 	t.Run("rejects empty SAMAccountName", func(t *testing.T) {
 		builder := NewGroupBuilder().WithSAMAccountName("")
 		assert.Len(t, builder.errors, 1)
-		assert.Contains(t, builder.errors[0].Error(), "SAMAccountName cannot be empty")
+		assert.Contains(t, builder.errors[0].Error(), "invalid SAMAccountName")
 	})
 }
 
@@ -810,7 +808,7 @@ func TestComputerBuilderWithSAMAccountName(t *testing.T) {
 	t.Run("rejects empty SAMAccountName", func(t *testing.T) {
 		builder := NewComputerBuilder().WithSAMAccountName("")
 		assert.Len(t, builder.errors, 1)
-		assert.Contains(t, builder.errors[0].Error(), "SAMAccountName cannot be empty")
+		assert.Contains(t, builder.errors[0].Error(), "invalid SAMAccountName")
 	})
 
 	t.Run("rejects SAMAccountName without dollar suffix", func(t *testing.T) {
