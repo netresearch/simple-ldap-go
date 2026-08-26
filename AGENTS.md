@@ -22,6 +22,11 @@ This file explains repo-wide conventions and where to find scoped rules.
 - `./testutil/AGENTS.md` — Testing utilities and container management
 - `./docs/AGENTS.md` — Documentation and guides
 
+## Codebase gotchas
+- **Identifier-derived rate-limit/cache keys are folded.** uid/sAMAccountName matching is case-insensitive, so keys go through `normalizeIdentifierKey` (lowercase). DN-derived keys additionally need `ldap.ParseDN` canonicalization (`normalizeDNKey`) — LDAP DN equality ignores case **and** insignificant whitespace, so a plain `strings.ToLower` leaves `CN=x, DC=y` and `CN=x,DC=y` on separate counters.
+- **`RateLimiter.CheckLimit` increments the attempt counter itself; `RecordFailure` only records a metric.** A code path that calls `CheckLimit` but not `RecordFailure` (e.g. the not-found branch of `CheckPasswordForDN`) is still rate-limited — do not conclude otherwise from the absence of `RecordFailure`.
+- **Identifier validation is per directory type.** `validateAccountIdentifier` applies the strict sAMAccountName rules only when `IsActiveDirectory`; otherwise `ValidateUID` (relaxed uid rules). The `UserBuilder`/`Validator` surfaces differ by intent — the builder is permissive (creation path), the standalone `Validator` stays strict (advisory threat gate).
+
 ## When instructions conflict
 - The nearest `AGENTS.md` wins. Explicit user prompts override files.
 - For Go-specific patterns, defer to language idioms and standard library conventions
