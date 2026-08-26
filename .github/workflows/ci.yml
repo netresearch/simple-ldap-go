@@ -23,7 +23,7 @@ jobs:
       enable-license-check: true
       enable-codecov: true
       enable-integration-tests: true
-      coverage-threshold: 77
+      coverage-threshold: 78
     permissions:
       contents: read
       security-events: write
