@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [v1.15.0] - 2026-08-26
+
 ### Added
 
 - `ValidateUID(uid string) error` and `MaxUIDLength` (255): the relaxed identifier validation for non-Active-Directory servers — non-empty, at most 255 bytes, valid UTF-8, no control (Cc) or format (Cf) characters, no leading or trailing whitespace of any kind ([#211](https://github.com/netresearch/simple-ldap-go/pull/211)).
