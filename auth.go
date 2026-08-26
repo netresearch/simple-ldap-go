@@ -84,6 +84,32 @@ func buildDummyBindDN(identifier, baseDN string) string {
 	return fmt.Sprintf("CN=nonexistent-%s,CN=Users,%s", ldap.EscapeDN(identifier), baseDN)
 }
 
+// normalizeDNKey folds a DN to a stable rate-limit key. It canonicalises via
+// ldap.ParseDN so case and insignificant whitespace variants of one DN (LDAP DN
+// equality ignores both) share a lockout counter; a malformed DN falls back to a
+// plain case-fold (#216).
+func normalizeDNKey(dn string) string {
+	parsed, err := ldap.ParseDN(dn)
+	if err != nil {
+		return normalizeIdentifierKey(dn)
+	}
+	var b strings.Builder
+	for i, rdn := range parsed.RDNs {
+		if i > 0 {
+			b.WriteByte(',')
+		}
+		for j, attr := range rdn.Attributes {
+			if j > 0 {
+				b.WriteByte('+')
+			}
+			b.WriteString(strings.ToLower(attr.Type))
+			b.WriteByte('=')
+			b.WriteString(strings.ToLower(attr.Value))
+		}
+	}
+	return b.String()
+}
+
 // rebindPooledConnToService restores the service-account identity on a pooled
 // connection after a password check rebound it as the end user. A pooled
 // connection is reused by the next caller, so leaving it bound as the verified
@@ -355,9 +381,10 @@ func (l *LDAP) CheckPasswordForDNContext(ctx context.Context, dn, password strin
 	// Mask sensitive data for logging (DN contains sensitive info)
 	maskedDN := maskSensitiveData(dn)
 
-	// Fold the rate-limit key so case variants of one DN share a lockout counter
-	// (LDAP DN matching is case-insensitive), as on the sAMAccountName path (#216).
-	rlKey := normalizeIdentifierKey(dn)
+	// Fold the rate-limit key so case and whitespace variants of one DN share a
+	// lockout counter (LDAP DN equality ignores both), as on the sAMAccountName
+	// path (#216).
+	rlKey := normalizeDNKey(dn)
 
 	// Extract client IP from context for security monitoring
 	clientIP := extractClientIP(ctx)

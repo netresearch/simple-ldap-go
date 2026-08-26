@@ -246,18 +246,11 @@ func TestValidator_ValidateAttribute(t *testing.T) {
 			expectWarn:  false,
 		},
 		{
-			// "@" is a legal uid character; the samAccountName attribute is now
-			// validated with the permissive ValidateUID rules (#214).
-			name:        "SAM account name with @ is valid",
+			// The standalone Validator is an advisory threat gate and stays strict:
+			// it flags metacharacters even though they are valid in an OpenLDAP uid.
+			name:        "Invalid SAM account name",
 			attrName:    "sAMAccountName",
 			attrValue:   "invalid@name",
-			expectValid: true,
-			expectWarn:  false,
-		},
-		{
-			name:        "SAM account name with control char is invalid",
-			attrName:    "sAMAccountName",
-			attrValue:   "bad\x01name",
 			expectValid: false,
 			expectWarn:  false,
 		},

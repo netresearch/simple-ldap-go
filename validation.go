@@ -23,6 +23,7 @@ var (
 	reEmailFormat    = regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
 	reDateFormat     = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
 	reDateTimeFormat = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}`)
+	reAlphaNumDot    = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 	rePhoneNumber    = regexp.MustCompile(`^\+?[0-9\s\-\.\(\)]+$`)
 	rePostalCode     = regexp.MustCompile(`^[0-9A-Za-z\s\-]+$`)
 )
@@ -901,13 +902,15 @@ func (v *Validator) validateSpecificAttributeValue(attrName, attrValue string, r
 			result.Errors = append(result.Errors, "Invalid email format")
 		}
 	case "samaccountname":
-		// Permissive, server-neutral identifier validation (#214). Active
-		// Directory's stricter sAMAccountName rules are applied by CreateUser when
-		// the client is configured for AD; this standalone validator has no server
-		// context, so it must not reject uids that are valid on OpenLDAP.
-		if err := ValidateUID(attrValue); err != nil {
+		// This is an advisory threat-detection gate, deliberately kept stricter
+		// than the creation-path validation: it flags LDAP filter/DN metacharacters
+		// in an identifier. Relaxing it to the permissive uid rules was reverted
+		// after review — the creation path (UserBuilder / CreateUser, #214) accepts
+		// valid OpenLDAP uids, but this gate stays strict so it keeps signalling
+		// metacharacters that must be escaped before use.
+		if !reAlphaNumDot.MatchString(attrValue) {
 			result.Valid = false
-			result.Errors = append(result.Errors, "Invalid SAM account name: "+err.Error())
+			result.Errors = append(result.Errors, "Invalid SAM account name format")
 		}
 	case "telephonenumber":
 		// Phone number validation (basic)

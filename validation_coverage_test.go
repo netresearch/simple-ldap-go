@@ -342,7 +342,7 @@ func TestValidator_ValidateSpecificAttributeValue(t *testing.T) {
 		{"valid mail", "mail", "user@example.com", true},
 		{"invalid mail", "mail", "not-email", false},
 		{"valid sam", "sAMAccountName", "john.doe", true},
-		{"sam with control char is invalid", "sAMAccountName", "john\x01doe", false},
+		{"invalid sam", "sAMAccountName", "john doe!", false},
 		{"valid phone", "telephoneNumber", "+49 123 456", true},
 		{"invalid phone", "telephoneNumber", "abc-xyz!", false},
 		{"valid postal", "postalCode", "12345", true},

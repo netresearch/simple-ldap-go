@@ -536,3 +536,32 @@ func TestBuildDummyBindDN_EscapesIdentifier(t *testing.T) {
 		assert.Equal(t, "nonexistent-x,cn=admin", dn.RDNs[0].Attributes[0].Value)
 	})
 }
+
+// TestNormalizeDNKey covers the rate-limit key folding for DNs (#216): case and
+// insignificant whitespace variants of one DN must map to the same key, so a DN
+// case/format rotation cannot reset the per-account lockout counter.
+func TestNormalizeDNKey(t *testing.T) {
+	base := normalizeDNKey("CN=Admin,DC=example,DC=org")
+
+	variants := []string{
+		"cn=admin,dc=example,dc=org",   // lowercased
+		"CN=ADMIN,DC=EXAMPLE,DC=ORG",   // uppercased
+		"CN=Admin, DC=example, DC=org", // insignificant whitespace after commas
+		"cn=admin,  dc=example,dc=org", // extra whitespace
+	}
+	for _, v := range variants {
+		if got := normalizeDNKey(v); got != base {
+			t.Errorf("normalizeDNKey(%q) = %q, want %q (must match the canonical DN)", v, got, base)
+		}
+	}
+
+	// A different DN must not collide.
+	if normalizeDNKey("CN=Other,DC=example,DC=org") == base {
+		t.Error("distinct DNs must not fold to the same key")
+	}
+
+	// A malformed DN falls back to a plain case-fold rather than panicking.
+	if normalizeDNKey("not a dn") != "not a dn" {
+		t.Errorf("malformed DN should fall back to case-fold, got %q", normalizeDNKey("Not A DN"))
+	}
+}
