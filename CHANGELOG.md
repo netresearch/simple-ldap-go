@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `UnlockUser`, `UnlockUserContext`, `UnlockUserForSAMAccountName`, and `UnlockUserForSAMAccountNameContext`: Active Directory account unlock support by setting the user's `lockoutTime` attribute to `0`. The operation is explicit and separate from password reset, so existing password-reset callers do not acquire an additional `lockoutTime` write-permission requirement.
+
 ---
 
 ## [v1.16.0] - 2026-08-26
