@@ -6,7 +6,7 @@ toolchain go1.27.1
 
 require (
 	github.com/go-ldap/ldap/v3 v3.4.14
-	golang.org/x/text v0.41.0
+	golang.org/x/text v0.42.0
 )
 
 require (
