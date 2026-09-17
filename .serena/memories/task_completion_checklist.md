@@ -1,33 +1,42 @@
 # Simple LDAP Go - Task Completion Checklist
 
-## When a task is completed, ensure:
+## Before calling a task done
 
-### Code Quality
-1. **Format code**: Run `go fmt ./...` to ensure consistent formatting
-2. **Static analysis**: Run `go vet ./...` to catch potential issues
-3. **Dependencies**: Run `go mod tidy` to clean up module dependencies
+### Code quality
+1. `make fmt` and `make vet`
+2. `make lint` (golangci-lint, configured in `.golangci.yml`)
+3. `make mod-tidy`
+4. Or all four at once: `make qa`
 
 ### Testing
-1. **Run tests**: `go test -v ./...` (requires LDAP environment setup)
-2. **Consider race conditions**: `go test -race ./...` if relevant
-3. **Validate test coverage** for new functionality
+1. `make test-fast` while editing, `make test-unit` before committing
+2. `make test-integration` when the change touches connection, pool or search
+   behaviour (needs Docker)
+3. `make test-coverage` — CI fails below 79%, so new code needs tests, not a
+   lowered threshold
+4. `make test-race` for anything touching the pool, the cache or a goroutine
+5. `make test-compat` when the change could be Go-version sensitive
 
 ### Documentation
-1. **Update README.md** if public API changes
-2. **Add inline comments** for complex logic only
-3. **Follow Conventional Commits** for commit messages
+1. Update the guide that covers what changed; `docs/AGENTS.md` says which
+2. `python3 scripts/check-docs-api.py` must exit 0 — CI runs it as `docs-api`,
+   and it now checks struct literal fields and package-level calls too
+3. Update `README.md` when the public API changes
+4. Never cite a source line number in a document; the file name is enough
 
-### Git Workflow
-1. **Commit with conventional commits format**
-2. **Create meaningful commit messages**
-3. **Consider PR requirements** if contributing
+### Git workflow
+1. Conventional Commits
+2. Signed and signed off: `git commit -S --signoff`
+3. Say in the commit what was measured, not what is expected to work
 
-### Environment Considerations
-- Remember that tests require LDAP server environment variables
-- CI is disabled due to LDAP server dependency
+### Environment
+- No LDAP server needed: unit tests run alone, integration tests start an
+  OpenLDAP container via testcontainers
+- CI is live: 13 workflows under `.github/workflows/`
 - This is a library package, not an executable
 
-### Specific to LDAP Operations
-- Test against actual LDAP/AD server when possible
-- Validate security implications for authentication changes
-- Ensure backward compatibility with existing API consumers
+### Specific to LDAP operations
+- Check both directory flavours where behaviour differs: Active Directory and
+  OpenLDAP disagree on password expiry, lockout and `adminCount`
+- Validate security implications for anything touching authentication
+- Keep backward compatibility with existing API consumers

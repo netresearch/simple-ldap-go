@@ -30,55 +30,48 @@ This guide provides comprehensive strategies for optimizing simple-ldap-go perfo
 ### Key Performance Indicators
 
 ```go
-// performance.go:45 - Core performance metrics
+// performance.go - what GetPerformanceStats returns.
+// PerformanceStats is an alias of PerformanceMetrics. Times are durations, not
+// float milliseconds. CacheHitRatio is computed for you; ConnectionPoolRatio is
+// declared but never populated, so derive pool figures from PoolStats.
 type PerformanceMetrics struct {
-    // Latency metrics (in milliseconds)
-    AvgLatency      float64
-    P50Latency      float64
-    P95Latency      float64
-    P99Latency      float64
-    MaxLatency      float64
+    OperationsTotal int64
+    ErrorCount      int64
+    TimeoutCount    int64
+    SlowQueries     int64
+    CacheHits       int64
+    CacheMisses     int64
 
-    // Throughput metrics
-    RequestsPerSec  float64
-    BytesPerSec     int64
+    AvgResponseTime time.Duration
+    MinResponseTime time.Duration
+    MaxResponseTime time.Duration
+    P50ResponseTime time.Duration
+    P95ResponseTime time.Duration
+    P99ResponseTime time.Duration
 
-    // Resource metrics
-    ActiveConns     int
-    PoolUtilization float64
-    CacheHitRate    float64
-    MemoryUsageMB   float64
+    MemoryUsageMB  float64
+    GoroutineCount int
 
-    // Error metrics
-    ErrorRate       float64
-    TimeoutRate     float64
-}
+    OperationsByType  map[string]int64
+    ErrorsByType      map[string]int64
+    SlowQueriesByType map[string]int64
 
-// performance.go:78 - Real-time monitoring
-func (l *LDAP) GetPerformanceMetrics() *PerformanceMetrics {
-    return &PerformanceMetrics{
-        AvgLatency:      l.latencyHistogram.Mean(),
-        P50Latency:      l.latencyHistogram.Percentile(0.50),
-        P95Latency:      l.latencyHistogram.Percentile(0.95),
-        P99Latency:      l.latencyHistogram.Percentile(0.99),
-        RequestsPerSec:  l.requestRate.Rate(),
-        CacheHitRate:    l.cache.Stats().HitRate,
-        ActiveConns:     l.pool.ActiveConnections(),
-        PoolUtilization: l.pool.Utilization(),
-        MemoryUsageMB:   getMemoryUsage() / 1024 / 1024,
-    }
+    // Nil unless a pool is configured.
+    PoolStats *ConnectionPoolStats
+    // ... time series and cache fields omitted
 }
 ```
 
 ### Performance Monitoring
 
 ```go
-// monitoring.go:34 - Continuous performance monitoring
+// Continuous performance monitoring
 type PerformanceMonitor struct {
-    client   *LDAP
-    interval time.Duration
-    logger   *slog.Logger
-    alerts   chan *PerformanceAlert
+    client     *ldap.LDAP
+    poolConfig *ldap.PoolConfig // the configuration the client was built with
+    interval   time.Duration
+    logger     *slog.Logger
+    alerts     chan *PerformanceAlert
 }
 
 func (pm *PerformanceMonitor) Start(ctx context.Context) {
@@ -91,34 +84,46 @@ func (pm *PerformanceMonitor) Start(ctx context.Context) {
             return
         case <-ticker.C:
             metrics := pm.client.GetPerformanceStats()
-            pm.analyzeMetrics(metrics)
+            pm.analyzeMetrics(metrics, pm.poolConfig)
         }
     }
 }
 
-func (pm *PerformanceMonitor) analyzeMetrics(metrics *PerformanceMetrics) {
-    // Alert on performance degradation
-    if metrics.P95Latency > 500 {
+func (pm *PerformanceMonitor) analyzeMetrics(metrics ldap.PerformanceStats, configured *ldap.PoolConfig) {
+    if metrics.P95ResponseTime > 500*time.Millisecond {
         pm.alerts <- &PerformanceAlert{
             Type:     "high_latency",
-            Message:  fmt.Sprintf("P95 latency is %0.2fms", metrics.P95Latency),
+            Message:  fmt.Sprintf("P95 response time is %v", metrics.P95ResponseTime),
             Severity: "warning",
         }
     }
 
-    if metrics.CacheHitRate < 70 {
-        pm.alerts <- &PerformanceAlert{
-            Type:     "low_cache_hit_rate",
-            Message:  fmt.Sprintf("Cache hit rate is %0.2f%%", metrics.CacheHitRate),
-            Severity: "info",
+    // CacheHitRatio is populated by the monitor; this derives the same figure
+    // from the counters so the example holds with or without the monitor running.
+    if lookups := metrics.CacheHits + metrics.CacheMisses; lookups > 0 {
+        hitRate := float64(metrics.CacheHits) / float64(lookups) * 100
+        if hitRate < 70 {
+            pm.alerts <- &PerformanceAlert{
+                Type:     "low_cache_hit_rate",
+                Message:  fmt.Sprintf("Cache hit rate is %0.2f%%", hitRate),
+                Severity: "info",
+            }
         }
     }
 
-    if metrics.PoolUtilization > 80 {
-        pm.alerts <- &PerformanceAlert{
-            Type:     "high_pool_utilization",
-            Message:  fmt.Sprintf("Pool utilization is %0.2f%%", metrics.PoolUtilization),
-            Severity: "warning",
+    // PoolStats is nil when the client runs without a pool. Its MaxConnections
+    // and MinConnections are copied as 0 (performance.go says "would need
+    // config"), so capacity has to come from the PoolConfig you supplied -
+    // here `configured`. Against Active+Idle you would measure busy share, not
+    // utilization.
+    if pool := metrics.PoolStats; pool != nil && configured.MaxConnections > 0 {
+        utilization := float64(pool.ActiveConnections) / float64(configured.MaxConnections) * 100
+        if utilization > 80 {
+            pm.alerts <- &PerformanceAlert{
+                Type:     "high_pool_utilization",
+                Message:  fmt.Sprintf("Pool utilization is %0.2f%%", utilization),
+                Severity: "warning",
+            }
         }
     }
 }
@@ -126,11 +131,41 @@ func (pm *PerformanceMonitor) analyzeMetrics(metrics *PerformanceMetrics) {
 
 ## Connection Pool Optimization
 
+Warm-up, health checking and leak recovery are the pool's own background work,
+not something a caller wires up: `NewConnectionPool` calls `warmPool` to open
+`MinConnections` before returning (`pool.go`), and `startBackgroundTasks`
+runs `performHealthChecks`, `cleanupIdleConnections` and `monitorLeaks` until
+`Close` (`pool.go`). Tuning it means choosing the `PoolConfig` values below;
+there is no runtime resize.
+
 ### Pool Sizing
 
+Pick the numbers, then measure `PoolHits` against `PoolMisses` under real load -
+a low hit rate means `MinConnections` is too low for the arrival rate.
+
 ```go
-// pool_optimization.go:23 - Dynamic pool sizing
-func CalculateOptimalPoolSize() int {
+config := ldap.Config{
+    Server: "ldaps://ldap.example.com:636",
+    BaseDN: "dc=example,dc=com",
+    Pool: &ldap.PoolConfig{
+        // Ceiling on concurrent connections. Reached means Get blocks up to
+        // GetTimeout, so size it to peak concurrency, not to average load.
+        MaxConnections: calculateOptimalPoolSize(),
+        // Opened eagerly at startup and kept idle.
+        MinConnections: runtime.NumCPU(),
+
+        MaxIdleTime:         5 * time.Minute,
+        HealthCheckInterval: 30 * time.Second,
+        ConnectionTimeout:   30 * time.Second,
+        GetTimeout:          10 * time.Second,
+    },
+}
+```
+
+The sizing calculation itself is caller-side code; this is one workable shape:
+
+```go
+func calculateOptimalPoolSize() int {
     // Base calculation on CPU cores
     numCPU := runtime.NumCPU()
 
@@ -156,109 +191,25 @@ func CalculateOptimalPoolSize() int {
 
     return optimalSize
 }
-
-// Usage
-config := &PoolConfig{
-    MaxSize:          CalculateOptimalPoolSize(),
-    MinIdle:          runtime.NumCPU(),
-    MaxIdleTime:      5 * time.Minute,
-    HealthCheckInterval: 30 * time.Second,
-}
-```
-
-### Connection Warm-up
-
-```go
-// pool_warmup.go:45 - Pre-warm connections for better performance
-func (p *Pool) WarmUp(ctx context.Context) error {
-    targetSize := p.config.MinIdle
-
-    g, gCtx := errgroup.WithContext(ctx)
-    sem := make(chan struct{}, 10) // Limit concurrent connections
-
-    for i := 0; i < targetSize; i++ {
-        sem <- struct{}{}
-        g.Go(func() error {
-            defer func() { <-sem }()
-
-            conn, err := p.createConnection(gCtx)
-            if err != nil {
-                return fmt.Errorf("failed to warm connection: %w", err)
-            }
-
-            // Test connection
-            if err := p.testConnection(conn); err != nil {
-                conn.Close()
-                return fmt.Errorf("connection test failed: %w", err)
-            }
-
-            p.put(conn)
-            return nil
-        })
-    }
-
-    if err := g.Wait(); err != nil {
-        return fmt.Errorf("pool warm-up failed: %w", err)
-    }
-
-    p.logger.Info("pool warmed up",
-        slog.Int("connections", targetSize))
-
-    return nil
-}
 ```
 
 ### Health Monitoring
 
+The health check runs inside the pool on the `HealthCheckInterval` ticker
+(`pool.go`); `isConnectionHealthy` decides per connection and unhealthy ones
+are closed rather than replaced in place. What a caller does is read the result:
+
 ```go
-// pool_health.go:67 - Continuous health monitoring
-func (p *Pool) MonitorHealth(ctx context.Context) {
-    ticker := time.NewTicker(p.config.HealthCheckInterval)
-    defer ticker.Stop()
+stats := pool.Stats()
 
-    for {
-        select {
-        case <-ctx.Done():
-            return
-        case <-ticker.C:
-            p.performHealthCheck()
-        }
-    }
-}
+// Rising failures point at the server or the network, not at the pool.
+log.Printf("health checks: %d passed, %d failed",
+    stats.HealthChecksPassed, stats.HealthChecksFailed)
 
-func (p *Pool) performHealthCheck() {
-    p.mu.Lock()
-    defer p.mu.Unlock()
-
-    var unhealthy []int
-
-    for i, conn := range p.connections {
-        if !p.isHealthy(conn) {
-            unhealthy = append(unhealthy, i)
-        }
-    }
-
-    // Replace unhealthy connections
-    for _, idx := range unhealthy {
-        old := p.connections[idx]
-        old.Close()
-
-        new, err := p.createConnection(context.Background())
-        if err != nil {
-            p.logger.Error("failed to replace unhealthy connection",
-                slog.Int("index", idx),
-                slog.String("error", err.Error()))
-            continue
-        }
-
-        p.connections[idx] = new
-    }
-
-    if len(unhealthy) > 0 {
-        p.logger.Info("replaced unhealthy connections",
-            slog.Int("count", len(unhealthy)))
-    }
-}
+// Churn: a connection count far above MinConnections that keeps climbing
+// means connections are being closed as fast as they are created.
+log.Printf("connections: %d created, %d closed, %d idle",
+    stats.ConnectionsCreated, stats.ConnectionsClosed, stats.IdleConnections)
 ```
 
 ## Cache Tuning
@@ -266,7 +217,7 @@ func (p *Pool) performHealthCheck() {
 ### Cache Sizing Strategy
 
 ```go
-// cache_sizing.go:34 - Intelligent cache sizing
+// Intelligent cache sizing
 func DetermineCacheSize(availableMemoryMB int, avgEntrySize int) int {
     // Reserve memory for application
     appOverheadMB := 256
@@ -300,7 +251,7 @@ func DetermineCacheSize(availableMemoryMB int, avgEntrySize int) int {
 ### TTL Optimization
 
 ```go
-// ttl_optimization.go:23 - Dynamic TTL based on access patterns
+// Dynamic TTL based on access patterns
 type AdaptiveTTL struct {
     baseT TL      time.Duration
     minTTL       time.Duration
@@ -336,7 +287,7 @@ func (a *AdaptiveTTL) RecordAccess(key string) {
 ### Cache Preloading
 
 ```go
-// cache_preload.go:56 - Strategic cache preloading
+// Strategic cache preloading
 func (l *LDAP) PreloadCriticalData(ctx context.Context) error {
     start := time.Now()
 
@@ -398,7 +349,7 @@ func (l *LDAP) PreloadCriticalData(ctx context.Context) error {
 ### Filter Optimization
 
 ```go
-// query_optimization.go:34 - Optimize LDAP filters
+// Optimize LDAP filters
 func OptimizeFilter(filter string) string {
     // Use indexed attributes first
     indexedAttrs := []string{"objectGUID", "objectSid", "sAMAccountName", "mail"}
@@ -428,7 +379,7 @@ func OptimizeFilter(filter string) string {
     return "(&" + strings.Join(optimized, "") + ")"
 }
 
-// query_optimization.go:78 - Use paged searches for large results
+// Use paged searches for large results
 func (l *LDAP) SearchPaged(filter string, pageSize int) ([]*ldap.Entry, error) {
     var allEntries []*ldap.Entry
 
@@ -470,7 +421,7 @@ func (l *LDAP) SearchPaged(filter string, pageSize int) ([]*ldap.Entry, error) {
 ### Attribute Selection
 
 ```go
-// attribute_optimization.go:23 - Request only needed attributes
+// Request only needed attributes
 func (l *LDAP) SearchWithAttributes(filter string, attributes []string) ([]*ldap.Entry, error) {
     // Only request attributes we need
     searchRequest := &ldap.SearchRequest{
@@ -527,7 +478,7 @@ func (l *LDAP) GetUserBasicInfo(ctx context.Context, username string) (*BasicUse
 ### Batch Operations
 
 ```go
-// batch_operations.go:45 - Efficient batch processing
+// Efficient batch processing
 func (l *LDAP) BatchGetUsers(usernames []string, batchSize int) ([]*User, error) {
     var allUsers []*User
     var mu sync.Mutex
@@ -578,7 +529,7 @@ func (l *LDAP) BatchGetUsers(usernames []string, batchSize int) ([]*User, error)
 ### Worker Pool Pattern
 
 ```go
-// worker_pool.go:34 - Efficient worker pool implementation
+// Efficient worker pool implementation
 type WorkerPool struct {
     workers    int
     jobQueue   chan Job
@@ -660,7 +611,7 @@ func (l *LDAP) ParallelUserLookup(usernames []string) ([]*User, error) {
 ### Pipeline Pattern
 
 ```go
-// pipeline.go:45 - Stream processing for large datasets
+// Stream processing for large datasets
 func (l *LDAP) StreamUsers(ctx context.Context) (<-chan *User, <-chan error) {
     userChan := make(chan *User, 100)
     errChan := make(chan error, 1)
@@ -728,7 +679,7 @@ func ProcessUsersInPipeline(ctx context.Context, l *LDAP) error {
 ### Semaphore Pattern
 
 ```go
-// semaphore.go:23 - Control concurrency with semaphores
+// Control concurrency with semaphores
 type Semaphore struct {
     sem chan struct{}
 }
@@ -769,55 +720,35 @@ func (l *LDAP) RateLimitedOperations(operations []Operation) error {
 
 ## Memory Management
 
-### Object Pooling
+### Do not hold the whole result set
+
+`User` values are built by the library from a search result; a caller does not
+construct or recycle them, and `sync.Pool` has nothing to grip here. The
+allocation that matters is the slice: `FindUsers` materialises every entry
+before returning.
+
+Where a directory is large, iterate instead, so one entry is live at a time:
 
 ```go
-// object_pool.go:34 - Reuse objects to reduce GC pressure
-var userPool = sync.Pool{
-    New: func() interface{} {
-        return &User{
-            Attributes: make(map[string][]string),
-        }
-    },
-}
-
-func GetUser() *User {
-    return userPool.Get().(*User)
-}
-
-func PutUser(u *User) {
-    // Reset user
-    u.DN = ""
-    u.CN = ""
-    u.SAMAccountName = ""
-    u.Mail = ""
-
-    // Clear map without allocating new one
-    for k := range u.Attributes {
-        delete(u.Attributes, k)
+// SearchIter yields *ldap.Entry, one at a time, and stops when you break.
+for entry, err := range client.SearchIter(ctx, searchRequest) {
+    if err != nil {
+        return err
     }
-
-    userPool.Put(u)
-}
-
-// Usage in parsing
-func (l *LDAP) parseUserOptimized(entry *ldap.Entry) *User {
-    user := GetUser() // Reuse from pool
-
-    user.DN() = entry.DN
-    user.CN() = entry.GetAttributeValue("cn")
-    user.SAMAccountName = entry.GetAttributeValue("sAMAccountName")
-    user.Mail = entry.GetAttributeValue("mail")
-
-    // Note: Caller is responsible for returning to pool
-    return user
+    if err := handle(entry); err != nil {
+        return err
+    }
 }
 ```
+
+`SearchPagedIter` does the same with server-side paging, and `GroupMembersIter`
+streams the members of one group. See
+[Iterator Patterns](ITERATOR_PATTERNS_GUIDE.md).
 
 ### String Interning
 
 ```go
-// string_intern.go:23 - Reduce memory for repeated strings
+// Reduce memory for repeated strings
 type StringInterner struct {
     mu    sync.RWMutex
     cache map[string]string
@@ -867,7 +798,7 @@ func (l *LDAP) internAttributes(attrs map[string][]string) {
 ### Memory Monitoring
 
 ```go
-// memory_monitor.go:45 - Track and manage memory usage
+// Track and manage memory usage
 func MonitorMemory(ctx context.Context, threshold uint64) {
     ticker := time.NewTicker(10 * time.Second)
     defer ticker.Stop()
@@ -903,7 +834,7 @@ func MonitorMemory(ctx context.Context, threshold uint64) {
 ### Micro-benchmarks
 
 ```go
-// benchmark_test.go:23 - Benchmark individual operations
+// Benchmark individual operations
 func BenchmarkUserLookup(b *testing.B) {
     client := setupTestClient(b)
 
@@ -945,7 +876,7 @@ func BenchmarkCachedVsUncached(b *testing.B) {
 ### Load Testing
 
 ```go
-// load_test.go:45 - Simulate production load
+// Simulate production load
 func TestLoadScenario(t *testing.T) {
     client := setupTestClient(t)
 
@@ -975,7 +906,7 @@ func TestLoadScenario(t *testing.T) {
 ### CPU Profiling
 
 ```go
-// profiling.go:23 - CPU profiling integration
+// CPU profiling integration
 func EnableCPUProfiling(profilePath string) func() {
     f, err := os.Create(profilePath)
     if err != nil {
@@ -1003,7 +934,7 @@ func main() {
 ### Memory Profiling
 
 ```go
-// memory_profile.go:34 - Memory profiling
+// Memory profiling
 func WriteMemProfile(profilePath string) error {
     f, err := os.Create(profilePath)
     if err != nil {
@@ -1040,7 +971,7 @@ func PeriodicMemoryProfile(interval time.Duration, dir string) {
 ### Trace Analysis
 
 ```go
-// trace.go:45 - Execution tracing
+// Execution tracing
 func EnableTracing(tracePath string) (func(), error) {
     f, err := os.Create(tracePath)
     if err != nil {
@@ -1066,37 +997,54 @@ func EnableTracing(tracePath string) (func(), error) {
 ### Configuration Recommendations
 
 ```go
-// production_config.go:23 - Production-optimized configuration
-func GetProductionConfig() *Config {
-    return &Config{
-        // Connection settings
-        MaxConnections:      100,
-        MinIdleConnections:  20,
-        ConnectionTimeout:   10 * time.Second,
-        RequestTimeout:      30 * time.Second,
+func productionConfig() ldap.Config {
+    return ldap.Config{
+        Server: "ldaps://ldap.example.com:636",
+        BaseDN: "dc=example,dc=com",
 
-        // Cache settings
-        CacheSize:          100000,
-        CacheTTL:           5 * time.Minute,
-        NegativeCacheTTL:   30 * time.Second,
+        DialTimeout:  10 * time.Second,
+        ReadTimeout:  30 * time.Second,
+        WriteTimeout: 30 * time.Second,
 
-        // Performance settings
-        EnableCompression:  true,
-        EnablePipelining:   true,
-        BatchSize:          100,
-        PageSize:           500,
+        Pool: &ldap.PoolConfig{
+            MaxConnections:    100,
+            MinConnections:    20,
+            ConnectionTimeout: 10 * time.Second,
+            GetTimeout:        10 * time.Second,
+        },
 
-        // Concurrency settings
-        MaxConcurrentOps:   1000,
-        WorkerPoolSize:     runtime.NumCPU() * 4,
+        EnableCache: true,
+        Cache: &ldap.CacheConfig{
+            Enabled:          true,
+            MaxSize:          100000,
+            MaxMemoryMB:      256,
+            TTL:              5 * time.Minute,
+            NegativeCacheTTL: 30 * time.Second,
+            // Trades CPU for memory on entries above CompressionThreshold.
+            CompressionEnabled:   true,
+            CompressionThreshold: 1024,
+        },
 
-        // Monitoring
-        EnableMetrics:      true,
-        EnableProfiling:    false, // Enable only when debugging
-        MetricsInterval:    30 * time.Second,
+        EnableMetrics: true,
+        Performance: &ldap.PerformanceConfig{
+            Enabled:            true,
+            SlowQueryThreshold: 500 * time.Millisecond,
+            FlushInterval:      30 * time.Second,
+            // Sampling below 1.0 keeps the metrics buffer bounded under load.
+            SampleRate: 0.1,
+        },
+
+        Resilience: &ldap.ResilienceConfig{
+            EnableCircuitBreaker: true,
+            CircuitBreaker:       ldap.DefaultCircuitBreakerConfig(),
+        },
     }
 }
 ```
+
+> `CacheConfig` is stored but not yet used to build the cache: `New` constructs
+> it from `DefaultCacheConfig()`, so only `TTL` takes effect today. See
+> [#240](https://github.com/netresearch/simple-ldap-go/issues/240).
 
 ### Deployment Checklist
 
@@ -1132,7 +1080,7 @@ func GetProductionConfig() *Config {
 ### Performance Troubleshooting
 
 ```go
-// troubleshooting.go:34 - Common performance issues
+// Common performance issues
 func DiagnosePerformance(client *LDAP) *PerformanceDiagnostic {
     diag := &PerformanceDiagnostic{
         Timestamp: time.Now(),

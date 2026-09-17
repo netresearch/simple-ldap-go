@@ -16,9 +16,9 @@
 - Descriptive error messages
 
 ## Documentation
-- Minimal inline comments
-- External documentation via README.md
-- Function names are self-documenting
+- GoDoc on every exported symbol, and comments that say *why* rather than restate the code
+- 13 guides under `docs/`, indexed by `docs/DOCUMENTATION_INDEX.md`; `scripts/check-docs-api.py` checks their examples against the real API
+- A source citation in a document names the file, never a line number
 
 ## Import Organization
 - Standard library imports first

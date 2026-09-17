@@ -31,3 +31,6 @@ examples/structured_logging/ldap.log
 # Python bytecode from scripts/
 __pycache__/
 *.pyc
+
+# Agent session artifacts
+.session_context.md

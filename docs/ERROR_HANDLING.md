@@ -30,33 +30,45 @@ The simple-ldap-go library implements a comprehensive error handling system that
 ### Standard Errors
 
 ```go
-// errors.go:12 - Common error definitions
+// errors.go - the sentinels this library returns
 var (
-    // Entity not found errors
+    // Entity not found
     ErrUserNotFound     = errors.New("user not found")
     ErrGroupNotFound    = errors.New("group not found")
     ErrComputerNotFound = errors.New("computer not found")
+    ErrObjectNotFound   = errors.New("object not found")
 
-    // Authentication errors
+    // Authentication
     ErrInvalidCredentials = errors.New("invalid credentials")
     ErrPasswordExpired    = errors.New("password expired")
     ErrAccountLocked      = errors.New("account locked")
     ErrAccountDisabled    = errors.New("account disabled")
 
-    // Connection errors
-    ErrConnectionFailed = errors.New("connection failed")
-    ErrConnectionClosed = errors.New("connection closed")
-    ErrPoolExhausted    = errors.New("connection pool exhausted")
+    // Connection and pool
+    ErrConnectionFailed    = errors.New("connection failed")
+    ErrServerUnavailable   = errors.New("server unavailable")
+    ErrTimeoutExceeded     = errors.New("timeout exceeded")
+    ErrPoolExhausted       = errors.New("connection pool exhausted")
+    ErrPoolClosed          = errors.New("connection pool is closed")
+    ErrConnectionUnhealthy = errors.New("connection is unhealthy")
 
-    // Validation errors
+    // Validation
     ErrInvalidDN     = errors.New("invalid distinguished name")
     ErrInvalidFilter = errors.New("invalid LDAP filter")
-    ErrInvalidInput  = errors.New("invalid input")
 
-    // Operation errors
-    ErrOperationTimeout = errors.New("operation timeout")
-    ErrAccessDenied     = errors.New("access denied")
-    ErrQuotaExceeded    = errors.New("quota exceeded")
+    // Context
+    ErrContextCancelled        = errors.New("context cancelled")
+    ErrContextDeadlineExceeded = errors.New("context deadline exceeded")
+
+    // Uniqueness
+    ErrDNDuplicated             = errors.New("DN is not unique")
+    ErrSAMAccountNameDuplicated = errors.New("sAMAccountName is not unique")
+    ErrMailDuplicated           = errors.New("mail is not unique")
+
+    // Cache
+    ErrCacheDisabled    = errors.New("cache is disabled")
+    ErrCacheKeyNotFound = errors.New("cache key not found")
+    ErrCacheFull        = errors.New("cache is full")
 )
 ```
 
@@ -186,12 +198,11 @@ func WrapLDAPError(op string, dn string, err error) error {
     code := extractLDAPCode(err)
 
     return &LDAPError{
-        Op:      op,
-        DN:      dn,
-        Code:    code,
-        Message: err.Error(),
-        Cause:   err,
-        Time:    time.Now(),
+        Op:        op,
+        DN:        dn,
+        Code:      code,
+        Err:       err,
+        Timestamp: time.Now(),
     }
 }
 
@@ -283,8 +294,16 @@ func (l *LDAP) validateUser(user FullUser) error {
 
 ### 2. Retry Pattern
 
+The library does not retry for you: there is no retry runner and no backoff in
+it. `ldap.IsRetryable(err)` classifies an error, and everything below is caller
+code you own.
+
+> `ConnectionOptions` declares `MaxRetries` and `RetryDelay`
+> (`options.go`) and `DefaultConnectionOptions` fills them in, but no
+> code reads either field. Setting them has no effect today.
+
 ```go
-// retry.go:23 - Retry with exponential backoff
+// Caller-side retry with exponential backoff.
 type RetryConfig struct {
     MaxAttempts int
     InitialDelay time.Duration
@@ -330,22 +349,24 @@ func WithRetry(config RetryConfig, operation func() error) error {
 }
 
 func isRetryable(err error) bool {
-    // Connection errors are retryable
-    if errors.Is(err, ErrConnectionFailed) ||
-       errors.Is(err, ErrConnectionClosed) {
+    // The library's own classification, for errors that carry retry information.
+    if ldap.IsRetryable(err) {
         return true
     }
 
-    // Timeout errors are retryable
-    if errors.Is(err, ErrOperationTimeout) {
+    // Transient connection and pool conditions.
+    if errors.Is(err, ldap.ErrConnectionFailed) ||
+        errors.Is(err, ldap.ErrServerUnavailable) ||
+        errors.Is(err, ldap.ErrConnectionUnhealthy) ||
+        errors.Is(err, ldap.ErrPoolExhausted) ||
+        errors.Is(err, ldap.ErrTimeoutExceeded) {
         return true
     }
 
-    // Check for specific LDAP errors
-    var ldapErr *LDAPError
-    if errors.As(err, &ldapErr) {
-        // Server busy, unavailable are retryable
-        return ldapErr.Code == 51 || ldapErr.Code == 52
+    // A cancelled context is the caller's decision, never retry it.
+    if errors.Is(err, ldap.ErrContextCancelled) ||
+        errors.Is(err, ldap.ErrContextDeadlineExceeded) {
+        return false
     }
 
     return false
@@ -354,128 +375,85 @@ func isRetryable(err error) bool {
 
 ### 3. Circuit Breaker Pattern
 
-```go
-// circuit_breaker.go:34 - Prevent cascading failures
-type CircuitBreaker struct {
-    maxFailures  int
-    resetTimeout time.Duration
+The circuit breaker ships with the library (`resilience.go`). It is off by
+default, for backward compatibility, and is enabled through the configuration:
 
-    mu           sync.RWMutex
-    failures     int
-    lastFailTime time.Time
-    state        CircuitState
+```go
+config.Resilience = &ldap.ResilienceConfig{
+    EnableCircuitBreaker: true,
+    CircuitBreaker: &ldap.CircuitBreakerConfig{
+        MaxFailures:         5,
+        Timeout:             time.Minute,
+        HalfOpenMaxRequests: 1,
+    },
 }
 
-type CircuitState int
+client, err := ldap.New(config, bindDN, password)
+```
 
-const (
-    StateClosed CircuitState = iota
-    StateOpen
-    StateHalfOpen
-)
+`ldap.DefaultCircuitBreakerConfig()` returns the same shape with defaults. A
+breaker can also be driven directly:
 
-func (cb *CircuitBreaker) Execute(fn func() error) error {
-    cb.mu.Lock()
-    defer cb.mu.Unlock()
+```go
+cb := ldap.NewCircuitBreaker("directory", ldap.DefaultCircuitBreakerConfig(), logger)
 
-    // Check circuit state
-    if cb.state == StateOpen {
-        if time.Since(cb.lastFailTime) > cb.resetTimeout {
-            cb.state = StateHalfOpen
-            cb.failures = 0
-        } else {
-            return fmt.Errorf("circuit breaker is open")
-        }
-    }
+err := cb.Execute(func() error {
+    _, err := client.FindUserBySAMAccountName(username)
+    return err
+})
 
-    // Execute operation
-    err := fn()
-    if err != nil {
-        cb.failures++
-        cb.lastFailTime = time.Now()
-
-        if cb.failures >= cb.maxFailures {
-            cb.state = StateOpen
-            return fmt.Errorf("circuit breaker opened: %w", err)
-        }
-
-        return err
-    }
-
-    // Success - reset state
-    cb.failures = 0
-    cb.state = StateClosed
-
-    return nil
+// Open circuit: the call was not attempted.
+var cbErr *ldap.CircuitBreakerError
+if errors.As(err, &cbErr) {
+    return fmt.Errorf("directory unavailable, circuit open: %w", err)
 }
 ```
+
+`cb.GetStats()` reports the counters and `cb.Reset()` closes the circuit;
+`client.GetCircuitBreakerStats()` returns the same for the breaker the client
+built itself.
 
 ### 4. Batch Error Handling
 
+`BulkCreateUsers` reports per item rather than failing as a whole: it returns one
+`WorkResult[FullUser]` per input, each carrying its own `Error`. The returned
+error is non-nil only when the batch could not run at all, so the per-item errors
+have to be read even on success.
+
 ```go
-// bulk_operations.go:78 - Handling errors in batch operations
-func (l *LDAP) BulkCreateUsers(users []FullUser, password string) (*BulkResult, error) {
-    result := &BulkResult{
-        Total:     len(users),
-        Succeeded: 0,
-        Failed:    0,
-        Errors:    make(map[string]error),
+results, err := client.BulkCreateUsers(users, initialPassword)
+if err != nil {
+    return fmt.Errorf("bulk create could not run: %w", err)
+}
+
+var failed int
+for _, r := range results {
+    if r.Error != nil {
+        failed++
+        slog.Error("user creation failed in bulk operation",
+            slog.String("id", r.ID),
+            slog.String("user", r.Data.SAMAccountName),
+            slog.Duration("duration", r.Duration),
+            slog.String("error", r.Error.Error()))
+        continue
     }
+}
 
-    // Use semaphore for concurrency control
-    sem := make(chan struct{}, 10)
-    var wg sync.WaitGroup
-    var mu sync.Mutex
-
-    for i, user := range users {
-        wg.Add(1)
-        sem <- struct{}{}
-
-        go func(idx int, u FullUser, password string) {
-            defer wg.Done()
-            defer func() { <-sem }()
-
-            // CreateUser takes the new account's initial password as its
-            // second argument and returns the created DN.
-            dn, err := l.CreateUser(u, password)
-
-            mu.Lock()
-            defer mu.Unlock()
-
-            if err != nil {
-                result.Failed++
-                result.Errors[u.SAMAccountName] = err
-
-                // Log individual failure
-                l.log.Error("failed to create user in bulk operation",
-                    slog.String("user", u.SAMAccountName),
-                    slog.Int("index", idx),
-                    slog.String("error", err.Error()))
-            } else {
-                result.Succeeded++
-                result.CreatedDNs = append(result.CreatedDNs, dn)
-            }
-        }(i, user, password)
-    }
-
-    wg.Wait()
-
-    // Determine overall success/failure
-    if result.Failed > 0 {
-        return result, fmt.Errorf("bulk operation partially failed: %d/%d succeeded",
-            result.Succeeded, result.Total)
-    }
-
-    return result, nil
+if failed > 0 {
+    return fmt.Errorf("bulk operation partially failed: %d of %d succeeded",
+        len(results)-failed, len(results))
 }
 ```
+
+`BulkCreateUsersContext` takes a `context.Context` and a `*WorkerPoolConfig` for
+the concurrency, instead of the defaults this call uses.
 
 ## Context-Aware Errors
 
 ### Timeout Handling
 
 ```go
-// context_errors.go:23 - Context-aware timeout handling
+// Context-aware timeout handling
 func (l *LDAP) SearchWithTimeout(ctx context.Context, filter string, timeout time.Duration) ([]*User, error) {
     // Create timeout context
     ctx, cancel := context.WithTimeout(ctx, timeout)
@@ -515,7 +493,7 @@ func (l *LDAP) SearchWithTimeout(ctx context.Context, filter string, timeout tim
 ### Cancellation Propagation
 
 ```go
-// context_errors.go:67 - Proper cancellation handling
+// Proper cancellation handling
 func (l *LDAP) ProcessUsersWithContext(ctx context.Context, processor func(*User) error) error {
     users, err := l.FindUsersContext(ctx)
     if err != nil {
@@ -560,7 +538,7 @@ func (l *LDAP) ProcessUsersWithContext(ctx context.Context, processor func(*User
 ### 1. Graceful Degradation
 
 ```go
-// degradation.go:34 - Fallback to degraded service
+// Fallback to degraded service
 func (l *LDAP) GetUserWithFallback(username string) (*User, error) {
     // Try the directory first.
     user, err := l.FindUserBySAMAccountName(username)
@@ -587,52 +565,37 @@ func (l *LDAP) GetUserWithFallback(username string) (*User, error) {
 
 ### 2. Connection Recovery
 
+Recovery is not something a caller drives. With a pool configured, a broken
+connection is detected by the health check on `HealthCheckInterval` and closed
+(`pool.go`), and one that a caller never returned is evicted after
+`LeakEvictionThreshold` (`pool.go`). The next `Get` dials a replacement.
+
+What a caller owns is returning the connection, so the pool can tell a busy
+connection from a lost one:
+
 ```go
-// recovery.go:56 - Automatic connection recovery
-func (l *LDAP) RecoverConnection(conn *ldap.Conn) (*ldap.Conn, error) {
-    // Close bad connection
-    if conn != nil {
-        conn.Close()
-    }
-
-    // Attempt to establish new connection
-    retryConfig := RetryConfig{
-        MaxAttempts:  5,
-        InitialDelay: 1 * time.Second,
-        MaxDelay:     30 * time.Second,
-        Multiplier:   2.0,
-    }
-
-    var newConn *ldap.Conn
-    err := WithRetry(retryConfig, func() error {
-        var err error
-        newConn, err = l.connect()
-        if err != nil {
-            return fmt.Errorf("connection recovery failed: %w", err)
-        }
-
-        // Verify connection with bind
-        if err := l.bindConnection(newConn); err != nil {
-            newConn.Close()
-            return fmt.Errorf("bind failed during recovery: %w", err)
-        }
-
-        return nil
-    })
-
-    if err != nil {
-        return nil, err
-    }
-
-    l.log.Info("connection recovered successfully")
-    return newConn, nil
+conn, err := pool.Get(ctx)
+if err != nil {
+    // ErrPoolExhausted means every connection is checked out and GetTimeout
+    // elapsed - a sizing or a leak problem, not a server problem.
+    return fmt.Errorf("no pooled connection: %w", err)
 }
+defer func() {
+    // Put returns the connection; skipping it is what produces LeakedConnections.
+    if err := pool.Put(conn); err != nil {
+        slog.Warn("returning connection failed", slog.String("error", err.Error()))
+    }
+}()
 ```
+
+Without a pool, a failed operation is retried by reconnecting - that is, by
+building a new client with `ldap.New` and the same `Config`, under the
+caller-side retry above.
 
 ### 3. Partial Result Handling
 
 ```go
-// partial_results.go:23 - Handle partial failures gracefully
+// Handle partial failures gracefully
 type PartialResult struct {
     Data     []interface{}
     Errors   []error
@@ -689,7 +652,7 @@ func (l *LDAP) SearchWithPartialResults(filter string, continueOnError bool) (*P
 ### Structured Error Logging
 
 ```go
-// logging.go:45 - Rich error context in logs
+// Rich error context in logs
 func LogError(logger *slog.Logger, err error, operation string, attrs ...slog.Attr) {
     // Base attributes
     logAttrs := []slog.Attr{
@@ -735,7 +698,7 @@ LogError(l.log, err, "user_creation",
 ### Error Metrics
 
 ```go
-// metrics.go:67 - Error tracking for monitoring
+// Error tracking for monitoring
 type ErrorMetrics struct {
     mu sync.RWMutex
 
@@ -810,7 +773,7 @@ return fmt.Errorf("bind failed: %w", err)
 ### 2. Error Comparison
 
 ```go
-// errors_best_practices.go:23 - Proper error comparison
+// Proper error comparison
 func HandleError(err error) {
     // Use errors.Is for sentinel errors
     if errors.Is(err, ErrUserNotFound) {
@@ -849,7 +812,7 @@ func (l *LDAP) FindUserByDN(dn string) (*User, error) {
 ### 4. Error Aggregation
 
 ```go
-// aggregation.go:34 - Collecting multiple errors
+// Collecting multiple errors
 func (l *LDAP) ValidateUsers(users []FullUser) error {
     var multiErr MultiError
 
@@ -930,7 +893,7 @@ func TestErrorHandling(t *testing.T) {
 ### Integration Testing
 
 ```go
-// errors_integration_test.go:67 - Testing error recovery
+// Testing error recovery
 func TestConnectionRecovery(t *testing.T) {
     // Setup test LDAP with testcontainers
     ctx := context.Background()
@@ -962,7 +925,7 @@ func TestConnectionRecovery(t *testing.T) {
 ### Error Injection Testing
 
 ```go
-// chaos_testing.go:34 - Inject errors for testing
+// Inject errors for testing
 type ErrorInjector struct {
     client     *LDAP
     errorRate  float64
@@ -1004,14 +967,14 @@ func TestWithErrorInjection(t *testing.T) {
 
 ```go
 // BAD: Silently ignoring errors
-func BadExample() {
-    user, _ := ldap.FindUser("john") // Error ignored!
+func BadExample(client *ldap.LDAP) {
+    user, _ := client.FindUserBySAMAccountName("john") // Error ignored!
     processUser(user) // May panic if user is nil
 }
 
 // GOOD: Always handle errors
-func GoodExample() error {
-    user, err := ldap.FindUser("john")
+func GoodExample(client *ldap.LDAP) error {
+    user, err := client.FindUserBySAMAccountName("john")
     if err != nil {
         return fmt.Errorf("failed to find user: %w", err)
     }

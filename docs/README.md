@@ -1,64 +1,40 @@
 # Simple LDAP Go Documentation
 
-This directory contains comprehensive documentation for the Simple LDAP Go library.
+Start at the [Documentation Index](DOCUMENTATION_INDEX.md): it carries the full
+API tables and links every guide below. This page is the short way in.
 
-## 📚 Documentation Index
+## Guides
 
-### Getting Started
-- [API Reference](API_REFERENCE.md) - Complete API documentation for all public types and methods
-- [Architecture](ARCHITECTURE.md) - System design and architectural decisions
-- [Troubleshooting](TROUBLESHOOTING.md) - Common issues and their solutions
+| Guide | Read it when |
+|-------|--------------|
+| [API Reference](API_REFERENCE.md) | Looking up a method, type or configuration field |
+| [Architecture](ARCHITECTURE.md) | Understanding how the pieces fit, and why |
+| [Authentication Guide](AUTHENTICATION_GUIDE.md) | Implementing sign-in, password changes, account state |
+| [Builder Patterns](BUILDER_PATTERNS_GUIDE.md) | Constructing configuration, users, groups or computers |
+| [Caching Guide](CACHING_GUIDE.md) | Configuring the cache, or explaining a stale read |
+| [Error Handling](ERROR_HANDLING.md) | Deciding what to retry, what to surface, what to log |
+| [Iterator Patterns](ITERATOR_PATTERNS_GUIDE.md) | Streaming large result sets without loading them |
+| [Performance Configuration](PERFORMANCE_CONFIGURATION_GUIDE.md) | Setting up pooling, metrics and monitoring |
+| [Performance Tuning](PERFORMANCE_TUNING.md) | Chasing a measured latency or throughput problem |
+| [Resilience](RESILIENCE.md) | Surviving a directory that is slow or unavailable |
+| [Security Guide](SECURITY_GUIDE.md) | Hardening an integration, or answering an audit |
+| [Structured Logging](STRUCTURED_LOGGING.md) | Knowing what the library writes to your logs |
+| [Troubleshooting](TROUBLESHOOTING.md) | Something is not working |
 
-### Core Features
-- [Authentication Guide](AUTHENTICATION_GUIDE.md) - User authentication patterns and best practices
-- [Error Handling](ERROR_HANDLING.md) - Comprehensive error handling patterns and recovery strategies
-- [Context Support](CONTEXT_SUPPORT.md) - Using context.Context for cancellation and timeouts
-- [Structured Logging](STRUCTURED_LOGGING.md) - Logging configuration and best practices
+## Elsewhere
 
-### Performance & Optimization
-- [Performance Tuning](PERFORMANCE_TUNING.md) - Complete performance optimization guide
-- [Connection Pooling](CONNECTION_POOLING.md) - Connection pool configuration and management
-- [Caching Guide](CACHING_GUIDE.md) - Cache configuration for improved performance
-- [Test Optimization](TEST_OPTIMIZATION_GUIDE.md) - Optimizing test execution and container management
+- [README](../README.md) - installation, quick start, configuration
+- [CONTRIBUTING](../CONTRIBUTING.md) - how to build, test and submit changes
+- [SECURITY](../SECURITY.md) - reporting a vulnerability, security practices
+- [examples/](../examples/) - runnable programs per topic
 
-### Security
-- [Security Guide](SECURITY_GUIDE.md) - Security best practices and recommendations
+## Documentation Standards
 
-### Additional Resources
-- [Documentation Index](DOCUMENTATION_INDEX.md) - Legacy index (being replaced by this file)
-
-## 📖 Quick Links
-
-| Topic | Description | Use When |
-|-------|-------------|----------|
-| [API Reference](API_REFERENCE.md) | Complete API documentation | Looking up specific methods or types |
-| [Authentication](AUTHENTICATION_GUIDE.md) | Auth patterns and examples | Implementing user authentication |
-| [Performance](PERFORMANCE_TUNING.md) | Optimization techniques | Need to improve performance |
-| [Security](SECURITY_GUIDE.md) | Security best practices | Hardening your LDAP integration |
-| [Error Handling](ERROR_HANDLING.md) | Error types and recovery | Debugging or handling errors |
-| [Troubleshooting](TROUBLESHOOTING.md) | Common issues | Something isn't working |
-
-## 🔍 Finding Information
-
-- **New to the library?** Start with the [API Reference](API_REFERENCE.md)
-- **Having issues?** Check [Troubleshooting](TROUBLESHOOTING.md)
-- **Need better performance?** Read [Performance Tuning](PERFORMANCE_TUNING.md)
-- **Security concerns?** Review the [Security Guide](SECURITY_GUIDE.md)
-- **Working with authentication?** See the [Authentication Guide](AUTHENTICATION_GUIDE.md)
-
-## 📝 Documentation Standards
-
-All documentation in this directory follows these conventions:
-- Markdown format with clear headings
-- Code examples in Go
-- Practical, real-world examples
-- Security warnings where appropriate
-- Performance implications noted
-
-## 🤝 Contributing
-
-To contribute documentation:
-1. Follow the existing format and style
-2. Include practical examples
-3. Note any security or performance implications
-4. Update this index if adding new files
+- Code examples are Go, and name real API. `scripts/check-docs-api.py` (CI job
+  `docs-api`) checks the call shapes in this directory and in the root README
+  against the package; run it before opening a pull request.
+- Cite a source file when it settles a question, without a line number - line
+  numbers go stale silently and this directory has been through that once.
+- Note security and performance implications where they apply.
+- Add a new guide to the table above and to
+  [DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md).

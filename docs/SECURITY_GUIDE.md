@@ -89,7 +89,7 @@ func NewSecurityManager(config *SecurityConfig) *SecurityManager {
 ### Password Policy Enforcement
 
 ```go
-// password_policy.go:45 - Comprehensive password validation
+// Comprehensive password validation
 type PasswordPolicy struct {
     MinLength            int
     RequireUppercase     bool
@@ -146,7 +146,7 @@ func (p *PasswordPolicy) Validate(password string, user *User) error {
     return nil
 }
 
-// password_policy.go:112 - Secure password hashing
+// Secure password hashing
 func HashPassword(password string) (string, error) {
     // Use Argon2id for password hashing
     salt := make([]byte, 32)
@@ -166,7 +166,7 @@ func HashPassword(password string) (string, error) {
 ### Multi-Factor Authentication
 
 ```go
-// mfa.go:56 - TOTP-based MFA implementation
+// TOTP-based MFA implementation
 type TOTPAuthenticator struct {
     issuer string
     period uint
@@ -209,7 +209,7 @@ func (t *TOTPAuthenticator) ValidateToken(secret, token string) (bool, error) {
     return valid, nil
 }
 
-// mfa.go:123 - Complete MFA flow
+// Complete MFA flow
 func (l *LDAP) AuthenticateWithMFA(ctx context.Context, username, password, mfaToken string) error {
     // First factor: password
     if _, err := l.CheckPasswordForSAMAccountName(username, password); err != nil {
@@ -257,7 +257,7 @@ func (l *LDAP) AuthenticateWithMFA(ctx context.Context, username, password, mfaT
 ### Brute Force Protection
 
 ```go
-// brute_force.go:34 - Rate limiting and account lockout
+// Rate limiting and account lockout
 type BruteForceProtection struct {
     mu           sync.RWMutex
     attempts     map[string]*AttemptRecord
@@ -327,7 +327,7 @@ func (b *BruteForceProtection) CheckAndRecord(identifier string) error {
 ### Role-Based Access Control (RBAC)
 
 ```go
-// rbac.go:45 - Role-based authorization
+// Role-based authorization
 type RBACAuthorizer struct {
     roles       map[string]*Role
     permissions map[string]*Permission
@@ -375,7 +375,7 @@ func (r *RBACAuthorizer) Authorize(user *User, resource, action string) (bool, e
     return false, ErrAccessDenied
 }
 
-// rbac.go:112 - Attribute-based access control
+// Attribute-based access control
 type ABACAuthorizer struct {
     policies []Policy
 }
@@ -511,7 +511,7 @@ func containsInjectionPattern(input string) bool {
 ### TLS/LDAPS Configuration
 
 ```go
-// tls_config.go:45 - Secure TLS configuration
+// Secure TLS configuration
 func GetSecureTLSConfig() *tls.Config {
     return &tls.Config{
         // Minimum TLS version
@@ -542,7 +542,7 @@ func GetSecureTLSConfig() *tls.Config {
     }
 }
 
-// tls_config.go:89 - Certificate pinning
+// Certificate pinning
 type CertificatePinner struct {
     pinnedCerts map[string][]byte
 }
@@ -564,7 +564,7 @@ func (cp *CertificatePinner) VerifyConnection(state tls.ConnectionState) error {
     return nil
 }
 
-// tls_config.go:123 - Secure LDAP connection
+// Secure LDAP connection
 func (l *LDAP) SecureConnect() error {
     tlsConfig := GetSecureTLSConfig()
 
@@ -596,7 +596,7 @@ func (l *LDAP) SecureConnect() error {
 ### Channel Binding
 
 ```go
-// channel_binding.go:34 - Implement channel binding for enhanced security
+// Implement channel binding for enhanced security
 type ChannelBinding struct {
     Type string
     Data []byte
@@ -629,7 +629,7 @@ func calculateChannelBinding(state tls.ConnectionState) []byte {
 ### Secure Credential Storage
 
 ```go
-// credentials.go:45 - Secure credential management
+// Secure credential management
 type CredentialManager struct {
     vault    SecretVault
     encryptor *Encryptor
@@ -679,7 +679,7 @@ func (cm *CredentialManager) RetrieveCredential(identifier string) (string, erro
     return string(decrypted), nil
 }
 
-// credentials.go:112 - Credential rotation
+// Credential rotation
 func (cm *CredentialManager) RotateCredentials() error {
     // Get all credential identifiers
     identifiers, err := cm.vault.ListKeys()
@@ -705,7 +705,7 @@ func (cm *CredentialManager) RotateCredentials() error {
 ### Service Account Management
 
 ```go
-// service_accounts.go:34 - Secure service account handling
+// Secure service account handling
 type ServiceAccountManager struct {
     ldap        *LDAP
     credManager *CredentialManager
@@ -769,7 +769,7 @@ func generateSecurePassword(length int) string {
 ### Security Event Logging
 
 ```go
-// audit.go:56 - Comprehensive security audit logging
+// Comprehensive security audit logging
 type AuditLogger struct {
     logger      *slog.Logger
     storage     AuditStorage
@@ -817,7 +817,7 @@ func (a *AuditLogger) LogSecurityEvent(event *AuditEvent) {
     }
 }
 
-// audit.go:145 - Authentication audit trail
+// Authentication audit trail
 func (a *AuditLogger) LogAuthentication(username string, success bool, method string, ip string) {
     event := &AuditEvent{
         Type:      "authentication",
@@ -837,7 +837,7 @@ func (a *AuditLogger) LogAuthentication(username string, success bool, method st
     a.LogSecurityEvent(event)
 }
 
-// audit.go:189 - Data access audit
+// Data access audit
 func (a *AuditLogger) LogDataAccess(user, resource, action string, sensitive bool) {
     risk := RiskLow
     if sensitive {
@@ -863,7 +863,7 @@ func (a *AuditLogger) LogDataAccess(user, resource, action string, sensitive boo
 ### Compliance Reporting
 
 ```go
-// compliance.go:45 - Generate compliance reports
+// Generate compliance reports
 type ComplianceReporter struct {
     auditor *AuditLogger
     storage AuditStorage
@@ -925,7 +925,7 @@ func (cr *ComplianceReporter) GenerateGDPRReport(subject string) (*GDPRReport, e
 ### Secure Configuration
 
 ```go
-// secure_config.go:34 - Security-focused configuration
+// Security-focused configuration
 type SecureConfig struct {
     // Connection security
     RequireTLS           bool
@@ -997,7 +997,7 @@ func GetProductionSecurityConfig() *SecureConfig {
 ### Security Checklist
 
 ```go
-// security_checks.go:45 - Runtime security verification
+// Runtime security verification
 func PerformSecurityChecks(config *Config) []SecurityIssue {
     var issues []SecurityIssue
 
@@ -1086,7 +1086,7 @@ defer func() { _ = client.Close() }()
 ### Security Headers
 
 ```go
-// security_headers.go:23 - Security headers for web interfaces
+// Security headers for web interfaces
 func SetSecurityHeaders(w http.ResponseWriter) {
     w.Header().Set("X-Content-Type-Options", "nosniff")
     w.Header().Set("X-Frame-Options", "DENY")

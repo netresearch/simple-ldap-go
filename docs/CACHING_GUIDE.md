@@ -376,8 +376,13 @@ func (c *Cache) SetWithPrimaryKey(cacheKey string, value interface{}, ttl time.D
     return nil
 }
 
-// Usage example - automatic tracking registration
-user := &User{DN: "CN=john.doe,OU=Users,DC=company,DC=com", SAMAccountName: "john.doe"}
+// Usage example - automatic tracking registration.
+// A User comes out of a lookup: its DN lives in the embedded Object and is
+// read with DN(), so it cannot be set in a literal.
+user, err := client.FindUserBySAMAccountName("john.doe")
+if err != nil {
+    return err
+}
 cacheKey := "user:sam:john.doe"
 cache.SetWithPrimaryKey(cacheKey, user, 5*time.Minute, user.DN())
 ```
@@ -601,10 +606,9 @@ func ExampleUserLifecycle() {
     cache := NewCache(&CacheConfig{MaxSize: 1000, TTL: 5 * time.Minute})
 
     // 1. Create user cache entries with tracking
-    user := &User{
-        DN:             "CN=jane.smith,OU=Users,DC=company,DC=com",
-        SAMAccountName: "jane.smith",
-        Email:          "jane.smith@company.com",
+    user, err := client.FindUserBySAMAccountName("jane.smith")
+    if err != nil {
+        return
     }
 
     // Cache user by different access patterns, all tracked to primary DN
@@ -813,7 +817,7 @@ func (l *LDAP) GetUserGroups(username string) ([]Group, error) {
 ### 3. Search Results
 
 ```go
-// cache_strategies.go:23 - Search result caching with pagination
+// Search result caching with pagination
 type SearchCache struct {
     cache *Cache
     log   *slog.Logger
@@ -853,31 +857,41 @@ func (sc *SearchCache) calculateTTL(resultSize int) time.Duration {
 
 ## Configuration
 
+> **Most of `CacheConfig` does not reach the cache yet.** `New` builds the cache
+> from `DefaultCacheConfig()` and sets `Enabled` itself (`client.go`), so a
+> `CacheConfig` supplied through `Config.Cache`, `WithCache` or
+> `ConfigBuilder.WithCache` is stored but not used to construct it. The one field
+> that is read is `TTL`, which `users.go` applies to user-cache writes.
+> `MaxSize`, `MaxMemoryMB`, `NegativeCacheTTL`, `RefreshInterval`,
+> `RefreshOnAccess`, `CompressionEnabled` and `CompressionThreshold` therefore
+> have no effect today, and the cache runs with the defaults below. The examples
+> in this guide show the intended shape; treat the values as documentation of
+> intent until [#240](https://github.com/netresearch/simple-ldap-go/issues/240)
+> is fixed.
+
 ### Basic Configuration
 
 ```go
-// client.go:156 - Cache configuration during client creation
-func NewWithCache(config *Config) (*LDAP, error) {
-    client := &LDAP{
-        config: config,
-        log:    slog.Default().With("component", "ldap-client"),
+// The client builds the cache itself; a caller supplies the configuration.
+func newCachedClient(bindDN, password string) (*ldap.LDAP, error) {
+    config := ldap.Config{
+        Server: "ldaps://ldap.example.com:636",
+        BaseDN: "dc=example,dc=com",
+
+        EnableCache: true,
+        Cache: &ldap.CacheConfig{
+            Enabled:          true,
+            MaxSize:          getEnvInt("LDAP_CACHE_SIZE", 10000),
+            TTL:              getEnvDuration("LDAP_CACHE_TTL", 5*time.Minute),
+            NegativeCacheTTL: getEnvDuration("LDAP_CACHE_NEGATIVE_TTL", 30*time.Second),
+            RefreshInterval:  time.Minute,
+        },
     }
 
-    // Initialize cache with configuration
-    cacheConfig := &CacheConfig{
-        MaxSize:      getEnvInt("LDAP_CACHE_SIZE", 10000),
-        TTL:          getEnvDuration("LDAP_CACHE_TTL", 5*time.Minute),
-        NegativeTTL:  getEnvDuration("LDAP_CACHE_NEGATIVE_TTL", 30*time.Second),
-        CleanupInterval: 1 * time.Minute,
-        EnableStats:  getEnvBool("LDAP_CACHE_STATS", true),
-    }
-
-    cache, err := NewCache(cacheConfig)
+    client, err := ldap.New(config, bindDN, password)
     if err != nil {
-        return nil, fmt.Errorf("failed to initialize cache: %w", err)
+        return nil, fmt.Errorf("failed to initialize client: %w", err)
     }
-
-    client.cache = cache
 
     return client, nil
 }
@@ -886,42 +900,45 @@ func NewWithCache(config *Config) (*LDAP, error) {
 ### Advanced Configuration
 
 ```go
-// cache_config.go:12 - Comprehensive cache configuration
+// The whole of CacheConfig.
 type CacheConfig struct {
+    // Caching is off unless this is set; the client also honours
+    // Config.EnableCache and Config.EnableOptimizations.
+    Enabled bool
+
     // Size limits
-    MaxSize       int           `json:"max_size"`
-    MaxMemoryMB   int           `json:"max_memory_mb"`
+    MaxSize     int
+    MaxMemoryMB int
 
     // TTL settings
-    TTL           time.Duration `json:"ttl"`
-    NegativeTTL   time.Duration `json:"negative_ttl"`
+    TTL              time.Duration
+    NegativeCacheTTL time.Duration
 
-    // Behavior
-    CleanupInterval time.Duration `json:"cleanup_interval"`
-    EnableStats     bool          `json:"enable_stats"`
-    EnableMetrics   bool          `json:"enable_metrics"`
+    // Behaviour
+    RefreshInterval time.Duration // background maintenance
+    RefreshOnAccess bool          // refresh a stale entry when it is read
 
-    // Performance tuning
-    ShardCount      int           `json:"shard_count"`      // For sharded cache
-    CompressionLevel int          `json:"compression_level"` // 0-9, 0=disabled
-
-    // Persistence (future)
-    PersistPath     string        `json:"persist_path"`
-    PersistInterval time.Duration `json:"persist_interval"`
+    // Compression, for entries above the threshold
+    CompressionEnabled   bool
+    CompressionThreshold int
 }
 
 // Example configuration
-config := &CacheConfig{
-    MaxSize:         50000,
-    MaxMemoryMB:     512,
-    TTL:             10 * time.Minute,
-    NegativeTTL:     1 * time.Minute,
-    CleanupInterval: 5 * time.Minute,
-    EnableStats:     true,
-    EnableMetrics:   true,
-    ShardCount:      16, // For concurrent access
+config := &ldap.CacheConfig{
+    Enabled:              true,
+    MaxSize:              50000,
+    MaxMemoryMB:          512,
+    TTL:                  10 * time.Minute,
+    NegativeCacheTTL:     1 * time.Minute,
+    RefreshInterval:      5 * time.Minute,
+    RefreshOnAccess:      true,
+    CompressionEnabled:   true,
+    CompressionThreshold: 1024,
 }
 ```
+
+There is no sharding, no statistics toggle and no persistence: cache statistics
+are always collected and read with `GetCacheStats`.
 
 ### Environment Variables
 
@@ -987,7 +1004,7 @@ func (c *Cache) calculateHitRate() float64 {
 ### Monitoring Integration
 
 ```go
-// monitoring.go:45 - Prometheus metrics export
+// Prometheus metrics export
 func (c *Cache) ExportMetrics() {
     // Register Prometheus metrics
     prometheus.MustRegister(
@@ -1021,7 +1038,7 @@ func (c *Cache) ExportMetrics() {
     )
 }
 
-// monitoring.go:78 - Structured logging for cache events
+// Structured logging for cache events
 func (c *Cache) logCacheEvent(event string, key string, hit bool) {
     c.log.Debug("cache event",
         slog.String("event", event),
@@ -1036,7 +1053,7 @@ func (c *Cache) logCacheEvent(event string, key string, hit bool) {
 ### Performance Analysis
 
 ```go
-// performance_analysis.go:23 - Cache effectiveness analyzer
+// Cache effectiveness analyzer
 type CacheAnalyzer struct {
     cache *Cache
     log   *slog.Logger

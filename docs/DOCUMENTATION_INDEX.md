@@ -6,7 +6,7 @@
 
 **A comprehensive Go library for LDAP and Active Directory operations**
 
-[Quick Start](#quick-start) • [API Reference](#api-reference) • [Architecture](#architecture) • [Examples](#examples) • [Best Practices](#best-practices)
+[Quick Start](README.md) • [API Reference](#api-reference) • [Architecture](#architecture) • [Examples](#examples) • [Best Practices](#best-practices)
 
 </div>
 
@@ -14,17 +14,17 @@
 
 ## 📚 Documentation Structure
 
-### [📖 Knowledge Base](../KNOWLEDGE_BASE.md)
-- [Complete Project Overview](../KNOWLEDGE_BASE.md)
-- [Architecture Components](../KNOWLEDGE_BASE.md#architecture-components)
-- [Performance Optimizations](../KNOWLEDGE_BASE.md#performance-optimizations)
-- [Configuration Patterns](../KNOWLEDGE_BASE.md#configuration-patterns)
+### [📖 Project Overview](../README.md)
+- [Complete Project Overview](../README.md)
+- [Architecture Components](ARCHITECTURE.md)
+- [Performance Optimizations](PERFORMANCE_CONFIGURATION_GUIDE.md)
+- [Configuration Patterns](../README.md#configuration)
 
 ### [🚀 Quick Start](README.md)
 - [Installation](README.md#installation)
 - [Basic Usage](README.md#quick-start)
 - [Configuration](README.md#configuration)
-- [Examples Overview](examples/)
+- [Examples Overview](../examples/)
 
 ### [📖 API Reference](#api-reference)
 - [Core Client](#core-client)
@@ -36,30 +36,27 @@
 - [Infrastructure Components](#infrastructure-api)
 
 ### [🏗️ Architecture Documentation](#architecture)
-- [System Design](docs/ARCHITECTURE.md)
+- [System Design](ARCHITECTURE.md)
 - [Component Overview](#component-overview)
 - [Design Patterns](#design-patterns)
 - [Interface Contracts](#interfaces)
 
-### [📊 Feature Documentation](#features)
-- [Context Support](CONTEXT_SUPPORT.md)
+### 📊 Feature Documentation
 - [Error Handling](ERROR_HANDLING.md)
 - [Structured Logging](STRUCTURED_LOGGING.md)
-- [Performance Optimization](PERFORMANCE_OPTIMIZATION.md)
-- [Security Best Practices](SECURITY.md)
-- [Modernization Plan](MODERNIZATION_PLAN.md)
+- [Security Best Practices](../SECURITY.md)
 
-### [📘 Implementation Guides](#guides)
-- [Authentication Workflows](docs/AUTHENTICATION_GUIDE.md) - MFA, session management, security patterns
-- [Builder Patterns](docs/BUILDER_PATTERNS_GUIDE.md) - Fluent API, object construction, validation
-- [Connection Pooling](docs/CONNECTION_POOLING.md) - Pool configuration, monitoring, optimization
-- [Caching Strategies](docs/CACHING_GUIDE.md) - LRU implementation, TTL management, key tracking
-- [Error Handling Patterns](docs/ERROR_HANDLING.md) - Error types, recovery patterns, best practices
-- [Iterator Patterns](docs/ITERATOR_PATTERNS_GUIDE.md) - Streaming data access, memory efficiency
-- [Performance Configuration](docs/PERFORMANCE_CONFIGURATION_GUIDE.md) - Metrics, optimization, monitoring
-- [Performance Tuning](docs/PERFORMANCE_TUNING.md) - Benchmarking, profiling, optimization techniques
-- [Security Implementation](docs/SECURITY_GUIDE.md) - Authentication, authorization, compliance
-- [Troubleshooting Guide](docs/TROUBLESHOOTING.md) - Common issues, diagnostics, debugging
+### 📘 Implementation Guides
+- [Authentication Workflows](AUTHENTICATION_GUIDE.md) - MFA, session management, security patterns
+- [Builder Patterns](BUILDER_PATTERNS_GUIDE.md) - Fluent API, object construction, validation
+- [Caching Strategies](CACHING_GUIDE.md) - LRU implementation, TTL management, key tracking
+- [Error Handling Patterns](ERROR_HANDLING.md) - Error types, recovery patterns, best practices
+- [Iterator Patterns](ITERATOR_PATTERNS_GUIDE.md) - Streaming data access, memory efficiency
+- [Performance Configuration](PERFORMANCE_CONFIGURATION_GUIDE.md) - Metrics, optimization, monitoring
+- [Performance Tuning](PERFORMANCE_TUNING.md) - Benchmarking, profiling, optimization techniques
+- [Resilience](RESILIENCE.md) - Circuit breaker, timeouts, degraded directories
+- [Security Implementation](SECURITY_GUIDE.md) - Authentication, authorization, compliance
+- [Troubleshooting Guide](TROUBLESHOOTING.md) - Common issues, diagnostics, debugging
 
 ---
 
@@ -70,13 +67,13 @@
 #### Client Creation
 | Method | Description | File |
 |--------|-------------|------|
-| `New(config, user, password)` | Create standard LDAP client | [client.go:108](client.go#L108) |
-| `NewBasicClient(config, user, pass)` | Create basic client | [client.go:301](client.go#L301) |
-| `NewPooledClient(config, user, pass, max)` | Create pooled client | [client.go:307](client.go#L307) |
-| `NewCachedClient(config, user, pass, size, ttl)` | Create cached client | [client.go:327](client.go#L327) |
-| `NewHighPerformanceClient(config, user, pass)` | Create optimized client | [client.go:347](client.go#L347) |
-| `NewSecureClient(config, user, pass)` | Create security-focused client | [client.go:378](client.go#L378) |
-| `NewReadOnlyClient(config, user, pass)` | Create read-only client | [client.go:400](client.go#L400) |
+| `New(config, user, password)` | Create standard LDAP client | [client.go](../client.go) |
+| `NewBasicClient(config, user, pass)` | Create basic client | [client.go](../client.go) |
+| `NewPooledClient(config, user, pass, max)` | Create pooled client | [client.go](../client.go) |
+| `NewCachedClient(config, user, pass, size, ttl)` | Create cached client | [client.go](../client.go) |
+| `NewHighPerformanceClient(config, user, pass)` | Create optimized client | [client.go](../client.go) |
+| `NewSecureClient(config, user, pass)` | Create security-focused client | [client.go](../client.go) |
+| `NewReadOnlyClient(config, user, pass)` | Create read-only client | [client.go](../client.go) |
 
 #### Connection Management
 | Method | Description | Context Support |
@@ -89,12 +86,12 @@
 
 | Method | Description | Context | File |
 |--------|-------------|---------|------|
-| `CheckPasswordForSAMAccountName(sam, pass)` | Verify user password by SAM | ❌ | [auth.go:34](auth.go#L34) |
-| `CheckPasswordForSAMAccountNameContext(ctx, sam, pass)` | Verify with context | ✅ | [auth.go:52](auth.go#L52) |
-| `CheckPasswordForDN(dn, pass)` | Verify user password by DN | ❌ | [auth.go:128](auth.go#L128) |
-| `CheckPasswordForDNContext(ctx, dn, pass)` | Verify with context | ✅ | [auth.go:146](auth.go#L146) |
-| `ChangePasswordForSAMAccountName(sam, old, new)` | Change password | ❌ | [auth.go:248](auth.go#L248) |
-| `ChangePasswordForSAMAccountNameContext(ctx, sam, old, new)` | Change with context | ✅ | [auth.go:273](auth.go#L273) |
+| `CheckPasswordForSAMAccountName(sam, pass)` | Verify user password by SAM | ❌ | [auth.go](../auth.go) |
+| `CheckPasswordForSAMAccountNameContext(ctx, sam, pass)` | Verify with context | ✅ | [auth.go](../auth.go) |
+| `CheckPasswordForDN(dn, pass)` | Verify user password by DN | ❌ | [auth.go](../auth.go) |
+| `CheckPasswordForDNContext(ctx, dn, pass)` | Verify with context | ✅ | [auth.go](../auth.go) |
+| `ChangePasswordForSAMAccountName(sam, old, new)` | Change password | ❌ | [auth.go](../auth.go) |
+| `ChangePasswordForSAMAccountNameContext(ctx, sam, old, new)` | Change with context | ✅ | [auth.go](../auth.go) |
 
 ### User Management API
 
@@ -103,16 +100,12 @@
 |--------|-------------|---------|-----------|
 | `FindUserByDN(dn)` | Find by DN | ❌ | ❌ |
 | `FindUserByDNContext(ctx, dn)` | Find by DN with context | ✅ | ❌ |
-| `FindUserByDNOptimized(ctx, dn, opts)` | Optimized find by DN | ✅ | ✅ |
 | `FindUserBySAMAccountName(sam)` | Find by SAM name | ❌ | ❌ |
 | `FindUserBySAMAccountNameContext(ctx, sam)` | Find by SAM with context | ✅ | ❌ |
-| `FindUserBySAMAccountNameOptimized(ctx, sam, opts)` | Optimized find by SAM | ✅ | ✅ |
 | `FindUserByMail(mail)` | Find by email | ❌ | ❌ |
 | `FindUserByMailContext(ctx, mail)` | Find by email with context | ✅ | ❌ |
-| `FindUserByMailOptimized(ctx, mail, opts)` | Optimized find by email | ✅ | ✅ |
 | `FindUsers()` | Find all users | ❌ | ❌ |
 | `FindUsersContext(ctx)` | Find all with context | ✅ | ❌ |
-| `FindUsersOptimized(ctx, opts)` | Optimized find all | ✅ | ✅ |
 | `BulkFindUsersBySAMAccountName(ctx, sams, opts)` | Bulk find users | ✅ | ✅ |
 
 #### User CRUD Operations
@@ -138,18 +131,12 @@
 |--------|-------------|---------|-----------|
 | `FindGroupByDN(dn)` | Find by DN | ❌ | ❌ |
 | `FindGroupByDNContext(ctx, dn)` | Find by DN with context | ✅ | ❌ |
-| `FindGroupByDNOptimized(ctx, dn, opts)` | Optimized find by DN | ✅ | ✅ |
 | `FindGroups()` | Find all groups | ❌ | ❌ |
 | `FindGroupsContext(ctx)` | Find all with context | ✅ | ❌ |
-| `FindGroupsOptimized(ctx, opts)` | Optimized find all | ✅ | ✅ |
 
-#### Group Member Operations
-| Method | Description | Context | Optimized |
-|--------|-------------|---------|-----------|
-| `GetUserGroupsOptimized(ctx, userDN, opts)` | Get user's groups | ✅ | ✅ |
-| `GetGroupMembersOptimized(ctx, groupDN, opts)` | Get group members | ✅ | ✅ |
-| `AddUserToGroupOptimized(ctx, userDN, groupDN)` | Add member | ✅ | ✅ |
-| `RemoveUserFromGroupOptimized(ctx, userDN, groupDN)` | Remove member | ✅ | ✅ |
+Group membership is read from `Group.Members` and written with
+`AddUserToGroup` / `RemoveUserFromGroup`; `GroupMembersIter` streams a large
+group.
 
 ### Computer Management API
 
@@ -384,13 +371,18 @@ client, err := ldap.NewPooledClient(config, user, pass, 10)
 
 #### Caching
 ```go
-cacheConfig := &CacheConfig{
-    MaxSize:     1000,
-    DefaultTTL:  5 * time.Minute,
-    NegativeTTL: 1 * time.Minute,
+cacheConfig := &ldap.CacheConfig{
+    Enabled:          true,
+    MaxSize:          1000,
+    TTL:              5 * time.Minute,
+    NegativeCacheTTL: 1 * time.Minute,
 }
 client, err := ldap.NewCachedClient(config, user, pass, 1000, 5*time.Minute)
 ```
+
+> `CacheConfig` is stored but not yet used to build the cache: `New` constructs
+> it from `DefaultCacheConfig()`, so only `TTL` takes effect today. See
+> [#240](https://github.com/netresearch/simple-ldap-go/issues/240).
 
 #### Bulk Operations
 ```go
@@ -638,14 +630,9 @@ if errors.As(err, &ldapErr) {
 | Document | Description | Status |
 |----------|-------------|--------|
 | [README.md](README.md) | Quick start guide | ✅ Complete |
-| [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) | Project overview | ✅ Complete |
-| [MODERNIZATION_PLAN.md](MODERNIZATION_PLAN.md) | Architecture evolution | ✅ Complete |
-| [PERFORMANCE_OPTIMIZATION.md](PERFORMANCE_OPTIMIZATION.md) | Performance guide | ✅ Complete |
-| [SECURITY.md](SECURITY.md) | Security practices | ✅ Complete |
+| [SECURITY.md](../SECURITY.md) | Security practices | ✅ Complete |
 | [ERROR_HANDLING.md](ERROR_HANDLING.md) | Error patterns | ✅ Complete |
 | [STRUCTURED_LOGGING.md](STRUCTURED_LOGGING.md) | Logging guide | ✅ Complete |
-| [CONTEXT_SUPPORT.md](CONTEXT_SUPPORT.md) | Context usage | ✅ Complete |
-| [CODE_MAINTENANCE_REPORT.md](CODE_MAINTENANCE_REPORT.md) | Recent changes | ✅ Complete |
 
 ---
 
@@ -692,7 +679,7 @@ err := client.AddUserToGroupContext(ctx, userDN, groupDN)
 
 - **Issues**: [GitHub Issues](https://github.com/netresearch/simple-ldap-go/issues)
 - **Documentation**: [pkg.go.dev](https://pkg.go.dev/github.com/netresearch/simple-ldap-go)
-- **Examples**: [examples/](examples/)
+- **Examples**: [examples/](../examples/)
 - **Tests**: Run `go test ./...`
 
 ---
