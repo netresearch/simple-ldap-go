@@ -38,16 +38,31 @@ config := ldap.Config{
 client, err := ldap.New(config, "CN=admin,CN=Users,DC=example,DC=com", "password")
 ```
 
-### No Logging (Default)
+### Default Logger
 
-If no logger is provided, the library uses a no-op logger that discards all output:
+A nil `Logger` does not mean silence. The client falls back to `slog.Default()`
+(`client.go:79`), so the process-wide handler receives the library's output -
+including `ldap_client_initializing` at INFO before anything else happens.
 
 ```go
 config := ldap.Config{
     Server: "ldaps://ad.example.com:636",
     BaseDN: "DC=example,DC=com",
-    // Logger is nil - no logging output
+    // Logger is nil - output goes to slog.Default()
 }
+```
+
+To discard everything, pass a handler that drops records:
+
+```go
+config.Logger = slog.New(slog.DiscardHandler)
+```
+
+A logger can also be supplied as an option to `New`, which overrides
+`Config.Logger`:
+
+```go
+client, err := ldap.New(config, bindDN, password, ldap.WithLogger(logger))
 ```
 
 ### Different Log Levels
@@ -126,8 +141,8 @@ fileLogger := slog.New(slog.NewJSONHandler(logFile, &slog.HandlerOptions{
   "level": "INFO", 
   "msg": "authentication_successful",
   "operation": "CheckPasswordForSAMAccountName",
-  "username": "jdoe",
-  "dn": "CN=John Doe,CN=Users,DC=example,DC=com",
+  "username_masked": "jd**e",
+  "client_ip_masked": "19*****10",
   "duration": "245.678ms"
 }
 
@@ -136,12 +151,17 @@ fileLogger := slog.New(slog.NewJSONHandler(logFile, &slog.HandlerOptions{
   "level": "WARN",
   "msg": "authentication_failed", 
   "operation": "CheckPasswordForSAMAccountName",
-  "username": "jdoe",
-  "dn": "CN=John Doe,CN=Users,DC=example,DC=com", 
+  "username_masked": "jd**e",
+  "client_ip_masked": "19*****10",
+  "error_type": "invalid_credentials",
   "error": "LDAP Result Code 49 \"Invalid Credentials\"",
   "duration": "156.789ms"
 }
 ```
+
+The identifiers are masked, and the attribute names say so: `username_masked`,
+`dn_masked`, `client_ip_masked` (`auth.go:328,308`). `CheckPasswordForDN` logs
+`dn_masked` in place of `username_masked`.
 
 ### Search Operations
 
@@ -151,8 +171,8 @@ fileLogger := slog.New(slog.NewJSONHandler(logFile, &slog.HandlerOptions{
   "level": "DEBUG",
   "msg": "user_found_by_sam_account",
   "operation": "FindUserBySAMAccountName", 
-  "username": "jdoe",
-  "dn": "CN=John Doe,CN=Users,DC=example,DC=com",
+  "username_masked": "jd**e",
+  "dn_masked": "CN**************************om",
   "duration": "89.123ms"
 }
 
@@ -190,21 +210,26 @@ fileLogger := slog.New(slog.NewJSONHandler(logFile, &slog.HandlerOptions{
   "level": "INFO",
   "msg": "password_change_successful",
   "operation": "ChangePasswordForSAMAccountName",
-  "username": "jdoe", 
+  "username_masked": "jd**e", 
   "dn": "CN=John Doe,CN=Users,DC=example,DC=com",
   "duration": "456.789ms"
 }
 ```
+
+Masking is not applied everywhere. This record carries `dn` in full next to a
+masked username (`auth.go:738`), and the group operations below log `user_dn` and
+`group_dn` unmasked. Treat the output as containing directory identifiers and
+size the log retention accordingly.
 
 ### Error Conditions
 
 ```json
 {
   "time": "2024-01-15T10:30:07.123456Z",
-  "level": "ERROR",
+  "level": "DEBUG",
   "msg": "user_not_found_by_sam_account",
   "operation": "FindUserBySAMAccountName",
-  "username": "nonexistent",
+  "username_masked": "no*********nt",
   "duration": "78.901ms"
 }
 ```
@@ -220,22 +245,27 @@ fileLogger := slog.New(slog.NewJSONHandler(logFile, &slog.HandlerOptions{
 user, err := client.CheckPasswordForSAMAccountName("jdoe", "secret123")
 ```
 
-### Username Logging
+### Username Masking
 
-Usernames and DNs are logged at appropriate levels:
-- **Debug level**: Full usernames and DNs for detailed tracing
-- **Info level**: Usernames for successful operations 
-- **Error level**: No usernames (only operation context)
+Masking does not depend on the level. Where an attribute name ends in `_masked`,
+the value went through `maskSensitiveData` (`security.go:1080`): it keeps the
+first and last two runes and replaces the middle with asterisks, or returns
+`***` for anything up to four runes. It works on runes, so multi-byte
+identifiers are not split into invalid UTF-8, and it has no exemption for
+`example.com` or `test.com` - a control that returned test-looking values
+verbatim would leak real identifiers at those domains (#215).
 
-### Data Scrubbing
-
-All user inputs are properly escaped and sanitized before logging to prevent log injection attacks.
+Attributes without the suffix are not masked. `password_change_successful`
+logs `dn` in full, and the group operations log `user_dn` and `group_dn` in
+full.
 
 ## Performance Impact
 
-### Minimal Overhead
+### Overhead
 
-When logging is disabled (Logger is nil), there is virtually no performance impact.
+A nil `Logger` is not free: the library logs to `slog.Default()` instead. Raise
+the level on the handler, or set `slog.New(slog.DiscardHandler)`, to get the
+no-cost path.
 
 ### Efficient Structured Logging
 
@@ -491,7 +521,7 @@ func main() {
 This produces structured log output like:
 
 ```json
-{"time":"2024-01-15T10:30:00.123456Z","level":"INFO","msg":"ldap_client_initialized","server":"ldaps://ad.company.com:636","duration":"45.678ms","service":"auth-service","version":"1.0.0"}
-{"time":"2024-01-15T10:30:01.234567Z","level":"INFO","msg":"authentication_successful","operation":"CheckPasswordForSAMAccountName","username":"jdoe","dn":"CN=John Doe,CN=Users,DC=company,DC=com","duration":"156.789ms","service":"auth-service","version":"1.0.0"}
+{"time":"2024-01-15T10:30:00.123456Z","level":"INFO","msg":"ldap_client_initialized_successfully","server":"ldaps://ad.company.com:636","duration":"45.678ms","service":"auth-service","version":"1.0.0"}
+{"time":"2024-01-15T10:30:01.234567Z","level":"INFO","msg":"authentication_successful","operation":"CheckPasswordForSAMAccountName","username_masked":"jd**e","client_ip_masked":"19*****10","duration":"156.789ms","service":"auth-service","version":"1.0.0"}
 {"time":"2024-01-15T10:30:02.345678Z","level":"INFO","msg":"user_list_search_completed","operation":"FindUsers","total_found":1542,"processed":1542,"skipped":0,"duration":"2.345s","service":"auth-service","version":"1.0.0"}
 ```

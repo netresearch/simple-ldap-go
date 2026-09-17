@@ -329,19 +329,20 @@ Available error types:
 
 ## Testing
 
-Tests require a live LDAP server. Set the following environment variables:
+No live LDAP server is needed. The unit tests run on their own, and the
+integration tier starts an OpenLDAP container through testcontainers:
 
 ```bash
-export LDAP_SERVER="ldaps://your-server:636"
-export LDAP_BASE_DN="dc=example,dc=com" 
-export LDAP_READ_USER="cn=service,dc=example,dc=com"
-export LDAP_READ_PASSWORD="password"
+make test-fast          # unit tests, no Docker
+make test-unit          # all unit tests
+make test-integration   # requires Docker
+make test-coverage      # with coverage
 ```
 
-Then run tests:
-```bash
-go test -v ./...
-```
+`LDAP_SERVER`, `LDAP_BASE_DN` and `LDAP_BIND_DN` are optional and read only by
+the pool benchmarks in `benchmark_pool_test.go`, which skip when they are unset.
+See [CONTRIBUTING.md](CONTRIBUTING.md#testing-requirements) for the full list of
+targets.
 
 ## License
 
