@@ -25,9 +25,9 @@ func New(config Config, username, password string, opts ...Option) (*LDAP, error
 Creates a standard LDAP client with the provided configuration and credentials.
 
 The LDAP client automatically enables optimizations based on the configuration:
-- Connection pooling when `config.Pool != nil` (`client.go:185`)
-- Caching when `config.EnableCache` or `config.EnableOptimizations` is true (`client.go:154`)
-- Circuit breaker when `config.Resilience.EnableCircuitBreaker` is true (`client.go:172`)
+- Connection pooling when `config.Pool != nil` (`client.go`)
+- Caching when `config.EnableCache` or `config.EnableOptimizations` is true (`client.go`)
+- Circuit breaker when `config.Resilience.EnableCircuitBreaker` is true (`client.go`)
 
 ### Connection Methods
 

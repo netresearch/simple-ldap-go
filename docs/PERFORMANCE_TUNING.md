@@ -31,8 +31,9 @@ This guide provides comprehensive strategies for optimizing simple-ldap-go perfo
 
 ```go
 // performance.go - what GetPerformanceStats returns.
-// PerformanceStats is an alias of PerformanceMetrics; times are durations,
-// not float milliseconds, and rates are not precomputed.
+// PerformanceStats is an alias of PerformanceMetrics. Times are durations, not
+// float milliseconds. CacheHitRatio is computed for you; ConnectionPoolRatio is
+// declared but never populated, so derive pool figures from PoolStats.
 type PerformanceMetrics struct {
     OperationsTotal int64
     ErrorCount      int64
@@ -66,10 +67,11 @@ type PerformanceMetrics struct {
 ```go
 // Continuous performance monitoring
 type PerformanceMonitor struct {
-    client   *LDAP
-    interval time.Duration
-    logger   *slog.Logger
-    alerts   chan *PerformanceAlert
+    client     *ldap.LDAP
+    poolConfig *ldap.PoolConfig // the configuration the client was built with
+    interval   time.Duration
+    logger     *slog.Logger
+    alerts     chan *PerformanceAlert
 }
 
 func (pm *PerformanceMonitor) Start(ctx context.Context) {
@@ -82,12 +84,12 @@ func (pm *PerformanceMonitor) Start(ctx context.Context) {
             return
         case <-ticker.C:
             metrics := pm.client.GetPerformanceStats()
-            pm.analyzeMetrics(metrics)
+            pm.analyzeMetrics(metrics, pm.poolConfig)
         }
     }
 }
 
-func (pm *PerformanceMonitor) analyzeMetrics(metrics ldap.PerformanceStats) {
+func (pm *PerformanceMonitor) analyzeMetrics(metrics ldap.PerformanceStats, configured *ldap.PoolConfig) {
     if metrics.P95ResponseTime > 500*time.Millisecond {
         pm.alerts <- &PerformanceAlert{
             Type:     "high_latency",
@@ -96,7 +98,8 @@ func (pm *PerformanceMonitor) analyzeMetrics(metrics ldap.PerformanceStats) {
         }
     }
 
-    // Hit rate is derived, not reported.
+    // CacheHitRatio is populated by the monitor; this derives the same figure
+    // from the counters so the example holds with or without the monitor running.
     if lookups := metrics.CacheHits + metrics.CacheMisses; lookups > 0 {
         hitRate := float64(metrics.CacheHits) / float64(lookups) * 100
         if hitRate < 70 {
@@ -108,9 +111,13 @@ func (pm *PerformanceMonitor) analyzeMetrics(metrics ldap.PerformanceStats) {
         }
     }
 
-    // PoolStats is nil when the client runs without a pool.
-    if pool := metrics.PoolStats; pool != nil && pool.MaxConnections > 0 {
-        utilization := float64(pool.ActiveConnections) / float64(pool.MaxConnections) * 100
+    // PoolStats is nil when the client runs without a pool. Its MaxConnections
+    // and MinConnections are copied as 0 (performance.go says "would need
+    // config"), so capacity has to come from the PoolConfig you supplied -
+    // here `configured`. Against Active+Idle you would measure busy share, not
+    // utilization.
+    if pool := metrics.PoolStats; pool != nil && configured.MaxConnections > 0 {
+        utilization := float64(pool.ActiveConnections) / float64(configured.MaxConnections) * 100
         if utilization > 80 {
             pm.alerts <- &PerformanceAlert{
                 Type:     "high_pool_utilization",
@@ -126,9 +133,9 @@ func (pm *PerformanceMonitor) analyzeMetrics(metrics ldap.PerformanceStats) {
 
 Warm-up, health checking and leak recovery are the pool's own background work,
 not something a caller wires up: `NewConnectionPool` calls `warmPool` to open
-`MinConnections` before returning (`pool.go:184`), and `startBackgroundTasks`
+`MinConnections` before returning (`pool.go`), and `startBackgroundTasks`
 runs `performHealthChecks`, `cleanupIdleConnections` and `monitorLeaks` until
-`Close` (`pool.go:861`). Tuning it means choosing the `PoolConfig` values below;
+`Close` (`pool.go`). Tuning it means choosing the `PoolConfig` values below;
 there is no runtime resize.
 
 ### Pool Sizing
@@ -189,7 +196,7 @@ func calculateOptimalPoolSize() int {
 ### Health Monitoring
 
 The health check runs inside the pool on the `HealthCheckInterval` ticker
-(`pool.go:861`); `isConnectionHealthy` decides per connection and unhealthy ones
+(`pool.go`); `isConnectionHealthy` decides per connection and unhealthy ones
 are closed rather than replaced in place. What a caller does is read the result:
 
 ```go
@@ -1034,6 +1041,10 @@ func productionConfig() ldap.Config {
     }
 }
 ```
+
+> `CacheConfig` is stored but not yet used to build the cache: `New` constructs
+> it from `DefaultCacheConfig()`, so only `TTL` takes effect today. See
+> [#240](https://github.com/netresearch/simple-ldap-go/issues/240).
 
 ### Deployment Checklist
 

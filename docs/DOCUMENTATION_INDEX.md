@@ -6,7 +6,7 @@
 
 **A comprehensive Go library for LDAP and Active Directory operations**
 
-[Quick Start](#quick-start) • [API Reference](#api-reference) • [Architecture](#architecture) • [Examples](#examples) • [Best Practices](#best-practices)
+[Quick Start](README.md) • [API Reference](#api-reference) • [Architecture](#architecture) • [Examples](#examples) • [Best Practices](#best-practices)
 
 </div>
 
@@ -41,12 +41,12 @@
 - [Design Patterns](#design-patterns)
 - [Interface Contracts](#interfaces)
 
-### [📊 Feature Documentation](#features)
+### 📊 Feature Documentation
 - [Error Handling](ERROR_HANDLING.md)
 - [Structured Logging](STRUCTURED_LOGGING.md)
 - [Security Best Practices](../SECURITY.md)
 
-### [📘 Implementation Guides](#guides)
+### 📘 Implementation Guides
 - [Authentication Workflows](AUTHENTICATION_GUIDE.md) - MFA, session management, security patterns
 - [Builder Patterns](BUILDER_PATTERNS_GUIDE.md) - Fluent API, object construction, validation
 - [Caching Strategies](CACHING_GUIDE.md) - LRU implementation, TTL management, key tracking
@@ -134,9 +134,9 @@
 | `FindGroups()` | Find all groups | ❌ | ❌ |
 | `FindGroupsContext(ctx)` | Find all with context | ✅ | ❌ |
 
-#### Group Member Operations
-| Method | Description | Context | Optimized |
-|--------|-------------|---------|-----------|
+Group membership is read from `Group.Members` and written with
+`AddUserToGroup` / `RemoveUserFromGroup`; `GroupMembersIter` streams a large
+group.
 
 ### Computer Management API
 
@@ -379,6 +379,10 @@ cacheConfig := &ldap.CacheConfig{
 }
 client, err := ldap.NewCachedClient(config, user, pass, 1000, 5*time.Minute)
 ```
+
+> `CacheConfig` is stored but not yet used to build the cache: `New` constructs
+> it from `DefaultCacheConfig()`, so only `TTL` takes effect today. See
+> [#240](https://github.com/netresearch/simple-ldap-go/issues/240).
 
 #### Bulk Operations
 ```go

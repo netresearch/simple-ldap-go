@@ -93,6 +93,10 @@ config := ldap.Config{
 }
 ```
 
+> `CacheConfig` is stored but not yet used to build the cache: `New` constructs
+> it from `DefaultCacheConfig()`, so only `TTL` takes effect today. See
+> [#240](https://github.com/netresearch/simple-ldap-go/issues/240).
+
 ### Issue: Authentication Failures
 
 **Symptoms:**
@@ -1033,6 +1037,10 @@ if err != nil {
 defer closeTrace()
 
 client, err := ldap.New(config, bindDN, password, ldap.WithLogger(logger))
+if err != nil {
+    return fmt.Errorf("building traced client: %w", err)
+}
+defer client.Close()
 ```
 
 Every operation logs its own duration, so the trace carries the timings without

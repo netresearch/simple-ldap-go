@@ -38,7 +38,7 @@ One package, `ldap`, flat at the repository root: 30 non-test Go files and 74
 - **scripts/**: repository tooling, including that gate
 
 ### CI
-12 workflows under `.github/workflows/`, `ci.yml` being the main one: build,
+12 active workflows under `.github/workflows/`, `ci.yml` being the main one: build,
 unit and integration tests, lint, a 79% coverage gate and the `docs-api` job.
 `test.yml.disabled` is a leftover from before CI ran the suite; it is inert.
 

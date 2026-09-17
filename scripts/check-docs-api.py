@@ -86,7 +86,12 @@ LITERAL_KEY = re.compile(r"(?:^|[,{]\s*|\n\s*)([A-Z][A-Za-z0-9]*)\s*:(?!=)")
 # go doc surfaces, for the package-level checks.
 PKG_FUNC = re.compile(r"^func ([A-Z][A-Za-z0-9]*)[\[(]", re.MULTILINE)
 PKG_TYPE = re.compile(r"^type ([A-Z][A-Za-z0-9]*)[\[ ]", re.MULTILINE)
-PKG_VALUE = re.compile(r"^\t?([A-Z][A-Za-z0-9]*)\s+=\s", re.MULTILINE)
+# A package-level value, in any shape go doc prints: a standalone
+# `var Name = …` or `const Name = …`, a typed `const Name uint32 = …`, and the
+# tab-indented members of a grouped var/const block.
+PKG_VALUE = re.compile(
+    r"^(?:\t|(?:var|const)\s+)([A-Z][A-Za-z0-9]*)(?:\s+[\w\.\[\]\*]+)?\s*=", re.MULTILINE
+)
 # go-ldap is imported as `ldap` too, so `ldap.` in a snippet may address either
 # package. Its exported names are read from its own go doc rather than listed
 # here, so the check stays right when that dependency moves.

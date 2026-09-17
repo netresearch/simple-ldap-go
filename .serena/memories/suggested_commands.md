@@ -1,6 +1,7 @@
 # Simple LDAP Go - Suggested Commands
 
-Everything below is a Makefile target; `make help` lists them all.
+Most of what follows is a Makefile target; `make help` lists them all. The
+direct `go` and `python3` invocations are marked as such.
 
 ## Testing
 
@@ -45,7 +46,7 @@ go doc -all .           # the package surface; the source of truth for the guide
 
 ## Notes
 
-- CI runs the full suite: 13 workflows under `.github/workflows/`, with a 79%
-  coverage gate in `ci.yml`.
+- CI runs the full suite: 12 active workflows under `.github/workflows/`, with a
+  79% coverage gate in `ci.yml`. A 13th file, `test.yml.disabled`, is inert.
 - The project is a library package, not an executable.
 - Conventional Commits, signed (`git commit -S --signoff`).

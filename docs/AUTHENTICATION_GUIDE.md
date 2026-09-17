@@ -621,8 +621,9 @@ func bulkAuthenticate(client *ldap.LDAP, credentials []Credential) map[string]er
 ```go
 func TestAuthentication(t *testing.T) {
     // testutil provides an in-memory connection with a fixture directory.
-    // ldap.Object holds its DN unexported, so a User is not built by hand:
-    // it comes out of a search against the mock.
+    // This exercises the bind directly against the mock; for the client path,
+    // point an ldap.LDAP at the mock connection and call
+    // CheckPasswordForSAMAccountName instead.
     mock := testutil.NewMockLDAPConn()
     testutil.SetupTestUsersAndGroups(mock)
 
@@ -647,16 +648,18 @@ func TestAuthentication(t *testing.T) {
 
 ### Integration Testing
 
+The example below is this repository's own integration shape. `SetupTestContainer`
+lives in `test_setup_test.go` and is not exported, so a consumer writes the
+equivalent with testcontainers-go and builds a client against the container's
+address.
+
 ```go
+// In this repository's tests.
 func TestAuthenticationIntegration(t *testing.T) {
     if testing.Short() {
         t.Skip("Skipping integration test")
     }
 
-    // SetupTestContainer lives in this repository's own tests
-    // (test_setup_test.go) and is not exported to consumers. Outside this
-    // repository, start an OpenLDAP container with testcontainers-go and
-    // build a client against it.
     tc := SetupTestContainer(t)
     defer tc.Close(t)
 

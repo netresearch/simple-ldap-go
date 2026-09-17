@@ -299,7 +299,7 @@ it. `ldap.IsRetryable(err)` classifies an error, and everything below is caller
 code you own.
 
 > `ConnectionOptions` declares `MaxRetries` and `RetryDelay`
-> (`options.go:187,189`) and `DefaultConnectionOptions` fills them in, but no
+> (`options.go`) and `DefaultConnectionOptions` fills them in, but no
 > code reads either field. Setting them has no effect today.
 
 ```go
@@ -375,7 +375,7 @@ func isRetryable(err error) bool {
 
 ### 3. Circuit Breaker Pattern
 
-The circuit breaker ships with the library (`resilience.go:54`). It is off by
+The circuit breaker ships with the library (`resilience.go`). It is off by
 default, for backward compatibility, and is enabled through the configuration:
 
 ```go
@@ -567,8 +567,8 @@ func (l *LDAP) GetUserWithFallback(username string) (*User, error) {
 
 Recovery is not something a caller drives. With a pool configured, a broken
 connection is detected by the health check on `HealthCheckInterval` and closed
-(`pool.go:861,912`), and one that a caller never returned is evicted after
-`LeakEvictionThreshold` (`pool.go:1035`). The next `Get` dials a replacement.
+(`pool.go`), and one that a caller never returned is evicted after
+`LeakEvictionThreshold` (`pool.go`). The next `Get` dials a replacement.
 
 What a caller owns is returning the connection, so the pool can tell a busy
 connection from a lost one:

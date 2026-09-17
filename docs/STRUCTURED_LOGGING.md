@@ -41,7 +41,7 @@ client, err := ldap.New(config, "CN=admin,CN=Users,DC=example,DC=com", "password
 ### Default Logger
 
 A nil `Logger` does not mean silence. The client falls back to `slog.Default()`
-(`client.go:79`), so the process-wide handler receives the library's output -
+(`client.go`), so the process-wide handler receives the library's output -
 including `ldap_client_initializing` at INFO before anything else happens.
 
 ```go
@@ -153,15 +153,19 @@ fileLogger := slog.New(slog.NewJSONHandler(logFile, &slog.HandlerOptions{
   "operation": "CheckPasswordForSAMAccountName",
   "username_masked": "jd**e",
   "client_ip_masked": "19*****10",
-  "error_type": "invalid_credentials",
+  "error_type": "bind_failed",
   "error": "LDAP Result Code 49 \"Invalid Credentials\"",
   "duration": "156.789ms"
 }
 ```
 
 The identifiers are masked, and the attribute names say so: `username_masked`,
-`dn_masked`, `client_ip_masked` (`auth.go:328,308`). `CheckPasswordForDN` logs
+`dn_masked`, `client_ip_masked` (`auth.go`). `CheckPasswordForDN` logs
 `dn_masked` in place of `username_masked`.
+
+`error_type` takes one of two values on this message: `bind_failed` when the
+user's bind is refused, and `user_lookup_failed` when the account could not be
+found at all.
 
 ### Search Operations
 
@@ -217,7 +221,7 @@ The identifiers are masked, and the attribute names say so: `username_masked`,
 ```
 
 Masking is not applied everywhere. This record carries `dn` in full next to a
-masked username (`auth.go:738`), and the group operations below log `user_dn` and
+masked username (`auth.go`), and the group operations below log `user_dn` and
 `group_dn` unmasked. Treat the output as containing directory identifiers and
 size the log retention accordingly.
 
@@ -248,7 +252,7 @@ user, err := client.CheckPasswordForSAMAccountName("jdoe", "secret123")
 ### Username Masking
 
 Masking does not depend on the level. Where an attribute name ends in `_masked`,
-the value went through `maskSensitiveData` (`security.go:1080`): it keeps the
+the value went through `maskSensitiveData` (`security.go`): it keeps the
 first and last two runes and replaces the middle with asterisks, or returns
 `***` for anything up to four runes. It works on runes, so multi-byte
 identifiers are not split into invalid UTF-8, and it has no exemption for
