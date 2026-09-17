@@ -4,7 +4,9 @@
 template: go-lib
 intentional-drift:
 - path: .github/workflows/ci.yml
-  reason: "go-compat matrix job (Go 1.26 + 1.27 under GOTOOLCHAIN=local) \u2014 the\
+  reason: "docs-api job (scripts/check-docs-api.py) \u2014 the guides are prose\
+    \ and nothing else notices when they name a method that does not exist or call\
+    \ one with the wrong arity. go-compat matrix job (Go 1.26 + 1.27 under GOTOOLCHAIN=local) \u2014 the\
     \ shared go-check workflow derives its Go version from go.mod's toolchain line\
     \ alone, so the declared 1.26.0 minimum would otherwise never be built. coverage-threshold\
     \ 79, raised from 77 after CI measured 79.9%; enable-integration-tests: true (LDAP\

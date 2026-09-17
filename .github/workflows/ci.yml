@@ -90,3 +90,32 @@ jobs:
         env:
           GOTOOLCHAIN: local
         run: go test -short -race -timeout=300s ./...
+
+  # The guides are prose, not compiled, so nothing else notices when they name a
+  # method that does not exist or call a real one with the wrong arity. Both had
+  # happened: 48 dead call sites and 2 wrong arities, found only by hand.
+  docs-api:
+    name: Documentation matches the API
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Check documented calls against go doc
+        run: python3 scripts/check-docs-api.py --verbose

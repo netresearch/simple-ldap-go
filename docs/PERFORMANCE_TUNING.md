@@ -349,7 +349,9 @@ func (l *LDAP) PreloadCriticalData(ctx context.Context) error {
     // Preload users
     g.Go(func() error {
         for _, username := range criticalUsers {
-            user, err := l.FindUserBySAMAccountName(gCtx, username)
+            // The context-taking variant is the one that accepts a ctx;
+            // FindUserBySAMAccountName itself takes only the identifier.
+            user, err := l.FindUserBySAMAccountNameContext(gCtx, username)
             if err != nil {
                 l.logger.Warn("failed to preload user",
                     slog.String("user", username),

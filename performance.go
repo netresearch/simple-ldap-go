@@ -165,6 +165,9 @@ type PerformanceMonitor struct {
 	// Goroutine management
 	done chan struct{}
 	wg   sync.WaitGroup
+	// closeOnce guards Close against a second call and makes a concurrent
+	// caller wait for the first teardown to finish; see LRUCache.closeOnce.
+	closeOnce sync.Once
 }
 
 // NewPerformanceMonitor creates a new performance monitor with the given configuration
@@ -419,6 +422,12 @@ func (pm *PerformanceMonitor) Flush() {
 
 // Close stops background tasks and cleans up resources
 func (pm *PerformanceMonitor) Close() error {
+	pm.closeOnce.Do(pm.shutdown)
+	return nil
+}
+
+// shutdown performs the one-time teardown behind Close's sync.Once.
+func (pm *PerformanceMonitor) shutdown() {
 	pm.logger.Debug("performance_monitor_stopping")
 
 	// Flush any pending metrics before closing
@@ -430,8 +439,6 @@ func (pm *PerformanceMonitor) Close() error {
 		// Wait for all goroutines to finish
 		pm.wg.Wait()
 	}
-
-	return nil
 }
 
 // updateTimingStats updates timing-related statistics

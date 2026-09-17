@@ -472,7 +472,7 @@ Build queries dynamically based on conditions:
 func BuildUserQuery(filters map[string]string) string {
     qb := ldap.NewQueryBuilder().
         WithBaseDN("ou=users,dc=example,dc=com").
-        WithScope(ldap.ScopeWholeSubtree).
+        WithScope(goldap.ScopeWholeSubtree).
         Where("objectClass", "inetOrgPerson")
 
     for attr, value := range filters {
@@ -595,7 +595,14 @@ func CreateUser(client *ldap.LDAP, firstName, lastName, email string) error {
 
 ### Example 2: Dynamic Query Building
 ```go
-func SearchUsers(ctx context.Context, client *ldap.LDAP, baseDN string, criteria SearchCriteria) ([]*ldap.Entry, error) {
+// Both packages are in play here, so go-ldap is aliased: `ldap` is this
+// library, `goldap` is github.com/go-ldap/ldap/v3.
+//
+//	import (
+//	    ldap "github.com/netresearch/simple-ldap-go"
+//	    goldap "github.com/go-ldap/ldap/v3"
+//	)
+func SearchUsers(ctx context.Context, client *ldap.LDAP, baseDN string, criteria SearchCriteria) ([]*goldap.Entry, error) {
     // Build dynamic query
     qb := ldap.NewQueryBuilder().
         WithBaseDN("ou=users,dc=example,dc=com").
@@ -622,12 +629,12 @@ func SearchUsers(ctx context.Context, client *ldap.LDAP, baseDN string, criteria
 
     // Execute the search. A built filter is handed to a *ldap.SearchRequest and
     // streamed through SearchIter; there is no filter-taking SearchUsers helper.
-    req := ldap.NewSearchRequest(
-        baseDN, ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
+    req := goldap.NewSearchRequest(
+        baseDN, goldap.ScopeWholeSubtree, goldap.NeverDerefAliases, 0, 0, false,
         filter, []string{"*"}, nil,
     )
 
-    var entries []*ldap.Entry
+    var entries []*goldap.Entry
     for entry, err := range client.SearchIter(ctx, req) {
         if err != nil {
             return nil, err

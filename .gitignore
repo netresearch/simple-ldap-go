@@ -27,3 +27,7 @@ Thumbs.db
 
 # Example test runtime artifacts
 examples/structured_logging/ldap.log
+
+# Python bytecode from scripts/
+__pycache__/
+*.pyc

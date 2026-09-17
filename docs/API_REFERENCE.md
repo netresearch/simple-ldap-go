@@ -83,7 +83,7 @@ func (l *LDAP) GetPoolStats() PerformanceStats
 func (l *LDAP) GetCacheStats() *CacheStats
 func (l *LDAP) GetCircuitBreakerStats() map[string]any
 ```
-Cumulative counters, not deltas — take a baseline and subtract it to measure a window. `GetCacheStats` returns `nil` when caching is disabled.
+Cumulative counters, not deltas — take a baseline and subtract it to measure a window. With caching disabled `GetCacheStats` returns a zeroed `*CacheStats` rather than `nil`, so a nil check is not the way to detect that caching is off.
 
 #### `WithCredentials`
 ```go

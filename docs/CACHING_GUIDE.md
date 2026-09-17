@@ -437,9 +437,9 @@ func (l *LDAP) InvalidateUserCache(userDN string) error {
             keysToDelete = append(keysToDelete, key)
         }
 
-        // Check group memberships
-        for _, group := range groups {
-            if strings.Contains(key, group.DN) {
+        // Check group memberships. User.Groups is a []string of DNs.
+        for _, groupDN := range groups {
+            if strings.Contains(key, groupDN) {
                 keysToDelete = append(keysToDelete, key)
             }
         }

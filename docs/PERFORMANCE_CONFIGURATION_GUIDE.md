@@ -533,16 +533,23 @@ func OptimizePoolSize(client *LDAP) {
 > guide call the following helper rather than repeating that plumbing.
 >
 > ```go
+> // Both packages are in play, so go-ldap is aliased: `ldap` is this library,
+> // `goldap` is github.com/go-ldap/ldap/v3.
+> import (
+>     ldap "github.com/netresearch/simple-ldap-go"
+>     goldap "github.com/go-ldap/ldap/v3"
+> )
+>
 > // The base DN the examples below search under.
 > const baseDN = "dc=example,dc=com"
 >
-> func runQuery(ctx context.Context, client *ldap.LDAP, baseDN, filter string) ([]*ldap.Entry, error) {
->     req := ldap.NewSearchRequest(
->         baseDN, ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
+> func runQuery(ctx context.Context, client *ldap.LDAP, baseDN, filter string) ([]*goldap.Entry, error) {
+>     req := goldap.NewSearchRequest(
+>         baseDN, goldap.ScopeWholeSubtree, goldap.NeverDerefAliases, 0, 0, false,
 >         filter, []string{"*"}, nil,
 >     )
 >
->     var entries []*ldap.Entry
+>     var entries []*goldap.Entry
 >     for entry, err := range client.SearchIter(ctx, req) {
 >         if err != nil {
 >             return nil, err
@@ -780,22 +787,11 @@ func AnalyzeSlowQueries(client *LDAP) {
         fmt.Printf("   - %s: %d slow operations\n", opType, count)
     }
 
-    if len(slowOps) > 0 {
-        fmt.Printf("\nRecent Slow Operations (showing up to 10):\n")
-        sort.Slice(slowOps, func(i, j int) bool {
-            return slowOps[i].Duration > slowOps[j].Duration
-        })
-
-        for i, op := range slowOps {
-            if i >= 10 {
-                break
-            }
-            fmt.Printf("  %s: %v (%s)\n", op.Operation, op.Duration, op.StartTime.Format("15:04:05"))
-            if op.ErrorMessage != "" {
-                fmt.Printf("    Error: %s\n", op.ErrorMessage)
-            }
-        }
-    }
+    // Per-operation detail (which DN, when, with what error) is not available
+    // through the client: PerformanceMonitor.GetOperationHistory holds it, and
+    // the monitor is unexported. PerformanceMetrics.TopSlowOperations looks
+    // like the exported equivalent but is never assigned, so it is always
+    // empty. Slow-query detail therefore has to come from the structured log.
 }
 ```
 
