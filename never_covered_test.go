@@ -131,3 +131,74 @@ func TestEvictForSpaceRefusesOversizedEntry(t *testing.T) {
 	assert.True(t, found)
 	assert.Equal(t, "value", got)
 }
+
+// TestCheckPasswordRateLimitBlocksBeforeDial covers the rate-limit arm of
+// CheckPasswordForSAMAccountNameContext, and with it the credential-handling
+// prologue around it — secure-credential construction, identifier masking, key
+// folding and the client-IP lookup. Comparing the unit and integration profiles
+// left that whole stretch (auth.go:196-239) executed by neither: the existing
+// unit tests pass identifiers that fail validation and return at the first
+// guard, and the integration tests run without a rate limiter configured.
+//
+// The blocking arm matters on its own terms. It is the control that stops
+// credential stuffing, it must fire before any connection is attempted, and
+// nothing was exercising it.
+func TestCheckPasswordRateLimitBlocksBeforeDial(t *testing.T) {
+	limiter := NewRateLimiter(&RateLimiterConfig{
+		MaxAttempts:     2,
+		Window:          time.Minute,
+		LockoutDuration: time.Minute,
+		CleanupInterval: time.Minute,
+		MaxEntries:      16,
+	}, slog.Default())
+	defer limiter.Close()
+
+	l := offlineClient()
+	l.rateLimiter = limiter
+	ctx := context.WithValue(context.Background(), ContextKeyClientIP, "198.51.100.7")
+
+	// The first attempts are allowed through and fail at the dial, because the
+	// client points at a closed port. That is the control: it shows the call
+	// reaches the connection and that the later refusal is the limiter's doing.
+	for i := range 2 {
+		_, err := l.CheckPasswordForSAMAccountNameContext(ctx, "someone", "pw")
+		require.Error(t, err, "attempt %d", i+1)
+		assert.NotContains(t, err.Error(), "rate limiting", "attempt %d", i+1)
+	}
+
+	// Once the allowance is spent the call is refused without dialing.
+	_, err := l.CheckPasswordForSAMAccountNameContext(ctx, "someone", "pw")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "authentication blocked by rate limiting")
+}
+
+// TestCheckPasswordRateLimitKeyIsCaseFolded pins that case variants of one
+// account share a lockout counter. Without the folding an attacker resets the
+// per-account counter by rotating case, which is the defect #216 fixed; the
+// counter is reached through the same prologue as the test above.
+func TestCheckPasswordRateLimitKeyIsCaseFolded(t *testing.T) {
+	limiter := NewRateLimiter(&RateLimiterConfig{
+		MaxAttempts:     2,
+		Window:          time.Minute,
+		LockoutDuration: time.Minute,
+		CleanupInterval: time.Minute,
+		MaxEntries:      16,
+	}, slog.Default())
+	defer limiter.Close()
+
+	l := offlineClient()
+	l.rateLimiter = limiter
+	ctx := context.Background()
+
+	// Spend the allowance under two spellings of the same account.
+	for _, name := range []string{"someone", "SOMEONE"} {
+		_, err := l.CheckPasswordForSAMAccountNameContext(ctx, name, "pw")
+		require.Error(t, err)
+		assert.NotContains(t, err.Error(), "rate limiting")
+	}
+
+	// A third spelling is refused: all three fold to one counter.
+	_, err := l.CheckPasswordForSAMAccountNameContext(ctx, "SoMeOnE", "pw")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "authentication blocked by rate limiting")
+}
