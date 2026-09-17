@@ -51,13 +51,13 @@ type Group struct {
 // AD groupType bitmask constants (see
 // https://learn.microsoft.com/en-us/windows/win32/adschema/a-grouptype).
 const (
-	groupTypeBuiltinLocal  uint32 = 0x00000001
-	groupTypeGlobal        uint32 = 0x00000002
-	groupTypeDomainLocal   uint32 = 0x00000004
-	groupTypeUniversal     uint32 = 0x00000008
-	groupTypeAppBasic      uint32 = 0x00000010
-	groupTypeAppQuery      uint32 = 0x00000020
-	groupTypeSecurityFlag  uint32 = 0x80000000
+	groupTypeBuiltinLocal uint32 = 0x00000001
+	groupTypeGlobal       uint32 = 0x00000002
+	groupTypeDomainLocal  uint32 = 0x00000004
+	groupTypeUniversal    uint32 = 0x00000008
+	groupTypeAppBasic     uint32 = 0x00000010
+	groupTypeAppQuery     uint32 = 0x00000020
+	groupTypeSecurityFlag uint32 = 0x80000000
 )
 
 // IsSecurity reports whether the group is a security group (grantable

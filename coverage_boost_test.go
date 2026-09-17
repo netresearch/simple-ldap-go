@@ -600,8 +600,8 @@ func TestUtilsParseLastLogonTimestamp(t *testing.T) {
 			expected: 0,
 		},
 		{
-			name:     "very small positive value",
-			value:    "1",
+			name:  "very small positive value",
+			value: "1",
 			expected: func() int64 {
 				const epochDiff int64 = 116444736000000000
 				filetime := int64(1)
@@ -972,7 +972,7 @@ func TestGenericCreateValidationFailure(t *testing.T) {
 
 	ctx := context.Background()
 	obj := &MockCreatableLDAPObject{
-		MockLDAPObject:           MockLDAPObject{dn: "cn=test,dc=example,dc=com", cn: "test"},
+		MockLDAPObject:       MockLDAPObject{dn: "cn=test,dc=example,dc=com", cn: "test"},
 		shouldFailValidation: true,
 	}
 	dn, err := Create(ctx, client, obj)
