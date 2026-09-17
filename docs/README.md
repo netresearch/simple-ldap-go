@@ -12,14 +12,12 @@ This directory contains comprehensive documentation for the Simple LDAP Go libra
 ### Core Features
 - [Authentication Guide](AUTHENTICATION_GUIDE.md) - User authentication patterns and best practices
 - [Error Handling](ERROR_HANDLING.md) - Comprehensive error handling patterns and recovery strategies
-- [Context Support](CONTEXT_SUPPORT.md) - Using context.Context for cancellation and timeouts
 - [Structured Logging](STRUCTURED_LOGGING.md) - Logging configuration and best practices
 
 ### Performance & Optimization
 - [Performance Tuning](PERFORMANCE_TUNING.md) - Complete performance optimization guide
-- [Connection Pooling](CONNECTION_POOLING.md) - Connection pool configuration and management
+- [Performance Configuration](PERFORMANCE_CONFIGURATION_GUIDE.md) - Connection pooling, metrics and monitoring
 - [Caching Guide](CACHING_GUIDE.md) - Cache configuration for improved performance
-- [Test Optimization](TEST_OPTIMIZATION_GUIDE.md) - Optimizing test execution and container management
 
 ### Security
 - [Security Guide](SECURITY_GUIDE.md) - Security best practices and recommendations

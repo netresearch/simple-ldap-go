@@ -902,7 +902,7 @@ func IncrementalSync(client *ldap.LDAP, lastSync time.Time) error {
 
 - [API Reference](API_REFERENCE.md#iterators) - Iterator API specifications
 - [Performance Guide](PERFORMANCE_TUNING.md#iterators) - Iterator optimization
-- [Context Support](CONTEXT_SUPPORT.md) - Context usage patterns
+- [Error Handling](ERROR_HANDLING.md#context-aware-errors) - Context cancellation and timeout handling
 - [Examples](../examples/context-usage/) - Runnable iterator examples
 
 ---

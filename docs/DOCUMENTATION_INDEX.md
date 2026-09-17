@@ -42,7 +42,6 @@
 - [Interface Contracts](#interfaces)
 
 ### [📊 Feature Documentation](#features)
-- [Context Support](CONTEXT_SUPPORT.md)
 - [Error Handling](ERROR_HANDLING.md)
 - [Structured Logging](STRUCTURED_LOGGING.md)
 - [Performance Optimization](PERFORMANCE_OPTIMIZATION.md)
@@ -52,7 +51,6 @@
 ### [📘 Implementation Guides](#guides)
 - [Authentication Workflows](docs/AUTHENTICATION_GUIDE.md) - MFA, session management, security patterns
 - [Builder Patterns](docs/BUILDER_PATTERNS_GUIDE.md) - Fluent API, object construction, validation
-- [Connection Pooling](docs/CONNECTION_POOLING.md) - Pool configuration, monitoring, optimization
 - [Caching Strategies](docs/CACHING_GUIDE.md) - LRU implementation, TTL management, key tracking
 - [Error Handling Patterns](docs/ERROR_HANDLING.md) - Error types, recovery patterns, best practices
 - [Iterator Patterns](docs/ITERATOR_PATTERNS_GUIDE.md) - Streaming data access, memory efficiency
@@ -644,7 +642,6 @@ if errors.As(err, &ldapErr) {
 | [SECURITY.md](SECURITY.md) | Security practices | ✅ Complete |
 | [ERROR_HANDLING.md](ERROR_HANDLING.md) | Error patterns | ✅ Complete |
 | [STRUCTURED_LOGGING.md](STRUCTURED_LOGGING.md) | Logging guide | ✅ Complete |
-| [CONTEXT_SUPPORT.md](CONTEXT_SUPPORT.md) | Context usage | ✅ Complete |
 | [CODE_MAINTENANCE_REPORT.md](CODE_MAINTENANCE_REPORT.md) | Recent changes | ✅ Complete |
 
 ---
