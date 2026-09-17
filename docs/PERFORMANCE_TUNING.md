@@ -126,11 +126,41 @@ func (pm *PerformanceMonitor) analyzeMetrics(metrics *PerformanceMetrics) {
 
 ## Connection Pool Optimization
 
+Warm-up, health checking and leak recovery are the pool's own background work,
+not something a caller wires up: `NewConnectionPool` calls `warmPool` to open
+`MinConnections` before returning (`pool.go:184`), and `startBackgroundTasks`
+runs `performHealthChecks`, `cleanupIdleConnections` and `monitorLeaks` until
+`Close` (`pool.go:861`). Tuning it means choosing the `PoolConfig` values below;
+there is no runtime resize.
+
 ### Pool Sizing
 
+Pick the numbers, then measure `PoolHits` against `PoolMisses` under real load -
+a low hit rate means `MinConnections` is too low for the arrival rate.
+
 ```go
-// pool_optimization.go:23 - Dynamic pool sizing
-func CalculateOptimalPoolSize() int {
+config := ldap.Config{
+    Server: "ldaps://ldap.example.com:636",
+    BaseDN: "dc=example,dc=com",
+    Pool: &ldap.PoolConfig{
+        // Ceiling on concurrent connections. Reached means Get blocks up to
+        // GetTimeout, so size it to peak concurrency, not to average load.
+        MaxConnections: calculateOptimalPoolSize(),
+        // Opened eagerly at startup and kept idle.
+        MinConnections: runtime.NumCPU(),
+
+        MaxIdleTime:         5 * time.Minute,
+        HealthCheckInterval: 30 * time.Second,
+        ConnectionTimeout:   30 * time.Second,
+        GetTimeout:          10 * time.Second,
+    },
+}
+```
+
+The sizing calculation itself is caller-side code; this is one workable shape:
+
+```go
+func calculateOptimalPoolSize() int {
     // Base calculation on CPU cores
     numCPU := runtime.NumCPU()
 
@@ -156,109 +186,25 @@ func CalculateOptimalPoolSize() int {
 
     return optimalSize
 }
-
-// Usage
-config := &PoolConfig{
-    MaxSize:          CalculateOptimalPoolSize(),
-    MinIdle:          runtime.NumCPU(),
-    MaxIdleTime:      5 * time.Minute,
-    HealthCheckInterval: 30 * time.Second,
-}
-```
-
-### Connection Warm-up
-
-```go
-// pool_warmup.go:45 - Pre-warm connections for better performance
-func (p *Pool) WarmUp(ctx context.Context) error {
-    targetSize := p.config.MinIdle
-
-    g, gCtx := errgroup.WithContext(ctx)
-    sem := make(chan struct{}, 10) // Limit concurrent connections
-
-    for i := 0; i < targetSize; i++ {
-        sem <- struct{}{}
-        g.Go(func() error {
-            defer func() { <-sem }()
-
-            conn, err := p.createConnection(gCtx)
-            if err != nil {
-                return fmt.Errorf("failed to warm connection: %w", err)
-            }
-
-            // Test connection
-            if err := p.testConnection(conn); err != nil {
-                conn.Close()
-                return fmt.Errorf("connection test failed: %w", err)
-            }
-
-            p.put(conn)
-            return nil
-        })
-    }
-
-    if err := g.Wait(); err != nil {
-        return fmt.Errorf("pool warm-up failed: %w", err)
-    }
-
-    p.logger.Info("pool warmed up",
-        slog.Int("connections", targetSize))
-
-    return nil
-}
 ```
 
 ### Health Monitoring
 
+The health check runs inside the pool on the `HealthCheckInterval` ticker
+(`pool.go:861`); `isConnectionHealthy` decides per connection and unhealthy ones
+are closed rather than replaced in place. What a caller does is read the result:
+
 ```go
-// pool_health.go:67 - Continuous health monitoring
-func (p *Pool) MonitorHealth(ctx context.Context) {
-    ticker := time.NewTicker(p.config.HealthCheckInterval)
-    defer ticker.Stop()
+stats := pool.Stats()
 
-    for {
-        select {
-        case <-ctx.Done():
-            return
-        case <-ticker.C:
-            p.performHealthCheck()
-        }
-    }
-}
+// Rising failures point at the server or the network, not at the pool.
+log.Printf("health checks: %d passed, %d failed",
+    stats.HealthChecksPassed, stats.HealthChecksFailed)
 
-func (p *Pool) performHealthCheck() {
-    p.mu.Lock()
-    defer p.mu.Unlock()
-
-    var unhealthy []int
-
-    for i, conn := range p.connections {
-        if !p.isHealthy(conn) {
-            unhealthy = append(unhealthy, i)
-        }
-    }
-
-    // Replace unhealthy connections
-    for _, idx := range unhealthy {
-        old := p.connections[idx]
-        old.Close()
-
-        new, err := p.createConnection(context.Background())
-        if err != nil {
-            p.logger.Error("failed to replace unhealthy connection",
-                slog.Int("index", idx),
-                slog.String("error", err.Error()))
-            continue
-        }
-
-        p.connections[idx] = new
-    }
-
-    if len(unhealthy) > 0 {
-        p.logger.Info("replaced unhealthy connections",
-            slog.Int("count", len(unhealthy)))
-    }
-}
+// Churn: a connection count far above MinConnections that keeps climbing
+// means connections are being closed as fast as they are created.
+log.Printf("connections: %d created, %d closed, %d idle",
+    stats.ConnectionsCreated, stats.ConnectionsClosed, stats.IdleConnections)
 ```
 
 ## Cache Tuning
@@ -1066,34 +1012,47 @@ func EnableTracing(tracePath string) (func(), error) {
 ### Configuration Recommendations
 
 ```go
-// production_config.go:23 - Production-optimized configuration
-func GetProductionConfig() *Config {
-    return &Config{
-        // Connection settings
-        MaxConnections:      100,
-        MinIdleConnections:  20,
-        ConnectionTimeout:   10 * time.Second,
-        RequestTimeout:      30 * time.Second,
+func productionConfig() ldap.Config {
+    return ldap.Config{
+        Server: "ldaps://ldap.example.com:636",
+        BaseDN: "dc=example,dc=com",
 
-        // Cache settings
-        CacheSize:          100000,
-        CacheTTL:           5 * time.Minute,
-        NegativeCacheTTL:   30 * time.Second,
+        DialTimeout:  10 * time.Second,
+        ReadTimeout:  30 * time.Second,
+        WriteTimeout: 30 * time.Second,
 
-        // Performance settings
-        EnableCompression:  true,
-        EnablePipelining:   true,
-        BatchSize:          100,
-        PageSize:           500,
+        Pool: &ldap.PoolConfig{
+            MaxConnections:    100,
+            MinConnections:    20,
+            ConnectionTimeout: 10 * time.Second,
+            GetTimeout:        10 * time.Second,
+        },
 
-        // Concurrency settings
-        MaxConcurrentOps:   1000,
-        WorkerPoolSize:     runtime.NumCPU() * 4,
+        EnableCache: true,
+        Cache: &ldap.CacheConfig{
+            Enabled:          true,
+            MaxSize:          100000,
+            MaxMemoryMB:      256,
+            TTL:              5 * time.Minute,
+            NegativeCacheTTL: 30 * time.Second,
+            // Trades CPU for memory on entries above CompressionThreshold.
+            CompressionEnabled:   true,
+            CompressionThreshold: 1024,
+        },
 
-        // Monitoring
-        EnableMetrics:      true,
-        EnableProfiling:    false, // Enable only when debugging
-        MetricsInterval:    30 * time.Second,
+        EnableMetrics: true,
+        Performance: &ldap.PerformanceConfig{
+            Enabled:            true,
+            SlowQueryThreshold: 500 * time.Millisecond,
+            FlushInterval:      30 * time.Second,
+            // Sampling below 1.0 keeps the metrics buffer bounded under load.
+            SampleRate: 0.1,
+        },
+
+        Resilience: &ldap.ResilienceConfig{
+            EnableCircuitBreaker: true,
+            CircuitBreaker:       ldap.DefaultCircuitBreakerConfig(),
+        },
     }
 }
 ```

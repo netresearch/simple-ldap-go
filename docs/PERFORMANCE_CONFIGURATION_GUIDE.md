@@ -494,17 +494,26 @@ func MonitorPoolPerformance(client *LDAP) {
 
 ```go
 // Dynamic pool sizing based on load
-func OptimizePoolSize(client *LDAP) {
+func OptimizePoolSize(client *ldap.LDAP) {
     ticker := time.NewTicker(1 * time.Minute)
     defer ticker.Stop()
 
     for {
         select {
         case <-ticker.C:
-            stats := client.GetPoolStats()
+            // GetPoolStats returns PerformanceStats; the pool counters hang off
+            // its PoolStats field, which is nil unless a pool is configured.
+            pool := client.GetPoolStats().PoolStats
+            if pool == nil {
+                continue
+            }
 
             // Calculate metrics
-            utilization := float64(stats.ActiveConnections) / float64(stats.TotalConnections) * 100
+            total := pool.ActiveConnections + pool.IdleConnections
+            if total == 0 {
+                continue
+            }
+            utilization := float64(pool.ActiveConnections) / float64(total) * 100
 
             // Adjust pool size based on utilization
             if utilization > 80 {
@@ -516,7 +525,7 @@ func OptimizePoolSize(client *LDAP) {
             }
 
             // Monitor connection creation rate
-            if stats.PoolMisses > stats.PoolHits {
+            if pool.PoolMisses > pool.PoolHits {
                 log.Printf("High connection creation rate - consider increasing MinConnections")
             }
         }

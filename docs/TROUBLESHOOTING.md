@@ -77,10 +77,18 @@ if err != nil {
 **Quick Fix:**
 ```go
 // Enable caching and connection pooling
-config := &Config{
+config := ldap.Config{
+    Server: "ldaps://ldap.example.com:636",
+    BaseDN: "dc=example,dc=com",
+
     EnableCache: true,
-    CacheSize: 10000,
-    PoolSize: 50,
+    Cache: &ldap.CacheConfig{
+        MaxSize: 10000,
+    },
+    Pool: &ldap.PoolConfig{
+        MaxConnections: 50,
+        MinConnections: 5,
+    },
     EnableOptimizations: true,
 }
 ```
@@ -157,64 +165,54 @@ func DiagnoseTLSConnection(host string, port int) error {
 
 ### Connection Pool Exhaustion
 
+`ldap.PoolStats` reports counters, not wait times. What it exposes is what the
+diagnosis has to be built from: how many connections exist, how often the pool
+could serve a request without creating one, and what self-healing has had to do.
+
 ```go
-// diagnostics/pool_check.go - Pool diagnostics
-func DiagnoseConnectionPool(pool *ConnectionPool) *PoolDiagnostic {
+// Read the pool counters and name what they imply.
+func diagnoseConnectionPool(pool *ldap.ConnectionPool, cfg *ldap.PoolConfig) []string {
     stats := pool.Stats()
+    var issues []string
 
-    diag := &PoolDiagnostic{
-        Timestamp:       time.Now(),
-        ActiveConns:     stats.ActiveConnections,
-        IdleConns:       stats.IdleConnections,
-        TotalConns:      stats.TotalConnections,
-        WaitingRequests: stats.WaitingRequests,
-        AvgWaitTime:     stats.AvgWaitTime,
+    if int(stats.ActiveConnections) >= cfg.MaxConnections {
+        issues = append(issues,
+            "pool exhausted: every connection is checked out - raise MaxConnections "+
+                "or shorten how long callers hold a connection")
     }
 
-    // Identify issues
-    if stats.ActiveConnections >= pool.MaxSize {
-        diag.Issues = append(diag.Issues,
-            "Pool exhausted - all connections in use")
-        diag.Recommendations = append(diag.Recommendations,
-            "Increase pool size or reduce connection hold time")
-    }
-
-    if stats.AvgWaitTime > 100*time.Millisecond {
-        diag.Issues = append(diag.Issues,
-            fmt.Sprintf("High wait time: %v", stats.AvgWaitTime))
-        diag.Recommendations = append(diag.Recommendations,
-            "Increase pool size or optimize query performance")
-    }
-
-    if stats.FailedConnections > 0 {
-        diag.Issues = append(diag.Issues,
-            fmt.Sprintf("%d failed connections", stats.FailedConnections))
-        diag.Recommendations = append(diag.Recommendations,
-            "Check LDAP server health and network stability")
-    }
-
-    return diag
-}
-
-// Fix pool issues
-func FixPoolIssues(pool *ConnectionPool) error {
-    // Reset unhealthy connections
-    pool.ResetUnhealthy()
-
-    // Increase pool size if needed
-    stats := pool.Stats()
-    if stats.AvgWaitTime > 100*time.Millisecond {
-        newSize := pool.MaxSize * 2
-        if newSize > 200 {
-            newSize = 200 // Cap at reasonable limit
+    // A miss means no idle connection was available and a new one was dialled.
+    if total := stats.PoolHits + stats.PoolMisses; total > 0 {
+        if hitRate := float64(stats.PoolHits) / float64(total); hitRate < 0.8 {
+            issues = append(issues,
+                fmt.Sprintf("pool hit rate %.1f%%: MinConnections is likely too low",
+                    hitRate*100))
         }
-        pool.Resize(newSize)
-        log.Printf("Increased pool size to %d", newSize)
     }
 
-    return nil
+    if stats.HealthChecksFailed > 0 {
+        issues = append(issues,
+            fmt.Sprintf("%d failed health checks: check LDAP server health and network stability",
+                stats.HealthChecksFailed))
+    }
+
+    // Both are produced by self-healing; a rising count means callers are not
+    // returning connections with Put.
+    if stats.LeakedConnections > 0 {
+        issues = append(issues,
+            fmt.Sprintf("%d leaked connections evicted after LeakEvictionThreshold",
+                stats.LeakedConnections))
+    }
+
+    return issues
 }
 ```
+
+There is no `Resize`, and no way to grow the pool at runtime: `MaxConnections` is
+read when the pool is built. Recovery is the pool's own job - with
+`EnableSelfHealing` (the default), a connection unreturned for
+`LeakDetectionThreshold` is suspected and one unreturned for
+`LeakEvictionThreshold` is force-evicted, which `SelfHealingEvents` counts.
 
 ### Network Connectivity
 
