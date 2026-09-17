@@ -7,11 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [v1.17.0] - 2026-09-17
+
 ### Added
 
 - `UnlockUser`, `UnlockUserContext`, `UnlockUserForSAMAccountName`, and `UnlockUserForSAMAccountNameContext`: Active Directory account unlock support by setting the user's `lockoutTime` attribute to `0`. The operation is explicit and separate from password reset, so existing password-reset callers do not acquire an additional `lockoutTime` write-permission requirement.
 - `go-compat` CI job and `make test-compat`: the library is now built, vetted and unit-tested under every supported Go release (1.26 and 1.27) with `GOTOOLCHAIN=local`, so the `go 1.26.0` minimum in `go.mod` is enforced rather than merely declared. The shared `go-check` workflow derives its Go version from the `toolchain` line alone, so Go 1.26 had no gate.
 - `scripts/check-docs-api.py` and the `docs-api` CI job: every `l.`/`client.`/`ldapClient.` call in `docs/*.md` and `README.md` is checked against `go doc` for both a real method name and an argument count the signature accepts. The guides are prose, not compiled, so nothing noticed when they drifted; two calls with the wrong arity survived the previous pass, which only checked that the method existed.
+- `scripts/check-docs-api.py` now also checks package-qualified calls and configuration literals: an exported name after the `ldap.` prefix must exist, and every `Field:` key inside a literal of a struct type this package exports must be a field that type has. The call checks could not see a struct literal at all, which is how `PoolConfig` came to be documented with `MinIdleConnections` and `MaxLifetime` — neither of which exists in any branch — while the `docs-api` job stayed green. Checked references go from 286 to 787.
 - `scripts/check-docs-api.py` also checks result-object members: every `user.`/`group.`/`computer.` reference in the guides must name a real member of `User`/`Group`/`Computer`, called if it is a method and not called if it is a field. That closed 37 further defects — 11 members that do not exist (`user.IsLocked()`, `user.Email` where the field is `Mail *string`), 26 method values used as if they were strings (`"user:" + user.DN`), and one field invoked as a method.
 
 ### Fixed
@@ -21,11 +26,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Documentation corrected against the package as it is. The connection pool (`PoolConfig`, `PoolStats`, and the absence of `Resize`, `WarmUp`, `MonitorHealth` and `ResetUnhealthy`), `ConfigBuilder`'s eight real methods, the error sentinels, the circuit breaker, bulk results, `PerformanceMetrics`, and what the library actually logs — the JSON examples showed `"username": "jdoe"` in clear where the calls emit `username_masked`, `dn_masked` and `client_ip_masked`, and the guide promised a no-op logger where a nil `Logger` falls back to `slog.Default()`. `README.md` no longer tells contributors that the test suite needs a live LDAP server and four environment variables, two of which appear in no Go file.
+- `docs/DOCUMENTATION_INDEX.md` is the documentation index; `docs/README.md` is a short entry point into it. The two had each named the other its successor. The index held all 34 broken relative links in the repository — it was written for the repository root and moved into `docs/` without adjusting the paths — along with rows for a method family (`*Optimized`) that exists nowhere and thirteen source links whose line anchors had all moved.
 - Dependencies: all indirect modules updated across the graph. The direct requirements (`go-ldap/ldap/v3` v3.4.14, `golang.org/x/text` v0.42.0, `stretchr/testify` v1.12.1, `testcontainers-go` v0.44.0) were already at their latest releases and are unchanged.
 - `Makefile`: the unused `GO_VERSION` variable is replaced by `GO_VERSIONS`, which `test-compat` consumes.
 
 ### Removed
 
+- Nine documents that had one commit each from September 2025 and were never revised: `KNOWLEDGE_BASE.md` (25 of its 125 checkable claims false, two of four Go samples not compiling), `docs/CONNECTION_POOLING.md` (nine identifiers that exist in no branch), `docs/TEST_OPTIMIZATION_GUIDE.md` (documenting four files that had been deleted), `docs/CONTEXT_SUPPORT.md` (teaching `err == context.DeadlineExceeded`, which never matches because the library wraps context errors into its own sentinels), and five reports about finished one-time activities. Nothing was moved out of them: every section had a maintained owner elsewhere.
 - `.trivyignore`: both premises behind it are gone — no workflow in this repository or in the shared `netresearch/.github` set runs Trivy, and the `github.com/docker/docker` module the two suppressed CVEs belong to is no longer in the module graph (testcontainers-go now depends on `moby/moby/api` and `moby/moby/client`).
 
 ---
