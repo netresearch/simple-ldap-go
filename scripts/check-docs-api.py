@@ -32,16 +32,14 @@ import subprocess
 import sys
 
 RECEIVERS = r"l|client|ldapClient"
-CALL = re.compile(
-    rf"\b(?:{RECEIVERS})\.([A-Z][A-Za-z0-9]{{2,}})\(([^()]*(?:\([^()]*\)[^()]*)*)\)"
-)
+CALL_HEAD = re.compile(rf"\b(?:{RECEIVERS})\.([A-Z][A-Za-z0-9]{{2,}})\(")
 SIGNATURE = re.compile(
     r"^func \(l \*LDAP\) ([A-Z][A-Za-z0-9]*)\((.*?)\)(?: |$)", re.MULTILINE
 )
-SELF_DEFINED = (
-    re.compile(r"func \(\w+ \*LDAP\) ([A-Z][A-Za-z0-9]*)"),
-    re.compile(r"func ([A-Z][A-Za-z0-9]*)\("),
-)
+# Only a receiver-style declaration shadows a name. A free `func SyncUsers(...)`
+# in a snippet must not exempt `client.SyncUsers(...)` from the existence check —
+# that is a call on the client, not on whatever the free function belongs to.
+SELF_DEFINED = (re.compile(r"func \(\w+ \*LDAP\) ([A-Z][A-Za-z0-9]*)"),)
 UNBOUNDED = 10**6
 
 
@@ -98,6 +96,38 @@ def arity(params: str) -> tuple[int, int]:
     return (count, count)
 
 
+def argument_text(text: str, open_paren: int) -> str | None:
+    """Text between `text[open_paren]` == "(" and its matching ")".
+
+    Walks the whole document rather than a single line, so a call split across
+    lines or nested to any depth is read in full. Returns None on an unbalanced
+    run (a snippet cut off mid-call), which is skipped rather than guessed at.
+    """
+    depth = 0
+    quote = ""
+    i = open_paren
+    while i < len(text):
+        char = text[i]
+        if quote:
+            if char == "\\":
+                i += 2
+                continue
+            if char == quote:
+                quote = ""
+            i += 1
+            continue
+        if char in "\"'`":
+            quote = char
+        elif char in "([{":
+            depth += 1
+        elif char in ")]}":
+            depth -= 1
+            if depth == 0:
+                return text[open_paren + 1 : i]
+        i += 1
+    return None
+
+
 def real_signatures(repo: pathlib.Path) -> dict[str, tuple[str, tuple[int, int]]]:
     result = subprocess.run(
         ["go", "doc", "-all", "."],
@@ -138,24 +168,27 @@ def main() -> int:
         # the module docstring.
         local -= signatures.keys()
 
-        for lineno, line in enumerate(text.splitlines(), 1):
-            for match in CALL.finditer(line):
-                name, args = match.group(1), match.group(2)
-                if name in local:
-                    continue
-                checked += 1
-                where = f"{doc.relative_to(repo)}:{lineno}"
-                if name not in signatures:
-                    findings.append(f"{where}: {name} is not a method on *LDAP")
-                    continue
-                params, (low, high) = signatures[name]
-                given = len(split_top_level(args))
-                if not low <= given <= high:
-                    wanted = f"{low}" if high != UNBOUNDED else f"{low} or more"
-                    findings.append(
-                        f"{where}: {name} called with {given} argument(s), "
-                        f"signature takes {wanted} ({params})"
-                    )
+        for match in CALL_HEAD.finditer(text):
+            name = match.group(1)
+            if name in local:
+                continue
+            args = argument_text(text, match.end() - 1)
+            if args is None:
+                continue
+            checked += 1
+            lineno = text.count("\n", 0, match.start()) + 1
+            where = f"{doc.relative_to(repo)}:{lineno}"
+            if name not in signatures:
+                findings.append(f"{where}: {name} is not a method on *LDAP")
+                continue
+            params, (low, high) = signatures[name]
+            given = len(split_top_level(args))
+            if not low <= given <= high:
+                wanted = f"{low}" if high != UNBOUNDED else f"{low} or more"
+                findings.append(
+                    f"{where}: {name} called with {given} argument(s), "
+                    f"signature takes {wanted} ({params})"
+                )
 
     if verbose:
         print(

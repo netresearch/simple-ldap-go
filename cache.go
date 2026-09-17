@@ -164,10 +164,15 @@ type LRUCache struct {
 	ticker   *time.Ticker
 	stopChan chan struct{}
 	wg       sync.WaitGroup
-	// closed guards Close against a second call. Closing stopChan twice
-	// panics, and `defer c.Close()` beside an explicit shutdown Close is an
-	// ordinary pattern. ConnectionPool.Close already guards this way.
-	closed bool
+	// closeOnce guards Close. Closing stopChan twice panics, and
+	// `defer c.Close()` beside an explicit shutdown Close is an ordinary
+	// pattern. sync.Once rather than a bool flag because a concurrent second
+	// caller must not return before the first has finished tearing down, and
+	// Once.Do is documented to return only after f has returned. That second
+	// property has no test: the window between setting a flag and finishing
+	// shutdown is too narrow to hit without a timing-dependent, flaky test,
+	// so it rests on sync.Once's contract rather than on a green assertion.
+	closeOnce sync.Once
 
 	// Memory management
 	memoryUsage int64 // Atomic counter for memory usage
@@ -595,14 +600,15 @@ func (c *LRUCache) Close() error {
 		return nil
 	}
 
-	c.mu.Lock()
-	if c.closed {
-		c.mu.Unlock()
-		return nil
-	}
-	c.closed = true
-	c.mu.Unlock()
+	c.closeOnce.Do(func() {
+		c.shutdown()
+	})
 
+	return nil
+}
+
+// shutdown performs the one-time teardown behind Close's sync.Once.
+func (c *LRUCache) shutdown() {
 	if c.stopChan != nil {
 		close(c.stopChan)
 		c.wg.Wait()
@@ -618,8 +624,6 @@ func (c *LRUCache) Close() error {
 		slog.Int64("total_hits", atomic.LoadInt64(&c.stats.Hits)),
 		slog.Int64("total_misses", atomic.LoadInt64(&c.stats.Misses)),
 		slog.Float64("final_hit_ratio", c.Stats().HitRatio))
-
-	return nil
 }
 
 // Helper methods
