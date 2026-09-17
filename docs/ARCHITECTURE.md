@@ -269,7 +269,7 @@ type UserBuilder struct {
 }
 
 func (b *UserBuilder) WithCN(cn string) *UserBuilder {
-    b.user.CN = cn
+    b.user.CN() = cn
     return b
 }
 

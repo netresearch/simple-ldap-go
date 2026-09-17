@@ -501,15 +501,18 @@ func diagnoseAuthFailure(client *ldap.LDAP, username string) {
         return
     }
 
-    // Check account status (if you have admin rights)
-    uac := user.UserAccountControl
-    if uac&ldap.UACAccountDisable != 0 {
+    // Account status. A retrieved *User carries the decoded state directly —
+    // there is no UserAccountControl field on it and no UAC* bitmask
+    // constants in the package. (ldap.UAC is a struct of named bools, built
+    // with ldap.UACFromUint32; Computer does expose a raw
+    // UserAccountControl uint32.)
+    if !user.Enabled {
         log.Println("Account is disabled")
     }
-    if uac&ldap.UACPasswordExpired != 0 {
+    if user.PasswordExpiresAt > 0 && time.Now().Unix() > user.PasswordExpiresAt {
         log.Println("Password has expired")
     }
-    if uac&ldap.UACAccountLockout != 0 {
+    if user.LockoutTime > 0 {
         log.Println("Account is locked")
     }
 }

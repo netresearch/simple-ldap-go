@@ -226,7 +226,7 @@ func (l *LDAP) AuthenticateWithContext(ctx context.Context, username, password s
     }
 
     // Attempt bind
-    if err := l.bindWithCredentials(user.DN, password); err != nil {
+    if err := l.bindWithCredentials(user.DN(), password); err != nil {
         // Analyze specific LDAP error
         if isInvalidCredentialsError(err) {
             return ErrInvalidCredentials
@@ -261,10 +261,10 @@ func (l *LDAP) CreateUser(user FullUser) (string, error) {
 func (l *LDAP) validateUser(user FullUser) error {
     var validationErr ValidationError
 
-    if user.CN == "" {
+    if user.CN() == "" {
         return &ValidationError{
             Field:   "CN",
-            Value:   user.CN,
+            Value:   user.CN(),
             Message: "common name is required",
         }
     }

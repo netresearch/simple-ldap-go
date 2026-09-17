@@ -601,7 +601,11 @@ func Pipeline(client *ldap.LDAP) error {
 
     // Stage 4: Output
     for user := range transformed {
-        fmt.Printf("Active user: %s (%s)\n", user.Name, user.Email)
+        mail := ""
+        if user.Mail != nil {
+            mail = *user.Mail
+        }
+        fmt.Printf("Active user: %s (%s)\n", user.DisplayName, mail)
     }
 
     return nil
@@ -792,16 +796,20 @@ func AuditGroupMembership(client *ldap.LDAP, groupDN string) (*AuditReport, erro
             user, err := client.FindUserByDN(memberDN)
             if err == nil {
                 info.Type = "user"
-                info.Name = user.CN
-                info.Email = user.Mail
-                info.Active = user.UserAccountControl == "512"
+                info.Name = user.CN()
+                if user.Mail != nil {
+                    info.Email = *user.Mail
+                }
+                // The library decodes userAccountControl for you: Enabled is
+                // the ACCOUNTDISABLE bit already applied.
+                info.Active = user.Enabled
             }
 
         case strings.Contains(memberDN, "ou=groups"):
             group, err := client.FindGroupByDN(memberDN)
             if err == nil {
                 info.Type = "group"
-                info.Name = group.CN
+                info.Name = group.CN()
                 // Count nested members
                 count := 0
                 for range client.GroupMembersIter(ctx, memberDN) {

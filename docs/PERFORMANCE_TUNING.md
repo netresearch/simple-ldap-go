@@ -804,8 +804,8 @@ func PutUser(u *User) {
 func (l *LDAP) parseUserOptimized(entry *ldap.Entry) *User {
     user := GetUser() // Reuse from pool
 
-    user.DN = entry.DN
-    user.CN = entry.GetAttributeValue("cn")
+    user.DN() = entry.DN
+    user.CN() = entry.GetAttributeValue("cn")
     user.SAMAccountName = entry.GetAttributeValue("sAMAccountName")
     user.Mail = entry.GetAttributeValue("mail")
 
