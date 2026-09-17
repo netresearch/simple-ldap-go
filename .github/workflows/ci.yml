@@ -23,7 +23,11 @@ jobs:
       enable-license-check: true
       enable-codecov: true
       enable-integration-tests: true
-      coverage-threshold: 77
+      # CI measured 79.9% here (run 35223612934: "Total coverage: 79.9% (threshold
+      # 77%)"), so 77 was 2.9 points of silent slack. 79 holds the current level
+      # with a point of headroom. Enforced on the non-integration run only;
+      # integration coverage goes to Codecov under its own flag.
+      coverage-threshold: 79
     permissions:
       contents: read
       security-events: write
