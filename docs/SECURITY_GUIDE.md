@@ -212,7 +212,7 @@ func (t *TOTPAuthenticator) ValidateToken(secret, token string) (bool, error) {
 // mfa.go:123 - Complete MFA flow
 func (l *LDAP) AuthenticateWithMFA(username, password, mfaToken string) error {
     // First factor: password
-    if err := l.Authenticate(username, password); err != nil {
+    if _, err := l.CheckPasswordForSAMAccountName(username, password); err != nil {
         l.auditor.LogFailedAuth(username, "password", err)
         return ErrInvalidCredentials
     }
@@ -1031,41 +1031,42 @@ func PerformSecurityChecks(config *Config) []SecurityIssue {
 
 ### OWASP LDAP Security
 
+The library does not expose a single "apply OWASP controls" entry point. Each control maps to
+a concrete API, and the two that matter most for LDAP — injection and transport — are enforced
+by default rather than opted into.
+
+| OWASP category | What the library provides |
+| --- | --- |
+| A01 Broken Access Control | Authorization is the directory's job. The library binds as the configured service account and lets the server enforce ACLs; `CheckPasswordForSAMAccountName` and `CheckPasswordForDN` verify an end user's own credentials without elevating. |
+| A02 Cryptographic Failures | `WithTLS(*tls.Config)` and `Config.TLSConfig`; build the config with `CreateSecureTLSConfig(*TLSConfig)` and check an existing one with `ValidateTLSConfig`. A password write to Active Directory over a non-`ldaps://` server is refused outright (`ErrActiveDirectoryMustBeLDAPS`); the RFC 3062 path on other directories warns instead, because a trusted transport may sit underneath. |
+| A03 Injection | Every filter value goes through `EscapeFilterValue`; `ValidateLDAPFilter` and `ValidateDN` reject malformed input before a query is built. Identifier validation is chosen per directory: `ValidateSAMAccountName` for Active Directory, the relaxed `ValidateUID` otherwise. |
+| A04 Insecure Design | `DefaultSecurityConfig()` returns the hardened defaults; `RateLimiter` (`NewRateLimiter`, `CheckLimit`, `RecordFailure`, `RecordSuccess`) bounds credential-stuffing attempts per identifier, keyed on a case-folded and DN-canonicalised identifier so case variants share one counter. |
+| A05 Security Misconfiguration | `ValidateServerURL` rejects a malformed or unexpected scheme; `ValidateTLSConfig` rejects a TLS config that would silently downgrade. |
+| A07 Identification and Authentication Failures | `PasswordValidator` (`DefaultPasswordValidator`, `ValidatePassword`) enforces password strength; `SecureCredential` holds credentials with an expiry and zeroizes them (`Zeroize`, `ZeroizeCredentials`). |
+| A09 Security Logging and Monitoring Failures | Structured `log/slog` output throughout, with credentials masked; see [STRUCTURED_LOGGING.md](STRUCTURED_LOGGING.md). |
+
 ```go
-// owasp.go:34 - OWASP security controls implementation
-func ImplementOWASPControls(l *LDAP) {
-    // A1: Injection Prevention
-    l.SetInputValidator(NewStrictValidator())
+// Hardened client construction using the real API.
+tlsConfig := ldap.CreateSecureTLSConfig(&ldap.TLSConfig{
+    MinVersion:         tls.VersionTLS12,
+    InsecureSkipVerify: false,
+})
 
-    // A2: Broken Authentication
-    l.EnableMFA()
-    l.SetPasswordPolicy(GetStrongPasswordPolicy())
-
-    // A3: Sensitive Data Exposure
-    l.EnableTLS()
-    l.SetEncryption(AES256GCM)
-
-    // A4: XML External Entities (XXE)
-    // N/A for LDAP
-
-    // A5: Broken Access Control
-    l.SetAuthorizer(NewRBACAuthorizer())
-
-    // A6: Security Misconfiguration
-    l.ApplySecurityDefaults()
-
-    // A7: Cross-Site Scripting (XSS)
-    // N/A for LDAP
-
-    // A8: Insecure Deserialization
-    l.SetSafeDeserialization()
-
-    // A9: Using Components with Known Vulnerabilities
-    l.EnableVulnerabilityScanning()
-
-    // A10: Insufficient Logging & Monitoring
-    l.EnableComprehensiveAudit()
+client, err := ldap.New(
+    ldap.Config{
+        Server:            "ldaps://dc.example.com",
+        BaseDN:            "dc=example,dc=com",
+        IsActiveDirectory: true,
+        TLSConfig:         tlsConfig,
+    },
+    serviceUser, servicePassword,
+    ldap.WithTLS(tlsConfig),
+    ldap.WithLogger(logger),
+)
+if err != nil {
+    return err
 }
+defer func() { _ = client.Close() }()
 ```
 
 ### Security Headers
@@ -1084,4 +1085,4 @@ func SetSecurityHeaders(w http.ResponseWriter) {
 
 ---
 
-*Security Implementation Guide v1.0.0 - simple-ldap-go Project*
+*Security Implementation Guide - Last Updated: 2026-09-17*

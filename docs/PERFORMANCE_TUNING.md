@@ -90,7 +90,7 @@ func (pm *PerformanceMonitor) Start(ctx context.Context) {
         case <-ctx.Done():
             return
         case <-ticker.C:
-            metrics := pm.client.GetPerformanceMetrics()
+            metrics := pm.client.GetPerformanceStats()
             pm.analyzeMetrics(metrics)
         }
     }
@@ -366,12 +366,14 @@ func (l *LDAP) PreloadCriticalData(ctx context.Context) error {
     // Preload groups
     g.Go(func() error {
         for _, groupName := range criticalGroups {
-            group, err := l.FindGroupByCN(gCtx, groupName)
+            // Groups are addressed by DN; there is no lookup by CN alone.
+            groupDN := fmt.Sprintf("cn=%s,ou=groups,%s", groupName, l.config.BaseDN)
+            group, err := l.FindGroupByDNContext(gCtx, groupDN)
             if err != nil {
                 continue
             }
 
-            key := fmt.Sprintf("group:cn:%s", groupName)
+            key := fmt.Sprintf("group:dn:%s", groupDN)
             l.cache.Set(key, group, 1*time.Hour)
         }
         return nil
@@ -484,7 +486,7 @@ func (l *LDAP) SearchWithAttributes(filter string, attributes []string) ([]*ldap
 }
 
 // Example: Optimized user lookup
-func (l *LDAP) GetUserBasicInfo(username string) (*BasicUser, error) {
+func (l *LDAP) GetUserBasicInfo(ctx context.Context, username string) (*BasicUser, error) {
     // Only request essential attributes
     attributes := []string{
         "cn",
@@ -497,9 +499,22 @@ func (l *LDAP) GetUserBasicInfo(username string) (*BasicUser, error) {
     filter := fmt.Sprintf("(&(objectClass=user)(sAMAccountName=%s))",
         ldap.EscapeFilter(username))
 
-    entries, err := l.SearchWithAttributes(filter, attributes)
-    if err != nil {
-        return nil, err
+    // Requesting only the attributes you need is done on the SearchRequest;
+    // there is no SearchWithAttributes helper.
+    req := ldap.NewSearchRequest(
+        l.config.BaseDN, ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 1, 0, false,
+        filter, attributes, nil,
+    )
+
+    var entries []*ldap.Entry
+    for entry, err := range l.SearchIter(ctx, req) {
+        if err != nil {
+            return nil, err
+        }
+        entries = append(entries, entry)
+    }
+    if len(entries) == 0 {
+        return nil, ErrUserNotFound
     }
 
     // Reduced data transfer and parsing
@@ -1136,11 +1151,11 @@ func DiagnosePerformance(client *LDAP) *PerformanceDiagnostic {
     }
 
     // Check query performance
-    slowQueries := client.GetSlowQueries()
-    if len(slowQueries) > 0 {
+    perf := client.GetPerformanceStats()
+    if perf.SlowQueries > 0 {
         diag.Issues = append(diag.Issues,
-            fmt.Sprintf("Found %d slow queries", len(slowQueries)))
-        diag.SlowQueries = slowQueries
+            fmt.Sprintf("Found %d slow queries", perf.SlowQueries))
+        diag.SlowQueriesByType = perf.SlowQueriesByType
     }
 
     // Memory usage
@@ -1157,4 +1172,4 @@ func DiagnosePerformance(client *LDAP) *PerformanceDiagnostic {
 
 ---
 
-*Performance Tuning Guide v1.0.0 - simple-ldap-go Project*
+*Performance Tuning Guide - Last Updated: 2026-09-17*

@@ -9,7 +9,7 @@ Simple LDAP Go leverages Go 1.23's iterator patterns (`iter.Seq2`) to provide me
 ### Traditional Approach Problems
 ```go
 // ❌ Traditional: Loads ALL results into memory
-results, err := client.Search(searchRequest)
+results, err := conn.Search(searchRequest) // conn is a raw *ldap.Conn
 if err != nil {
     return err
 }
@@ -684,7 +684,7 @@ for entry, err := range client.SearchIter(ctx, req) {
 ```go
 // Benchmark results for 50,000 users
 // Traditional: ~750MB peak memory
-results, _ := client.Search(searchRequest)
+results, _ := conn.Search(searchRequest) // conn is a raw *ldap.Conn
 for _, entry := range results.Entries {
     process(entry)
 }
@@ -899,6 +899,6 @@ func IncrementalSync(client *ldap.LDAP, lastSync time.Time) error {
 
 ---
 
-*Last Updated: 2025-09-29*
+*Last Updated: 2026-09-17*
 *Version: 1.2.0*
 *Component: Iterator Patterns*

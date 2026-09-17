@@ -595,7 +595,7 @@ func CreateUser(client *ldap.LDAP, firstName, lastName, email string) error {
 
 ### Example 2: Dynamic Query Building
 ```go
-func SearchUsers(client *ldap.LDAP, criteria SearchCriteria) ([]*ldap.User, error) {
+func SearchUsers(ctx context.Context, client *ldap.LDAP, baseDN string, criteria SearchCriteria) ([]*ldap.Entry, error) {
     // Build dynamic query
     qb := ldap.NewQueryBuilder().
         WithBaseDN("ou=users,dc=example,dc=com").
@@ -620,8 +620,21 @@ func SearchUsers(client *ldap.LDAP, criteria SearchCriteria) ([]*ldap.User, erro
 
     filter := qb.Build()
 
-    // Execute search
-    return client.SearchUsers(filter, []string{"*"})
+    // Execute the search. A built filter is handed to a *ldap.SearchRequest and
+    // streamed through SearchIter; there is no filter-taking SearchUsers helper.
+    req := ldap.NewSearchRequest(
+        baseDN, ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
+        filter, []string{"*"}, nil,
+    )
+
+    var entries []*ldap.Entry
+    for entry, err := range client.SearchIter(ctx, req) {
+        if err != nil {
+            return nil, err
+        }
+        entries = append(entries, entry)
+    }
+    return entries, nil
 }
 ```
 
@@ -722,6 +735,6 @@ query := ldap.NewQueryBuilder().
 
 ---
 
-*Last Updated: 2025-09-29*
+*Last Updated: 2026-09-17*
 *Version: 1.2.0*
 *Component: Builder Patterns*

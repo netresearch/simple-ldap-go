@@ -22,7 +22,7 @@
 ```go
 func New(config Config, username, password string, opts ...Option) (*LDAP, error)
 ```
-Creates a standard LDAP client with the provided configuration and credentials. *File: client.go:60*
+Creates a standard LDAP client with the provided configuration and credentials.
 
 The LDAP client automatically enables optimizations based on the configuration:
 - Connection pooling when `config.PoolSize > 1`
@@ -33,15 +33,57 @@ The LDAP client automatically enables optimizations based on the configuration:
 
 #### `GetConnection`
 ```go
-func (l LDAP) GetConnection() (*ldap.Conn, error)
+func (l *LDAP) GetConnection() (*ldap.Conn, error)
 ```
-Returns an LDAP connection. The caller is responsible for closing it.
+Returns an LDAP connection. Release it with `ReleaseConnection` rather than `Close` — with pooling enabled the connection belongs to the pool, and closing it directly removes it from circulation.
 
 #### `GetConnectionContext`
 ```go
-func (l LDAP) GetConnectionContext(ctx context.Context) (*ldap.Conn, error)
+func (l *LDAP) GetConnectionContext(ctx context.Context) (*ldap.Conn, error)
 ```
 Returns an LDAP connection with context support for cancellation and timeout.
+
+#### `GetConnectionProtected` / `GetConnectionProtectedContext`
+```go
+func (l *LDAP) GetConnectionProtected() (*ldap.Conn, error)
+func (l *LDAP) GetConnectionProtectedContext(ctx context.Context) (*ldap.Conn, error)
+```
+As above, but the acquisition goes through the circuit breaker when one is configured (`WithCircuitBreaker`), so a directory that is down fails fast instead of queueing.
+
+#### `ReleaseConnection`
+```go
+func (l *LDAP) ReleaseConnection(conn *ldap.Conn) error
+```
+Returns a connection to the pool, or closes it when pooling is disabled.
+
+```go
+conn, err := l.GetConnectionContext(ctx)
+if err != nil {
+    return err
+}
+defer func() { _ = l.ReleaseConnection(conn) }()
+```
+
+#### `ClearCache`
+```go
+func (l *LDAP) ClearCache()
+```
+Empties the client's cache. A no-op when caching is disabled.
+
+#### `Close`
+```go
+func (l *LDAP) Close() error
+```
+Shuts the client down: drains the connection pool, stops the cache's background cleanup and the performance monitor. Safe to call more than once.
+
+#### Observability snapshots
+```go
+func (l *LDAP) GetPerformanceStats() PerformanceStats
+func (l *LDAP) GetPoolStats() PerformanceStats
+func (l *LDAP) GetCacheStats() *CacheStats
+func (l *LDAP) GetCircuitBreakerStats() map[string]any
+```
+Cumulative counters, not deltas — take a baseline and subtract it to measure a window. `GetCacheStats` returns `nil` when caching is disabled.
 
 #### `WithCredentials`
 ```go
@@ -154,12 +196,113 @@ Deletes a user account by DN.
 func (l *LDAP) ModifyUser(dn string, attributes map[string][]string) error
 func (l *LDAP) ModifyUserContext(ctx context.Context, dn string, attributes map[string][]string) error
 ```
-Modifies attributes of an existing user in the directory. *File: users.go:1084-1098*
+Modifies attributes of an existing user in the directory.
 
-| Method | Description | Context Support | File Reference |
-|--------|------------|-----------------|----------------|
-| `ModifyUser` | Modify user attributes | No | users.go:1084 |
-| `ModifyUserContext` | Modify with context support | Yes | users.go:1098 |
+| Method | Description | Context Support |
+|--------|------------|-----------------|
+| `ModifyUser` | Modify user attributes | No |
+| `ModifyUserContext` | Modify with context support | Yes |
+
+### Account State
+
+#### `EnableUser` / `EnableUserContext`
+```go
+func (l *LDAP) EnableUser(dn string) error
+func (l *LDAP) EnableUserContext(ctx context.Context, dn string) error
+```
+Clears the `ACCOUNTDISABLE` bit in the user's `userAccountControl`. Active Directory only.
+
+#### `DisableUser` / `DisableUserContext`
+```go
+func (l *LDAP) DisableUser(dn string) error
+func (l *LDAP) DisableUserContext(ctx context.Context, dn string) error
+```
+Sets the `ACCOUNTDISABLE` bit. The entry and its group memberships are preserved; only authentication is refused.
+
+#### `UnlockUser` / `UnlockUserContext`
+```go
+func (l *LDAP) UnlockUser(dn string) error
+func (l *LDAP) UnlockUserContext(ctx context.Context, dn string) error
+```
+Clears an Active Directory lockout by writing `lockoutTime = 0`. Separate from a password reset, so callers that only reset passwords do not need `lockoutTime` write permission. Returns `ErrUnlockRequiresActiveDirectory` on a non-AD server.
+
+#### `UnlockUserForSAMAccountName` / `UnlockUserForSAMAccountNameContext`
+```go
+func (l *LDAP) UnlockUserForSAMAccountName(sAMAccountName string) error
+func (l *LDAP) UnlockUserForSAMAccountNameContext(ctx context.Context, sAMAccountName string) error
+```
+Resolves the sAMAccountName to a DN and unlocks that account.
+
+### Bulk Operations
+
+#### `FindUsersBySAMAccountNames` / `FindUsersBySAMAccountNamesContext`
+```go
+func (l *LDAP) FindUsersBySAMAccountNames(sAMAccountNames []string) ([]*User, error)
+func (l *LDAP) FindUsersBySAMAccountNamesContext(ctx context.Context, sAMAccountNames []string) ([]*User, error)
+```
+Resolves several accounts in one search rather than one round trip each.
+
+#### `BulkCreateUsers` / `BulkCreateUsersContext`
+```go
+func (l *LDAP) BulkCreateUsers(users []FullUser, password string) ([]WorkResult[FullUser], error)
+func (l *LDAP) BulkCreateUsersContext(ctx context.Context, users []FullUser, password string, config *WorkerPoolConfig) ([]WorkResult[FullUser], error)
+```
+Creates users through a worker pool. Each `WorkResult` carries its own error, so a partial failure does not discard the successes.
+
+#### `BulkModifyUsers` / `BulkModifyUsersContext`
+```go
+func (l *LDAP) BulkModifyUsers(modifications []UserModification) ([]WorkResult[UserModification], error)
+func (l *LDAP) BulkModifyUsersContext(ctx context.Context, modifications []UserModification, config *WorkerPoolConfig) ([]WorkResult[UserModification], error)
+```
+
+#### `BulkDeleteUsers` / `BulkDeleteUsersContext`
+```go
+func (l *LDAP) BulkDeleteUsers(dns []string) ([]WorkResult[string], error)
+func (l *LDAP) BulkDeleteUsersContext(ctx context.Context, dns []string, config *WorkerPoolConfig) ([]WorkResult[string], error)
+```
+
+### Password Expiry
+
+#### `PasswordExpiryFor`
+```go
+func (l *LDAP) PasswordExpiryFor(ctx context.Context, user *User) (PasswordExpiry, error)
+```
+Reports when a user's password expires. Active Directory answers per user; other directories need `Config.PasswordPolicyDN` or a `pwdPolicySubentry` on the entry, and report unknown rather than guessing.
+
+#### `UsersWithExpiringPasswords`
+```go
+func (l *LDAP) UsersWithExpiringPasswords(ctx context.Context, within time.Duration) ([]ExpiringUser, error)
+```
+Returns every user whose password expires inside the given window.
+
+#### `ResetPasswordForSAMAccountName` / `ResetPasswordForSAMAccountNameContext`
+```go
+func (l *LDAP) ResetPasswordForSAMAccountName(sAMAccountName, newPassword string) error
+func (l *LDAP) ResetPasswordForSAMAccountNameContext(ctx context.Context, sAMAccountName, newPassword string) error
+```
+Administrative reset: sets a new password without proving knowledge of the old one, so the caller needs reset rights. On Active Directory this is a `REPLACE` of `unicodePwd` and requires `ldaps://`; elsewhere it uses RFC 3062 Password Modify. Use `ChangePasswordForSAMAccountName` for self-service, which proves the current password instead.
+
+### Iterators
+
+#### `SearchIter`
+```go
+func (l *LDAP) SearchIter(ctx context.Context, searchRequest *ldap.SearchRequest) iter.Seq2[*ldap.Entry, error]
+```
+Streams a search one entry at a time instead of materialising the whole result. Break out of the range loop to stop early.
+
+#### `SearchPagedIter`
+```go
+func (l *LDAP) SearchPagedIter(ctx context.Context, searchRequest *ldap.SearchRequest, pageSize uint32) iter.Seq2[*ldap.Entry, error]
+```
+As `SearchIter`, but pages server-side so a large subtree never has to fit in memory at once.
+
+#### `GroupMembersIter`
+```go
+func (l *LDAP) GroupMembersIter(ctx context.Context, groupDN string) iter.Seq2[string, error]
+```
+Streams the DNs of a group's members.
+
+See [ITERATOR_PATTERNS_GUIDE.md](ITERATOR_PATTERNS_GUIDE.md) for the full patterns.
 
 ### Group Membership
 
@@ -195,8 +338,7 @@ Finds a group by its distinguished name.
 func (l *LDAP) FindGroups() ([]Group, error)
 func (l *LDAP) FindGroupsContext(ctx context.Context) ([]Group, error)
 ```
-Retrieves all groups from the directory.
-Gets all groups a user belongs to.
+Retrieves all groups from the directory. A user's own memberships come back on the user entry as `User.Groups`.
 
 ---
 
@@ -225,6 +367,20 @@ func (l *LDAP) FindComputersContext(ctx context.Context) ([]Computer, error)
 ```
 Retrieves all computers from the directory.
 
+#### `EnableComputer` / `EnableComputerContext`
+```go
+func (l *LDAP) EnableComputer(dn string) error
+func (l *LDAP) EnableComputerContext(ctx context.Context, dn string) error
+```
+Clears the `ACCOUNTDISABLE` bit on a computer account.
+
+#### `DisableComputer` / `DisableComputerContext`
+```go
+func (l *LDAP) DisableComputer(dn string) error
+func (l *LDAP) DisableComputerContext(ctx context.Context, dn string) error
+```
+Sets the `ACCOUNTDISABLE` bit on a computer account.
+
 ---
 
 ## Cache Management API
@@ -237,32 +393,36 @@ The cache management functions provide efficient key tracking and invalidation c
 ```go
 func (c *LRUCache) RegisterCacheKey(primaryKey string, cacheKey string)
 ```
-Registers a cache key with its primary identifier for efficient invalidation without needing to fetch the cached object. *File: cache.go:858*
+Registers a cache key with its primary identifier for efficient invalidation without needing to fetch the cached object.
 
 #### `InvalidateByPrimaryKey`
 ```go
 func (c *LRUCache) InvalidateByPrimaryKey(primaryKey string) int
 ```
-Invalidates all cache entries related to a primary key. Returns the number of cache keys deleted. *File: cache.go:892*
+Invalidates all cache entries related to a primary key. Returns the number of cache keys deleted.
 
 #### `SetWithPrimaryKey`
 ```go
-func (c *LRUCache) SetWithPrimaryKey(cacheKey string, value interface{}, ttl time.Duration, primaryKey string) error
+func (c *LRUCache) SetWithPrimaryKey(cacheKey string, value any, ttl time.Duration, primaryKey string) error
 ```
-Stores a value in cache and registers it with a primary key for efficient future invalidation. *File: cache.go:934*
+Stores a value in cache and registers it with a primary key for efficient future invalidation.
 
 #### `GetRelatedKeys`
 ```go
 func (c *LRUCache) GetRelatedKeys(primaryKey string) []string
 ```
-Returns all cache keys associated with a primary key. *File: cache.go:947*
+Returns all cache keys associated with a primary key.
 
-| Method | Description | Context Support | File Reference |
-|--------|------------|-----------------|----------------|
-| `RegisterCacheKey` | Register cache key with primary key | No | cache.go:858 |
-| `InvalidateByPrimaryKey` | Invalidate by primary key | No | cache.go:892 |
-| `SetWithPrimaryKey` | Set with primary key tracking | No | cache.go:934 |
-| `GetRelatedKeys` | Get all related cache keys | No | cache.go:947 |
+| Method | Description | Context Support |
+|--------|------------|-----------------|
+| `RegisterCacheKey` | Register cache key with primary key | No |
+| `InvalidateByPrimaryKey` | Invalidate by primary key | No |
+| `SetWithPrimaryKey` | Set with primary key tracking | No |
+| `GetRelatedKeys` | Get all related cache keys | No |
+
+> These four are methods on `*LRUCache`. The client owns its cache privately, so
+> they are reachable only on a cache you construct yourself with `NewLRUCache`.
+> Through `*LDAP` the cache surface is `GetCacheStats()` and `ClearCache()`.
 
 ---
 
@@ -847,4 +1007,4 @@ if err != nil {
 
 ---
 
-*API Reference Version 1.0.0 - Generated 2025-09-17*
+*API Reference - Last Updated: 2026-09-17*
