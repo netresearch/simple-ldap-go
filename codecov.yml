@@ -3,6 +3,17 @@ codecov:
   notify:
     after_n_builds: 2
 
+# Go coverage profiles name files by import path, so every entry arrives as
+# "github.com/netresearch/simple-ldap-go/users.go" rather than "users.go".
+# Without this fix nothing below matches: `ignore` never fired, so 2140 lines
+# of examples/ sat in the project total at 0% and dragged it to 19.36%, and
+# Codecov could not map a report entry to a file in the repository at all.
+# Verified on commit a5ac1fc: all 35 report paths carried the prefix, and the
+# totals were byte-identical (lines=10452 hits=2024) to commit 6419ae4 thirty-two
+# commits earlier — a report that is not being recomputed.
+fixes:
+  - "github.com/netresearch/simple-ldap-go/::"
+
 ignore:
   - "examples/**"
   - "testutil/**"
@@ -21,6 +32,14 @@ coverage:
     patch:
       default:
         target: 100%
+        # Informational until the project status has been seen to report a
+        # believable number. Codecov posts no status at all today, so this
+        # 100% target has never actually evaluated; the path fix above would
+        # arm it as a side effect, against a library that sits near 78%. Every
+        # pull request would start failing on a gate nobody calibrated. Drop
+        # this line once the first corrected run is on main and the target has
+        # been set from a measurement.
+        informational: true
 
 flags:
   # Must match the flag go-check.yml uploads unit coverage under, which is
@@ -28,13 +47,15 @@ flags:
   # the real upload attributed to an undeclared flag — dropped from the
   # config-scoped patch rollup — while this declared-but-never-uploaded flag
   # carried forward stale coverage, so unit-tested lines showed as uncovered.
+  #
+  # The per-flag `paths` filters are gone. They listed "**/*.go", which cannot
+  # match an import-path-prefixed entry either, so each flag's report risked
+  # being filtered to nothing before the merge. This is a single-language
+  # repository; the filter restricted nothing that `ignore` does not already
+  # cover, and only added a second place for a path mismatch to drop data.
   unittests:
-    paths:
-      - "**/*.go"
     carryforward: true
   integration:
-    paths:
-      - "**/*.go"
     carryforward: true
 
 component_management:
