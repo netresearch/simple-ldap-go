@@ -21,6 +21,13 @@ linters:
   disable:
     - funlen # Some functions require more lines for LDAP operations
 
+# gofmt is not part of `linters.default: standard`, so nothing enforced it and
+# four files had drifted out of format. Enabling it here makes `golangci-lint
+# run` — the gate the shared go-check workflow already runs — reject the next one.
+formatters:
+  enable:
+    - gofmt
+
 issues:
   max-issues-per-linter: 50
   max-same-issues: 10

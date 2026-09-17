@@ -301,10 +301,10 @@ func TestNewMultiError_WithNils(t *testing.T) {
 
 func TestMaskContextValue(t *testing.T) {
 	tests := []struct {
-		name     string
-		key      string
-		value    any
-		masked   bool
+		name   string
+		key    string
+		value  any
+		masked bool
 	}{
 		{"sensitive string key", "password", "mysecret", true},
 		{"sensitive key - username", "username", "admin", true},

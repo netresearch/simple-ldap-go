@@ -619,4 +619,3 @@ func parseUserFromDN(dn string) *ldap.FullUser {
 		Description:    new(fmt.Sprintf("Parsed from %s", dn)),
 	}
 }
-
