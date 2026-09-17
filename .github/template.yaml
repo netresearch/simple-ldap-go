@@ -4,7 +4,10 @@
 template: go-lib
 intentional-drift:
 - path: .github/workflows/ci.yml
-  reason: "coverage-threshold 77 transitional; enable-integration-tests: true (LDAP\
+  reason: "go-compat matrix job (Go 1.26 + 1.27 under GOTOOLCHAIN=local) \u2014 the\
+    \ shared go-check workflow derives its Go version from go.mod's toolchain line\
+    \ alone, so the declared 1.26.0 minimum would otherwise never be built. coverage-threshold\
+    \ 77 transitional; enable-integration-tests: true (LDAP\
     \ testcontainer). E2E deliberately not enabled \u2014 this is a library (no executable\
     \ surface); the integration tier already exercises end-to-end behaviour against\
     \ a real OpenLDAP server"

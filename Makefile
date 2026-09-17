@@ -1,9 +1,10 @@
 # Simple LDAP Go - Optimized Test Makefile
 
-.PHONY: test test-fast test-unit test-integration test-all test-parallel test-benchmark clean help
+.PHONY: test test-fast test-unit test-integration test-all test-parallel test-benchmark clean help test-compat
 
-# Default Go settings
-GO_VERSION := 1.26
+# Supported Go releases. Mirrors the go-compat matrix in .github/workflows/ci.yml;
+# the oldest entry must match the `go` directive in go.mod. Consumed by test-compat.
+GO_VERSIONS := 1.26 1.27
 TIMEOUT_UNIT := 10s
 TIMEOUT_INTEGRATION := 300s
 TIMEOUT_ALL := 300s
@@ -69,6 +70,24 @@ test-coverage: ## Run tests with coverage report
 	go test $(TEST_FLAGS) -timeout=$(TIMEOUT_ALL) -coverprofile=coverage.out ./...
 	go tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report generated: coverage.html"
+
+test-compat: ## Build and unit-test under every supported Go release (mirrors CI go-compat)
+	@for v in $(GO_VERSIONS); do \
+		bin=""; \
+		for c in $$(ls -d $$HOME/sdk/go$$v.* 2>/dev/null | sort -V | tail -1)/bin/go $$(command -v go); do \
+			[ -x "$$c" ] || continue; \
+			case "$$(GOTOOLCHAIN=local $$c version 2>/dev/null)" in *"go$$v."*) bin=$$c; break;; esac; \
+		done; \
+		if [ -z "$$bin" ]; then \
+			echo "❌ Go $$v toolchain not found. Install it with: go install golang.org/dl/go$$v.0@latest && go$$v.0 download"; \
+			exit 1; \
+		fi; \
+		echo "==> $$(GOTOOLCHAIN=local $$bin version)"; \
+		GOTOOLCHAIN=local $$bin build ./... || exit 1; \
+		GOTOOLCHAIN=local $$bin vet ./... || exit 1; \
+		GOTOOLCHAIN=local $$bin test -short -race -timeout=$(TIMEOUT_ALL) ./... || exit 1; \
+	done
+	@echo "✅ All supported Go releases pass"
 
 test-race: ## Run tests with race detection
 	@echo "Running tests with race detection..."

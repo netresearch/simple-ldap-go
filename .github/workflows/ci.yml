@@ -29,3 +29,60 @@ jobs:
       security-events: write
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  # go-check derives its Go version from the `toolchain` line in go.mod, so it
+  # only ever exercises one release. This library's go.mod declares `go 1.26.0`
+  # as the minimum, which is a promise to consumers that nothing here gates it.
+  # This job is what holds that promise: it builds and runs the unit tests under
+  # every supported release with GOTOOLCHAIN=local, so the pinned toolchain
+  # cannot silently upgrade the runner out from under the oldest version.
+  go-compat:
+    name: Go ${{ matrix.go }} compatibility
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        go: ['1.26.8', '1.27.1']
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Go ${{ matrix.go }}
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ matrix.go }}
+          check-latest: false
+          # This workflow also runs on tag pushes, so a build cache written
+          # here would be reachable from a release context (zizmor
+          # cache-poisoning). The job is short; skip the cache.
+          cache: false
+
+      - name: Report the toolchain actually in use
+        env:
+          GOTOOLCHAIN: local
+        run: go version
+
+      - name: Build
+        env:
+          GOTOOLCHAIN: local
+        run: go build ./...
+
+      - name: Vet
+        env:
+          GOTOOLCHAIN: local
+        run: go vet ./...
+
+      - name: Unit tests
+        env:
+          GOTOOLCHAIN: local
+        run: go test -short -race -timeout=300s ./...
