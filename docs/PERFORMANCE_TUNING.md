@@ -367,7 +367,7 @@ func (l *LDAP) PreloadCriticalData(ctx context.Context) error {
     g.Go(func() error {
         for _, groupName := range criticalGroups {
             // Groups are addressed by DN; there is no lookup by CN alone.
-            groupDN := fmt.Sprintf("cn=%s,ou=groups,%s", groupName, baseDN)
+            groupDN := fmt.Sprintf("cn=%s,ou=groups,%s", groupName, l.config.BaseDN)
             group, err := l.FindGroupByDNContext(gCtx, groupDN)
             if err != nil {
                 continue
@@ -486,7 +486,7 @@ func (l *LDAP) SearchWithAttributes(filter string, attributes []string) ([]*ldap
 }
 
 // Example: Optimized user lookup
-func (l *LDAP) GetUserBasicInfo(username string) (*BasicUser, error) {
+func (l *LDAP) GetUserBasicInfo(ctx context.Context, username string) (*BasicUser, error) {
     // Only request essential attributes
     attributes := []string{
         "cn",
@@ -502,7 +502,7 @@ func (l *LDAP) GetUserBasicInfo(username string) (*BasicUser, error) {
     // Requesting only the attributes you need is done on the SearchRequest;
     // there is no SearchWithAttributes helper.
     req := ldap.NewSearchRequest(
-        baseDN, ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 1, 0, false,
+        l.config.BaseDN, ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 1, 0, false,
         filter, attributes, nil,
     )
 

@@ -533,6 +533,9 @@ func OptimizePoolSize(client *LDAP) {
 > guide call the following helper rather than repeating that plumbing.
 >
 > ```go
+> // The base DN the examples below search under.
+> const baseDN = "dc=example,dc=com"
+>
 > func runQuery(ctx context.Context, client *ldap.LDAP, baseDN, filter string) ([]*ldap.Entry, error) {
 >     req := ldap.NewSearchRequest(
 >         baseDN, ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,

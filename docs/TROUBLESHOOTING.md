@@ -473,7 +473,11 @@ func DiagnosePerformance(l *LDAP) (*PerformanceDiagnostic, error) {
                 // of every group the entry belongs to.
                 user, err := l.FindUserBySAMAccountName("testuser")
                 if err == nil {
-                    _ = slices.Contains(user.Groups, "cn=testgroup,ou=groups,dc=example,dc=com")
+                    for _, groupDN := range user.Groups {
+                        if groupDN == "cn=testgroup,ou=groups,dc=example,dc=com" {
+                            break
+                        }
+                    }
                 }
                 return time.Since(start), err
             },
@@ -774,7 +778,7 @@ func DiagnoseBaseDN(l *LDAP, baseDN string) (*BaseDNDiagnostic, error) {
 
 ```go
 // diagnostics/health_check.go - Comprehensive health check
-func RunHealthCheck(config *Config) (*HealthCheckReport, error) {
+func RunHealthCheck(config ldap.Config, bindDN, bindPassword string) (*HealthCheckReport, error) {
     report := &HealthCheckReport{
         Timestamp: time.Now(),
         Config:    config,

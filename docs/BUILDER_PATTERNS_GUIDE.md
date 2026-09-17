@@ -595,7 +595,7 @@ func CreateUser(client *ldap.LDAP, firstName, lastName, email string) error {
 
 ### Example 2: Dynamic Query Building
 ```go
-func SearchUsers(client *ldap.LDAP, criteria SearchCriteria) ([]*ldap.User, error) {
+func SearchUsers(ctx context.Context, client *ldap.LDAP, baseDN string, criteria SearchCriteria) ([]*ldap.Entry, error) {
     // Build dynamic query
     qb := ldap.NewQueryBuilder().
         WithBaseDN("ou=users,dc=example,dc=com").
