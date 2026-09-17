@@ -371,10 +371,11 @@ client, err := ldap.NewPooledClient(config, user, pass, 10)
 
 #### Caching
 ```go
-cacheConfig := &CacheConfig{
-    MaxSize:     1000,
-    DefaultTTL:  5 * time.Minute,
-    NegativeTTL: 1 * time.Minute,
+cacheConfig := &ldap.CacheConfig{
+    Enabled:          true,
+    MaxSize:          1000,
+    TTL:              5 * time.Minute,
+    NegativeCacheTTL: 1 * time.Minute,
 }
 client, err := ldap.NewCachedClient(config, user, pass, 1000, 5*time.Minute)
 ```

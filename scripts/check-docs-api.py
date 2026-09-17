@@ -21,6 +21,24 @@ Result members — every `user.X`, `group.X` and `computer.X`:
      the DN, and `user.MustChangePassword()` does not compile. Both shapes were
      in the guides — 26 and 1 respectively — and read as correct until copied.
 
+Package-level calls — every `ldap.X(`:
+
+  5. X is a real exported function, type or variable in the package. A guide
+     that calls `ldap.WithRetry(...)` names something this library does not
+     have, and the receiver checks above never see it.
+
+Configuration literals — every `ldap.T{...}` and `&ldap.T{...}` for a struct
+type T the package exports, plus the bare `T{...}` form the older guides use:
+
+  6. Each `Field:` key in the literal is a field T actually has. This is the
+     check that was missing when `PoolConfig` was documented with
+     `MinIdleConnections` and `MaxLifetime`, neither of which ever existed:
+     the call checks could not see a struct literal at all, so the guides
+     drifted for a year with the gate green.
+
+  A type the package does not export is skipped, so a snippet may declare and
+  fill its own struct without tripping this.
+
 A symbol a document defines in its own snippets is exempt only when it is not
 a real method: a guide may write `func (l *LDAP) StreamUsers(...)` as an
 illustration and call it two lines later, which is self-consistent rather than
@@ -55,6 +73,24 @@ RESULT_VARS = {"user": "User", "group": "Group", "computer": "Computer"}
 MEMBER = re.compile(rf"\b(?:{'|'.join(RESULT_VARS)})\.([A-Z][A-Za-z0-9]*)(\s*\()?")
 MEMBER_VAR = re.compile(rf"\b({'|'.join(RESULT_VARS)})\.")
 STRUCT_FIELDS = re.compile(r"^\t([A-Z][A-Za-z0-9]*)\s+\S", re.MULTILINE)
+
+# Package-qualified references: ldap.New(...), ldap.ErrUserNotFound, ldap.Config{…}
+PKG_CALL = re.compile(r"(?<![\w.])ldap\.([A-Z][A-Za-z0-9]*)\(")
+# A composite literal, qualified by OUR package or unqualified. The lookbehind
+# is what keeps `tls.Config{…}` from being read as this package's Config: any
+# other qualifier in front of the type name means the type is not ours.
+LITERAL = re.compile(r"(?<![\w.])(?:ldap\.)?([A-Z][A-Za-z0-9]*)\{")
+# A key at the top level of a literal: "\tField: value" or "Field: value,".
+LITERAL_KEY = re.compile(r"(?:^|[,{]\s*|\n\s*)([A-Z][A-Za-z0-9]*)\s*:(?!=)")
+
+# go doc surfaces, for the package-level checks.
+PKG_FUNC = re.compile(r"^func ([A-Z][A-Za-z0-9]*)[\[(]", re.MULTILINE)
+PKG_TYPE = re.compile(r"^type ([A-Z][A-Za-z0-9]*)[\[ ]", re.MULTILINE)
+PKG_VALUE = re.compile(r"^\t?([A-Z][A-Za-z0-9]*)\s+=\s", re.MULTILINE)
+# go-ldap is imported as `ldap` too, so `ldap.` in a snippet may address either
+# package. Its exported names are read from its own go doc rather than listed
+# here, so the check stays right when that dependency moves.
+FOREIGN_PACKAGE = "github.com/go-ldap/ldap/v3"
 
 
 def split_top_level(text: str) -> list[str]:
@@ -142,17 +178,17 @@ def argument_text(text: str, open_paren: int) -> str | None:
     return None
 
 
-def go_doc(repo: pathlib.Path) -> str:
-    """`go doc -all` for the package, or exit 2 if it cannot be produced."""
+def go_doc(repo: pathlib.Path, package: str = ".") -> str:
+    """`go doc -all` for a package, or exit 2 if it cannot be produced."""
     result = subprocess.run(
-        ["go", "doc", "-all", "."],
+        ["go", "doc", "-all", package],
         cwd=repo,
         capture_output=True,
         text=True,
         check=False,
     )
     if result.returncode != 0:
-        print(f"go doc failed: {result.stderr.strip()}", file=sys.stderr)
+        print(f"go doc {package} failed: {result.stderr.strip()}", file=sys.stderr)
         sys.exit(2)
     return result.stdout
 
@@ -176,6 +212,67 @@ def type_surface(doc: str, typ: str) -> tuple[set[str], set[str]]:
     return fields, methods | promoted
 
 
+def struct_fields(doc: str) -> dict[str, set[str]]:
+    """Exported struct type -> its field names, from `go doc -all`."""
+    out: dict[str, set[str]] = {}
+    for match in re.finditer(
+        r"^type ([A-Z][A-Za-z0-9]*)(?:\[[^\]]*\])? struct \{(.*?)^\}",
+        doc,
+        re.MULTILINE | re.DOTALL,
+    ):
+        out[match.group(1)] = set(STRUCT_FIELDS.findall(match.group(2)))
+    return out
+
+
+def package_names(doc: str) -> set[str]:
+    """Every exported package-level name: functions, types and values."""
+    return (
+        set(PKG_FUNC.findall(doc)) | set(PKG_TYPE.findall(doc)) | set(PKG_VALUE.findall(doc))
+    )
+
+
+def literal_body(text: str, open_brace: int) -> str | None:
+    """Text between `text[open_brace]` == "{" and its matching "}"."""
+    depth = 0
+    quote = ""
+    i = open_brace
+    while i < len(text):
+        char = text[i]
+        if quote:
+            if char == "\\":
+                i += 2
+                continue
+            if char == quote:
+                quote = ""
+            i += 1
+            continue
+        if char in "\"'`":
+            quote = char
+        elif char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return text[open_brace + 1 : i]
+        i += 1
+    return None
+
+
+def top_level_keys(body: str) -> list[str]:
+    """Field keys at depth 0 of a literal body, skipping nested literals."""
+    keys: list[str] = []
+    depth = 0
+    segment = ""
+    for char in body:
+        if char in "([{":
+            depth += 1
+        elif char in ")]}":
+            depth -= 1
+        if depth == 0:
+            segment += char
+    return [m.group(1) for m in LITERAL_KEY.finditer(segment)] + keys
+
+
 def documents(repo: pathlib.Path) -> list[pathlib.Path]:
     return sorted(repo.glob("docs/*.md")) + [repo / "README.md"]
 
@@ -186,6 +283,8 @@ def main() -> int:
     doc = go_doc(repo)
     signatures = real_signatures(doc)
     surfaces = {var: type_surface(doc, typ) for var, typ in RESULT_VARS.items()}
+    fields_by_type = struct_fields(doc)
+    exported = package_names(doc) | package_names(go_doc(repo, FOREIGN_PACKAGE))
 
     findings: list[str] = []
     checked = 0
@@ -242,6 +341,35 @@ def main() -> int:
                 findings.append(
                     f"{where}: {var}.{name} is a field — it cannot be called"
                 )
+
+        # Package-level references: ldap.X(...)
+        for match in PKG_CALL.finditer(text):
+            name = match.group(1)
+            if name in local:
+                continue
+            checked += 1
+            if name not in exported:
+                lineno = text.count("\n", 0, match.start()) + 1
+                findings.append(
+                    f"{doc_path.relative_to(repo)}:{lineno}: "
+                    f"ldap.{name} is not exported by this package"
+                )
+
+        # Configuration literals: ldap.T{...}, &T{...}
+        for match in LITERAL.finditer(text):
+            typ = match.group(1)
+            known = fields_by_type.get(typ)
+            if known is None:
+                continue
+            body = literal_body(text, match.end() - 1)
+            if body is None:
+                continue
+            lineno = text.count("\n", 0, match.start()) + 1
+            where = f"{doc_path.relative_to(repo)}:{lineno}"
+            for key in top_level_keys(body):
+                checked += 1
+                if key not in known:
+                    findings.append(f"{where}: {typ} has no field {key}")
 
     if verbose:
         print(

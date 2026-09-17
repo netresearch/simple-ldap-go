@@ -198,12 +198,11 @@ func WrapLDAPError(op string, dn string, err error) error {
     code := extractLDAPCode(err)
 
     return &LDAPError{
-        Op:      op,
-        DN:      dn,
-        Code:    code,
-        Message: err.Error(),
-        Cause:   err,
-        Time:    time.Now(),
+        Op:        op,
+        DN:        dn,
+        Code:      code,
+        Err:       err,
+        Timestamp: time.Now(),
     }
 }
 
@@ -968,14 +967,14 @@ func TestWithErrorInjection(t *testing.T) {
 
 ```go
 // BAD: Silently ignoring errors
-func BadExample() {
-    user, _ := ldap.FindUser("john") // Error ignored!
+func BadExample(client *ldap.LDAP) {
+    user, _ := client.FindUserBySAMAccountName("john") // Error ignored!
     processUser(user) // May panic if user is nil
 }
 
 // GOOD: Always handle errors
-func GoodExample() error {
-    user, err := ldap.FindUser("john")
+func GoodExample(client *ldap.LDAP) error {
+    user, err := client.FindUserBySAMAccountName("john")
     if err != nil {
         return fmt.Errorf("failed to find user: %w", err)
     }

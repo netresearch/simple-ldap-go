@@ -1008,48 +1008,35 @@ func TraceOperation(op string, fn func() error) error {
 
 ### Trace Requests
 
+There is no tracing hook to install: the library has no middleware interface.
+What it has is its own structured log, so a trace is a debug-level handler
+writing to a file of your choosing.
+
 ```go
-// logging/trace.go - Request tracing
-type RequestTracer struct {
-    enabled bool
-    output  io.Writer
-}
-
-func (rt *RequestTracer) TraceRequest(req interface{}, resp interface{}, err error) {
-    if !rt.enabled {
-        return
-    }
-
-    trace := &RequestTrace{
-        Timestamp: time.Now(),
-        Request:   req,
-        Response:  resp,
-        Error:     err,
-        Duration:  time.Since(start),
-        TraceID:   generateTraceID(),
-    }
-
-    // Format and output trace
-    json.NewEncoder(rt.output).Encode(trace)
-}
-
-// Enable request tracing
-func EnableRequestTracing(outputFile string) {
+func enableRequestTracing(outputFile string) (*slog.Logger, func() error, error) {
     file, err := os.Create(outputFile)
     if err != nil {
-        log.Printf("Failed to create trace file: %v", err)
-        return
+        return nil, nil, fmt.Errorf("creating trace file: %w", err)
     }
 
-    tracer := &RequestTracer{
-        enabled: true,
-        output:  file,
-    }
+    logger := slog.New(slog.NewJSONHandler(file, &slog.HandlerOptions{
+        Level: slog.LevelDebug,
+    }))
 
-    // Install as middleware
-    ldap.SetRequestTracer(tracer.TraceRequest)
+    return logger, file.Close, nil
 }
+
+logger, closeTrace, err := enableRequestTracing("ldap-trace.jsonl")
+if err != nil {
+    return err
+}
+defer closeTrace()
+
+client, err := ldap.New(config, bindDN, password, ldap.WithLogger(logger))
 ```
+
+Every operation logs its own duration, so the trace carries the timings without
+a wrapper. [Structured Logging](STRUCTURED_LOGGING.md) lists what is emitted.
 
 ## Error Messages
 

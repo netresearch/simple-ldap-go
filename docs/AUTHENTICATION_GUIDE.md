@@ -620,29 +620,27 @@ func bulkAuthenticate(client *ldap.LDAP, credentials []Credential) map[string]er
 
 ```go
 func TestAuthentication(t *testing.T) {
-    // Use mock LDAP for unit tests
-    mock := &MockLDAP{
-        users: map[string]*ldap.User{
-            "testuser": {
-                Object: ldap.Object{
-                    DN: "cn=Test User,ou=Users,dc=example,dc=com",
-                },
-                SAMAccountName: "testuser",
-                Mail:          "test@example.com",
-            },
-        },
-        passwords: map[string]string{
-            "testuser": "password123",
-        },
-    }
+    // testutil provides an in-memory connection with a fixture directory.
+    // ldap.Object holds its DN unexported, so a User is not built by hand:
+    // it comes out of a search against the mock.
+    mock := testutil.NewMockLDAPConn()
+    testutil.SetupTestUsersAndGroups(mock)
+
+    mock.AddUser(&testutil.MockUser{
+        DN:             "cn=Test User,ou=users,dc=example,dc=com",
+        CN:             "Test User",
+        SAMAccountName: "testuser",
+        Mail:           "test@example.com",
+        Password:       "password123",
+        Enabled:        true,
+    })
 
     // Test successful authentication
-    user, err := mock.CheckPasswordForSAMAccountName("testuser", "password123")
+    err := mock.Bind("cn=Test User,ou=users,dc=example,dc=com", "password123")
     assert.NoError(t, err)
-    assert.Equal(t, "testuser", user.SAMAccountName)
 
     // Test failed authentication
-    _, err = mock.CheckPasswordForSAMAccountName("testuser", "wrongpassword")
+    err = mock.Bind("cn=Test User,ou=users,dc=example,dc=com", "wrongpassword")
     assert.Error(t, err)
 }
 ```
@@ -655,8 +653,11 @@ func TestAuthenticationIntegration(t *testing.T) {
         t.Skip("Skipping integration test")
     }
 
-    // Setup test container
-    tc := ldap.SetupTestContainer(t)
+    // SetupTestContainer lives in this repository's own tests
+    // (test_setup_test.go) and is not exported to consumers. Outside this
+    // repository, start an OpenLDAP container with testcontainers-go and
+    // build a client against it.
+    tc := SetupTestContainer(t)
     defer tc.Close(t)
 
     client := tc.GetLDAPClient(t)

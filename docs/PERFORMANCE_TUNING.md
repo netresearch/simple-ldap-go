@@ -713,50 +713,30 @@ func (l *LDAP) RateLimitedOperations(operations []Operation) error {
 
 ## Memory Management
 
-### Object Pooling
+### Do not hold the whole result set
+
+`User` values are built by the library from a search result; a caller does not
+construct or recycle them, and `sync.Pool` has nothing to grip here. The
+allocation that matters is the slice: `FindUsers` materialises every entry
+before returning.
+
+Where a directory is large, iterate instead, so one entry is live at a time:
 
 ```go
-// Reuse objects to reduce GC pressure
-var userPool = sync.Pool{
-    New: func() interface{} {
-        return &User{
-            Attributes: make(map[string][]string),
-        }
-    },
-}
-
-func GetUser() *User {
-    return userPool.Get().(*User)
-}
-
-func PutUser(u *User) {
-    // Reset user
-    u.DN = ""
-    u.CN = ""
-    u.SAMAccountName = ""
-    u.Mail = ""
-
-    // Clear map without allocating new one
-    for k := range u.Attributes {
-        delete(u.Attributes, k)
+// SearchIter yields *ldap.Entry, one at a time, and stops when you break.
+for entry, err := range client.SearchIter(ctx, searchRequest) {
+    if err != nil {
+        return err
     }
-
-    userPool.Put(u)
-}
-
-// Usage in parsing
-func (l *LDAP) parseUserOptimized(entry *ldap.Entry) *User {
-    user := GetUser() // Reuse from pool
-
-    user.DN() = entry.DN
-    user.CN() = entry.GetAttributeValue("cn")
-    user.SAMAccountName = entry.GetAttributeValue("sAMAccountName")
-    user.Mail = entry.GetAttributeValue("mail")
-
-    // Note: Caller is responsible for returning to pool
-    return user
+    if err := handle(entry); err != nil {
+        return err
+    }
 }
 ```
+
+`SearchPagedIter` does the same with server-side paging, and `GroupMembersIter`
+streams the members of one group. See
+[Iterator Patterns](ITERATOR_PATTERNS_GUIDE.md).
 
 ### String Interning
 
