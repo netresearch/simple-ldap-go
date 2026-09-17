@@ -417,16 +417,14 @@ The key tracking system dramatically improves performance for invalidation opera
 // cache_invalidation_old.go - O(n) invalidation with LDAP lookups
 func (l *LDAP) InvalidateUserCache(userDN string) error {
     // 1. Query LDAP to get user details (network call)
-    user, err := l.GetUserByDN(userDN)
+    user, err := l.FindUserByDN(userDN)
     if err != nil {
         return err
     }
 
-    // 2. Query LDAP for user's groups (another network call)
-    groups, err := l.GetUserGroups(user.SAMAccountName)
-    if err != nil {
-        return err
-    }
+    // 2. The user's group DNs come back on the entry itself (User.Groups),
+    //    but a naive implementation re-queries here anyway.
+    groups := user.Groups
 
     // 3. Scan entire cache for related entries (O(n) operation)
     keysToDelete := []string{}
@@ -1138,7 +1136,9 @@ func (l *LDAP) WarmCache(ctx context.Context) error {
 
     // Warm critical user cache
     g.Go(func() error {
-        users, err := l.GetCriticalUsers(gCtx)
+        // There is no "critical users" query in the library. Fetch the users
+        // and let the caller decide which ones are worth warming.
+        users, err := l.FindUsersContext(gCtx)
         if err != nil {
             return err
         }
@@ -1152,7 +1152,7 @@ func (l *LDAP) WarmCache(ctx context.Context) error {
 
     // Warm group cache
     g.Go(func() error {
-        groups, err := l.GetFrequentlyAccessedGroups(gCtx)
+        groups, err := l.FindGroupsContext(gCtx)
         if err != nil {
             return err
         }
@@ -1429,9 +1429,12 @@ func (l *LDAP) PreloadCache(ctx context.Context) error {
 
     // Preload users
     g.Go(func() error {
-        users, err := l.GetTopUsers(gCtx, config.MaxUsers)
+        users, err := l.FindUsersContext(gCtx)
         if err != nil {
             return err
+        }
+        if len(users) > config.MaxUsers {
+            users = users[:config.MaxUsers]
         }
 
         for _, user := range users {
@@ -1451,9 +1454,12 @@ func (l *LDAP) PreloadCache(ctx context.Context) error {
 
     // Preload groups
     g.Go(func() error {
-        groups, err := l.GetTopGroups(gCtx, config.MaxGroups)
+        groups, err := l.FindGroupsContext(gCtx)
         if err != nil {
             return err
+        }
+        if len(groups) > config.MaxGroups {
+            groups = groups[:config.MaxGroups]
         }
 
         for _, group := range groups {
@@ -1533,4 +1539,4 @@ func (dc *DistributedCache) Set(ctx context.Context, key string, value interface
 
 ---
 
-*Cache Strategy Guide v1.0.0 - simple-ldap-go Project*
+*Cache Strategy Guide - Last Updated: 2026-09-17*

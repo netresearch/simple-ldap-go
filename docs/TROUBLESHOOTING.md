@@ -95,7 +95,7 @@ config := &Config{
 **Quick Fix:**
 ```go
 // Verify authentication with detailed error
-err := client.Authenticate(username, password)
+_, err := client.CheckPasswordForSAMAccountName(username, password)
 if err != nil {
     switch {
     case errors.Is(err, ErrInvalidCredentials):
@@ -326,7 +326,7 @@ func DiagnoseAuthentication(l *LDAP, username, password string) (*AuthDiagnostic
     }
 
     // Step 4: Attempt bind
-    err = l.BindWithDN(user.DN, password)
+    _, err = l.CheckPasswordForDN(user.DN, password)
     if err != nil {
         diag.Issue = "Authentication failed"
         diag.Resolution = "Verify password is correct"
@@ -375,14 +375,14 @@ func DiagnosePermissions(l *LDAP, userDN string) (*PermissionDiagnostic, error) 
         {
             Operation: "Search Users",
             TestFunc: func() error {
-                _, err := l.SearchUsers("(objectClass=user)")
+                _, err := l.FindUsers()
                 return err
             },
         },
         {
             Operation: "Read Groups",
             TestFunc: func() error {
-                _, err := l.GetUserGroups(userDN)
+                _, err := l.FindGroups()
                 return err
             },
         },
@@ -439,10 +439,13 @@ func DiagnosePerformance(l *LDAP) (*PerformanceDiagnostic, error) {
         Test func() (time.Duration, error)
     }{
         {
-            Name: "Simple Bind",
+            Name: "Connect and Bind",
             Test: func() (time.Duration, error) {
                 start := time.Now()
-                err := l.SimpleBind()
+                conn, err := l.GetConnection()
+                if err == nil {
+                    _ = l.ReleaseConnection(conn)
+                }
                 return time.Since(start), err
             },
         },
@@ -455,10 +458,10 @@ func DiagnosePerformance(l *LDAP) (*PerformanceDiagnostic, error) {
             },
         },
         {
-            Name: "Search 100 Users",
+            Name: "Find All Users",
             Test: func() (time.Duration, error) {
                 start := time.Now()
-                _, err := l.SearchUsersWithLimit("(objectClass=user)", 100)
+                _, err := l.FindUsers()
                 return time.Since(start), err
             },
         },
@@ -466,7 +469,12 @@ func DiagnosePerformance(l *LDAP) (*PerformanceDiagnostic, error) {
             Name: "Group Membership Check",
             Test: func() (time.Duration, error) {
                 start := time.Now()
-                _, err := l.IsUserInGroup("testuser", "testgroup")
+                // Membership is carried on the user: User.Groups holds the DNs
+                // of every group the entry belongs to.
+                user, err := l.FindUserBySAMAccountName("testuser")
+                if err == nil {
+                    _ = slices.Contains(user.Groups, "cn=testgroup,ou=groups,dc=example,dc=com")
+                }
                 return time.Since(start), err
             },
         },
@@ -696,8 +704,20 @@ func DiagnoseBaseDN(l *LDAP, baseDN string) (*BaseDNDiagnostic, error) {
         Timestamp: time.Now(),
     }
 
-    // Verify base DN exists
-    _, err := l.SearchOneLevel(baseDN, "(objectClass=*)")
+    // Verify the base DN exists. There is no SearchOneLevel helper: build a
+    // *ldap.SearchRequest with the scope you want and stream it through
+    // SearchIter, which yields entries one at a time.
+    req := ldap.NewSearchRequest(
+        baseDN, ldap.ScopeSingleLevel, ldap.NeverDerefAliases, 1, 0, false,
+        "(objectClass=*)", []string{"dn"}, nil,
+    )
+    var err error
+    for _, iterErr := range l.SearchIter(context.Background(), req) {
+        if iterErr != nil {
+            err = iterErr
+        }
+        break // one entry is enough to prove the base DN resolves
+    }
     if err != nil {
         diag.Exists = false
         diag.Issue = "Base DN does not exist or is not accessible"
@@ -713,10 +733,23 @@ func DiagnoseBaseDN(l *LDAP, baseDN string) (*BaseDNDiagnostic, error) {
 
     diag.Exists = true
 
-    // Count objects in base DN
-    entries, err := l.SearchWithBaseDN(baseDN, "(objectClass=*)")
-    if err == nil {
-        diag.ObjectCount = len(entries)
+    // Count objects under the base DN. SearchPagedIter pages server-side, so
+    // a large subtree does not have to be held in memory to be counted.
+    countReq := ldap.NewSearchRequest(
+        baseDN, ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
+        "(objectClass=*)", []string{"dn"}, nil,
+    )
+    count := 0
+    var iterErr error
+    for _, err := range l.SearchPagedIter(context.Background(), countReq, 500) {
+        if err != nil {
+            iterErr = err
+            break
+        }
+        count++
+    }
+    if iterErr == nil {
+        diag.ObjectCount = count
 
         if diag.ObjectCount == 0 {
             diag.Warning = "Base DN exists but contains no objects"
@@ -748,7 +781,7 @@ func RunHealthCheck(config *Config) (*HealthCheckReport, error) {
     }
 
     // Initialize client
-    client, err := NewLDAPClient(config)
+    client, err := ldap.New(config, bindDN, bindPassword)
     if err != nil {
         report.ConnectionHealth = "FAILED"
         report.Errors = append(report.Errors,
@@ -760,7 +793,7 @@ func RunHealthCheck(config *Config) (*HealthCheckReport, error) {
     report.ConnectionHealth = "OK"
 
     // Test authentication
-    err = client.Authenticate(config.BindDN, config.BindPassword)
+    _, err = client.CheckPasswordForDN(bindDN, bindPassword)
     if err != nil {
         report.AuthHealth = "FAILED"
         report.Errors = append(report.Errors,
@@ -770,7 +803,7 @@ func RunHealthCheck(config *Config) (*HealthCheckReport, error) {
     }
 
     // Test search
-    users, err := client.SearchUsers("(objectClass=user)", 10)
+    users, err := client.FindUsers()
     if err != nil {
         report.SearchHealth = "FAILED"
         report.Errors = append(report.Errors,
@@ -781,7 +814,7 @@ func RunHealthCheck(config *Config) (*HealthCheckReport, error) {
     }
 
     // Performance metrics
-    report.Performance = client.GetPerformanceMetrics()
+    report.Performance = client.GetPerformanceStats()
 
     // Cache statistics
     report.CacheStats = client.GetCacheStats()
@@ -1186,4 +1219,4 @@ echo "Quick fixes completed. Re-test your application."
 
 ---
 
-*Troubleshooting Guide v1.0.0 - simple-ldap-go Project*
+*Troubleshooting Guide - Last Updated: 2026-09-17*

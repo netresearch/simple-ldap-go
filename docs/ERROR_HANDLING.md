@@ -515,7 +515,7 @@ func (l *LDAP) SearchWithTimeout(ctx context.Context, filter string, timeout tim
 ```go
 // context_errors.go:67 - Proper cancellation handling
 func (l *LDAP) ProcessUsersWithContext(ctx context.Context, processor func(*User) error) error {
-    users, err := l.GetAllUsers()
+    users, err := l.FindUsersContext(ctx)
     if err != nil {
         return fmt.Errorf("failed to retrieve users: %w", err)
     }
@@ -560,8 +560,8 @@ func (l *LDAP) ProcessUsersWithContext(ctx context.Context, processor func(*User
 ```go
 // degradation.go:34 - Fallback to degraded service
 func (l *LDAP) GetUserWithFallback(username string) (*User, error) {
-    // Try optimized path first
-    user, err := l.GetUserOptimized(username)
+    // Try the directory first.
+    user, err := l.FindUserBySAMAccountName(username)
     if err == nil {
         return user, nil
     }
@@ -576,8 +576,11 @@ func (l *LDAP) GetUserWithFallback(username string) (*User, error) {
         return cached.(*User), nil
     }
 
-    // Try basic lookup without optimizations
-    user, err = l.GetUserBasic(username)
+    // Last resort: a context-bounded retry against the directory.
+    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+    defer cancel()
+
+    user, err = l.FindUserBySAMAccountNameContext(ctx, username)
     if err != nil {
         return nil, fmt.Errorf("all lookup methods failed for %s: %w",
             username, err)
@@ -1104,4 +1107,4 @@ func GoodResourceHandling() error {
 
 ---
 
-*Error Handling Patterns Guide v1.0.0 - simple-ldap-go Project*
+*Error Handling Patterns Guide - Last Updated: 2026-09-17*

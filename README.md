@@ -112,6 +112,10 @@ user, err := client.CheckPasswordForSAMAccountName("username", "password")
 - 📊 **Structured Errors** - Context-rich error types that make debugging and error handling straightforward
 - 🌐 **Context Support** - Full `context.Context` integration for timeouts, cancellation, and request tracing
 - 📝 **Structured Logging** - Integrated slog support for comprehensive operational visibility
+- 🔓 **Account State** - Enable, disable and unlock Active Directory accounts; unlocking is separate from password reset, so reset callers need no extra rights
+- 🔁 **Streaming Iterators** - `SearchIter`, `SearchPagedIter` and `GroupMembersIter` return `iter.Seq2` so large result sets never have to fit in memory
+- 📦 **Bulk Operations** - Worker-pool create, modify and delete that report per-item results instead of failing the whole batch
+- ⏳ **Password Expiry** - `PasswordExpiryFor` and `UsersWithExpiringPasswords`, for AD and for ppolicy-configured directories
 
 ## Installation
 
@@ -177,41 +181,51 @@ Comprehensive examples are available in the [examples](examples/) directory:
 ### Key Operations
 
 ```go
-// Basic client creation
+// Client creation. New applies the library defaults; the convenience
+// constructors are New with a preset Config.
 client, err := ldap.New(config, username, password)
-
-// Enhanced client with connection pooling and caching
-client, err := ldap.NewHighPerformanceClient(config, username, password)
-// Or with custom configuration:
-client, err := ldap.NewCachedClient(config, username, password, 1000, 5*time.Minute)
-
-// Convenience constructors
+client, err := ldap.NewBasicClient(config, username, password)
+client, err := ldap.NewReadOnlyClient(config, username, password)
 client, err := ldap.NewHighPerformanceClient(config, username, password)
 client, err := ldap.NewCachedClient(config, username, password, 1000, 5*time.Minute)
+defer func() { _ = client.Close() }()
 
 // User authentication
 user, err := client.CheckPasswordForSAMAccountName("jdoe", "password")
 
-// Find users (standard methods)
+// Find users. Caching, when enabled in the config, is transparent here.
 user, err := client.FindUserBySAMAccountName("jdoe")
+user, err := client.FindUserBySAMAccountNameContext(ctx, "jdoe")
 users, err := client.FindUsers()
 
-// Find users (caching is transparent if enabled in config)
-user, err := client.FindUserBySAMAccountNameContext(ctx, "jdoe")
-// Caching happens automatically if config.EnableCache is true
+// User management. CreateUser takes the new account's password as its second
+// argument (the container comes from FullUser) and returns the created DN.
+dn, err := client.CreateUser(fullUser, "initialPassword")
+err = client.DeleteUser("cn=John Doe,ou=Users,dc=example,dc=com")
+err = client.ModifyUser(dn, map[string][]string{"description": {"Updated"}})
 
-// User management
-err := client.CreateUser(fullUser, "ou=Users,dc=example,dc=com")
-err := client.DeleteUser("cn=John Doe,ou=Users,dc=example,dc=com")
-
-// Group operations (caching is transparent if enabled)
+// Group operations
 group, err := client.FindGroupByDNContext(ctx, "cn=Admins,dc=example,dc=com")
-// Caching happens automatically if config.EnableCache is true
-err := client.AddUserToGroup(userDN, groupDN)
+err = client.AddUserToGroup(userDN, groupDN)
+err = client.RemoveUserFromGroup(userDN, groupDN)
 
 // Password management
-err := client.ChangePasswordForSAMAccountName("jdoe", "oldPass", "newPass")
-err := client.ResetPasswordForSAMAccountName("jdoe", "newPass") // Admin reset
+err = client.ChangePasswordForSAMAccountName("jdoe", "oldPass", "newPass") // self-service
+err = client.ResetPasswordForSAMAccountName("jdoe", "newPass")             // admin reset
+
+// Account state (Active Directory)
+err = client.DisableUser(userDN)
+err = client.EnableUser(userDN)
+err = client.UnlockUser(userDN)                        // clears lockoutTime
+err = client.UnlockUserForSAMAccountName("jdoe")
+
+// Streaming large result sets without materialising them
+for entry, err := range client.SearchPagedIter(ctx, searchRequest, 500) {
+    if err != nil {
+        return err
+    }
+    _ = entry
+}
 ```
 
 See the [Go Reference](https://pkg.go.dev/github.com/netresearch/simple-ldap-go) for complete API documentation.

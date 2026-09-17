@@ -336,7 +336,7 @@ func PerformBulkSearch(client *LDAP, queries []string) ([]SearchResult, error) {
                     time.Sleep(options.RetryDelay)
                 }
 
-                result, err = client.Search(ctx, q)
+                result, err = runQuery(ctx, client, baseDN, q)
                 if err == nil {
                     break
                 }
@@ -400,12 +400,14 @@ func PipelineProcess(client *LDAP, input <-chan string, output chan<- Result) {
         go func() {
             defer wg.Done()
             for item := range input {
-                result, err := client.ProcessItem(context.Background(), item)
+                // `item` is a sAMAccountName here; substitute whichever real
+                // client operation the pipeline is built around.
+                user, err := client.FindUserBySAMAccountNameContext(context.Background(), item)
                 if err != nil {
                     log.Printf("Processing error: %v", err)
                     continue
                 }
-                output <- result
+                output <- Result{User: user}
             }
         }()
     }
@@ -524,21 +526,59 @@ func OptimizePoolSize(client *LDAP) {
 
 ## Cache Performance Optimization
 
+> **`runQuery` used below**
+>
+> `*LDAP` has no `Search(ctx, filter)` method: a search is a `*ldap.SearchRequest`
+> streamed through `SearchIter`. The benchmark and cache-warming examples in this
+> guide call the following helper rather than repeating that plumbing.
+>
+> ```go
+> func runQuery(ctx context.Context, client *ldap.LDAP, baseDN, filter string) ([]*ldap.Entry, error) {
+>     req := ldap.NewSearchRequest(
+>         baseDN, ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
+>         filter, []string{"*"}, nil,
+>     )
+>
+>     var entries []*ldap.Entry
+>     for entry, err := range client.SearchIter(ctx, req) {
+>         if err != nil {
+>             return nil, err
+>         }
+>         entries = append(entries, entry)
+>     }
+>     return entries, nil
+> }
+> ```
+
+
 ### Cache Key Tracking System
 
 The library features an advanced cache key tracking system that provides O(1) cache invalidation:
 
+The tracking lives on `*LRUCache`, which the client owns privately. It is not
+reachable through `*LDAP` — the client's cache surface is `GetCacheStats()` for
+observation and `ClearCache()` for a full flush:
+
 ```go
-// Register cache entries with primary key tracking
-client.SetWithPrimaryKey("user:john.doe", userData, 5*time.Minute, "cn=john.doe,ou=users,dc=example,dc=com")
+stats := client.GetCacheStats()
+fmt.Printf("hit ratio %.2f over %d entries\n", stats.HitRatio, stats.TotalEntries)
 
-// Efficiently invalidate all related cache entries
-invalidatedCount := client.InvalidateByPrimaryKey("cn=john.doe,ou=users,dc=example,dc=com")
-fmt.Printf("Invalidated %d cache entries\n", invalidatedCount)
+// Full flush; there is no public per-key or per-primary-key invalidation.
+client.ClearCache()
+```
 
-// Get all cache keys related to a primary key
-relatedKeys := client.GetRelatedKeys("cn=john.doe,ou=users,dc=example,dc=com")
-fmt.Printf("Related cache keys: %v\n", relatedKeys)
+If you construct an `*LRUCache` yourself, the primary-key API is available on it
+directly:
+
+```go
+cache, err := ldap.NewLRUCache(cacheConfig, logger)
+if err != nil {
+    return err
+}
+_ = cache.SetWithPrimaryKey("user:john.doe", userData, 5*time.Minute, "cn=john.doe,ou=users,dc=example,dc=com")
+invalidatedCount := cache.InvalidateByPrimaryKey("cn=john.doe,ou=users,dc=example,dc=com")
+relatedKeys := cache.GetRelatedKeys("cn=john.doe,ou=users,dc=example,dc=com")
+fmt.Printf("invalidated %d, related %v\n", invalidatedCount, relatedKeys)
 ```
 
 ### Cache Configuration for High Performance
@@ -636,7 +676,7 @@ func WarmCache(client *LDAP, commonQueries []string) error {
             ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
             defer cancel()
 
-            _, err := client.Search(ctx, q)
+            _, err := runQuery(ctx, client, baseDN, q)
             if err != nil {
                 log.Printf("Cache warming failed for query %s: %v", q, err)
             }
@@ -729,14 +769,12 @@ func AnalyzeSlowQueries(client *LDAP) {
         fmt.Printf("   - Consider connection pool optimization\n")
     }
 
-    // Get detailed operation history for slow query analysis
-    history := client.GetOperationHistory()
-    slowOps := make([]OperationMetric, 0)
-
-    for _, op := range history {
-        if op.Duration > perfConfig.SlowQueryThreshold {
-            slowOps = append(slowOps, op)
-        }
+    // Per-operation history lives on the internal *PerformanceMonitor and is not
+    // exported through the client. What the client does expose is the aggregate
+    // breakdown, which is enough to say *which kind* of operation is slow.
+    stats := client.GetPerformanceStats()
+    for opType, count := range stats.SlowQueriesByType {
+        fmt.Printf("   - %s: %d slow operations\n", opType, count)
     }
 
     if len(slowOps) > 0 {
@@ -760,43 +798,38 @@ func AnalyzeSlowQueries(client *LDAP) {
 
 ### Slow Query Alerting
 
+The `*PerformanceMonitor` is owned privately by the client; there is no
+`GetPerformanceMonitor()` accessor and `RecordOperation` is a method, not a
+replaceable field. Alerting is therefore built by polling the aggregate the
+client does expose:
+
 ```go
-// Real-time slow query alerting
-func SetupSlowQueryAlerting(client *LDAP, threshold time.Duration) {
-    // Monitor for slow queries in real-time
-    monitor := client.GetPerformanceMonitor()
+// Poll the exported performance snapshot and alert on growth in the
+// slow-query counters.
+func SetupSlowQueryAlerting(ctx context.Context, client *ldap.LDAP, interval time.Duration) {
+    ticker := time.NewTicker(interval)
+    defer ticker.Stop()
 
-    // Set up a custom recorder that checks for slow queries
-    originalRecorder := monitor.RecordOperation
-
-    monitor.RecordOperation = func(ctx context.Context, operation string, duration time.Duration, cacheHit bool, err error, resultCount int) {
-        // Call the original recorder
-        originalRecorder(ctx, operation, duration, cacheHit, err, resultCount)
-
-        // Check for slow query
-        if duration > threshold {
-            log.Printf("SLOW QUERY ALERT: %s took %v (threshold: %v)", operation, duration, threshold)
-
-            // Additional context if available
-            if ctx != nil {
-                if clientIP := ctx.Value("client_ip"); clientIP != nil {
-                    log.Printf("  Client IP: %s", clientIP)
-                }
-                if userAgent := ctx.Value("user_agent"); userAgent != nil {
-                    log.Printf("  User Agent: %s", userAgent)
-                }
+    var lastSlow int64
+    for {
+        select {
+        case <-ctx.Done():
+            return
+        case <-ticker.C:
+            stats := client.GetPerformanceStats()
+            if stats.SlowQueries > lastSlow {
+                log.Printf("ALERT: %d new slow operations (p95 %v); by type: %v",
+                    stats.SlowQueries-lastSlow, stats.P95ResponseTime, stats.SlowQueriesByType)
             }
-
-            if err != nil {
-                log.Printf("  Error: %s", err.Error())
-            }
-
-            log.Printf("  Result Count: %d", resultCount)
-            log.Printf("  Cache Hit: %t", cacheHit)
+            lastSlow = stats.SlowQueries
         }
     }
 }
 ```
+
+The threshold that decides what counts as slow is set at construction time on
+`PerformanceConfig.SlowQueryThreshold`, passed through
+`ldap.WithPerformanceMonitoring(perfConfig)`.
 
 ## Memory and Resource Management
 
@@ -908,11 +941,9 @@ func SetupResourceCleanup(client *LDAP) {
             var beforeStats runtime.MemStats
             runtime.ReadMemStats(&beforeStats)
 
-            // Flush performance metrics buffers
-            perfMonitor := client.GetPerformanceMonitor()
-            if perfMonitor != nil {
-                perfMonitor.Flush()
-            }
+            // The performance buffer is internal to the client and has no
+            // public flush; reading the snapshot is what is available here.
+            _ = client.GetPerformanceStats()
 
             // Get memory stats after cleanup
             var afterStats runtime.MemStats
@@ -1074,20 +1105,21 @@ func BenchmarkLDAPPerformance(client *LDAP, testQueries []string) (*BenchmarkRes
         TotalQueries: len(testQueries),
     }
 
-    // Reset performance metrics for clean measurement
-    client.ResetPerformanceStats()
+    // There is no public metrics reset. Take a baseline snapshot instead and
+    // subtract it from the final one.
+    baseline := client.GetPerformanceStats()
 
     // Warmup phase
     log.Printf("Starting warmup phase with %d queries", len(testQueries)/10)
     warmupQueries := testQueries[:len(testQueries)/10]
     for _, query := range warmupQueries {
         ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-        client.Search(ctx, query)
+        _, _ = runQuery(ctx, client, baseDN, query)
         cancel()
     }
 
-    // Reset again after warmup
-    client.ResetPerformanceStats()
+    // Re-baseline after warmup so the warmup traffic is excluded.
+    baseline = client.GetPerformanceStats()
 
     // Main benchmark phase
     log.Printf("Starting main benchmark phase with %d queries", len(testQueries))
@@ -1108,7 +1140,7 @@ func BenchmarkLDAPPerformance(client *LDAP, testQueries []string) (*BenchmarkRes
             ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
             defer cancel()
 
-            _, err := client.Search(ctx, q)
+            _, err := runQuery(ctx, client, baseDN, q)
             if err != nil {
                 log.Printf("Benchmark query failed: %v", err)
             }
@@ -1218,8 +1250,8 @@ func LoadTest(client *LDAP, maxConcurrency int, duration time.Duration) error {
             stats.P95ResponseTime,
             stats.ErrorCount)
 
-        // Reset stats for next phase
-        client.ResetPerformanceStats()
+        // Re-baseline for the next phase; counters are cumulative.
+        baseline = client.GetPerformanceStats()
 
         // Brief pause between phases
         time.Sleep(5 * time.Second)
@@ -1252,7 +1284,7 @@ func runLoadPhase(client *LDAP, queries []string, concurrency int, ctx context.C
 
                     // Execute query
                     queryCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-                    _, err := client.Search(queryCtx, query)
+                    _, err := runQuery(queryCtx, client, baseDN, query)
                     cancel()
 
                     <-semaphore
@@ -1564,10 +1596,11 @@ func DiagnoseMemoryIssues(client *LDAP) {
             }
         }
 
-        // Check performance buffer usage
-        operationHistory := client.GetOperationHistory()
-        if len(operationHistory) > 5000 {
-            fmt.Printf("  - Large performance buffer (%d operations)\n", len(operationHistory))
+        // Buffer pressure is visible through the operation counter; the buffer
+        // itself belongs to the internal *PerformanceMonitor.
+        perfStats := client.GetPerformanceStats()
+        if perfStats.OperationsTotal > 5000 {
+            fmt.Printf("  - %d operations recorded\n", perfStats.OperationsTotal)
             fmt.Printf("  - Consider reducing BufferSize or SampleRate\n")
         }
 

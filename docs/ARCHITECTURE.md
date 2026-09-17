@@ -547,6 +547,12 @@ graph TD
 **Decision**: Adopt slog as standard logger
 **Consequences**: Better observability, Go 1.21+ requirement
 
+### ADR-006: Supported Go Releases
+**Status**: Accepted (2026-09-17)
+**Context**: `go.mod` declared `go 1.26.0` as the minimum, but CI derived its Go version from the `toolchain` line and so only ever built 1.27.1. The minimum was a promise with nothing behind it, and a 1.26-only regression would have reached consumers unseen.
+**Decision**: Support the two most recent Go releases, matching the upstream Go release policy. The `go` directive names the oldest supported release and is the binding minimum for consumers; the `toolchain` directive names the release development and the default CI jobs use. A `go-compat` matrix job builds, vets and unit-tests every supported release with `GOTOOLCHAIN=local`, and `make test-compat` is its local equivalent.
+**Consequences**: Dropping a release is a deliberate, visible change to the `go` directive and the matrix rather than a side effect of a toolchain bump. `GOTOOLCHAIN=local` is required on every step of that job — without it the older runner reads the `toolchain` line and upgrades itself, and the matrix reports a pass it never measured. Language features newer than the `go` directive cannot be used until the floor moves, which is what the 1.26 leg of the matrix enforces.
+
 ---
 
-*Architecture Documentation v1.0.0 - Last Updated: 2025-09-17*
+*Architecture Documentation - Last Updated: 2026-09-17*

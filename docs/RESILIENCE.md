@@ -211,7 +211,7 @@ config := &ldap.Config{
 
 // Authentication endpoint with circuit breaker
 func authenticateUser(username, password string) error {
-    user, err := ldapClient.AuthenticateUser(username, password)
+    user, err := ldapClient.CheckPasswordForSAMAccountName(username, password)
     if err != nil {
         // Fast failure if LDAP is down
         if strings.Contains(err.Error(), "circuit breaker") {
@@ -294,7 +294,11 @@ go func() {
 
 ```go
 func getUserGroups(userDN string) ([]string, error) {
-    groups, err := ldapClient.GetUserGroups(userDN)
+    // Group membership rides along on the user entry as User.Groups.
+    user, err := ldapClient.FindUserByDN(userDN)
+    if err == nil {
+        return user.Groups, nil
+    }
     if err != nil {
         if strings.Contains(err.Error(), "circuit breaker") {
             // Fall back to cached groups
