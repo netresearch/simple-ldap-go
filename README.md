@@ -309,7 +309,7 @@ Available error types:
 
 ## Requirements
 
-- Go 1.26.0 or later
+- Go 1.26.0 or later. Every release is built and unit-tested on Go 1.26 and 1.27 (`make test-compat`, and the `go-compat` matrix in CI); the `go` directive in `go.mod` is the binding minimum.
 - Access to an LDAP server (OpenLDAP, Active Directory, etc.)
 - Appropriate credentials and permissions for desired operations
 

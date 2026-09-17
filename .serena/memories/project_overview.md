@@ -4,9 +4,9 @@
 Simple LDAP Go is a Go package that provides a simple API wrapper around the go-ldap/ldap/v3 library. It was extracted from netresearch/raybeam and focuses on simplifying LDAP operations, particularly for Active Directory environments.
 
 ## Tech Stack
-- **Language**: Go 1.26.0+ (toolchain go1.27.0)
-- **Main Dependency**: github.com/go-ldap/ldap/v3 v3.4.11
-- **Text Processing**: golang.org/x/text v0.28.0
+- **Language**: Go 1.26.0+ (toolchain go1.27.1); built and unit-tested on 1.26 and 1.27
+- **Main Dependency**: github.com/go-ldap/ldap/v3 v3.4.14
+- **Text Processing**: golang.org/x/text v0.42.0
 - **Additional Dependencies**: 
   - Azure/go-ntlmssp (for NTLM authentication)
   - go-asn1-ber/asn1-ber (for ASN.1 BER encoding)
