@@ -813,7 +813,7 @@ func (l *LDAP) GetUserGroups(username string) ([]Group, error) {
 ### 3. Search Results
 
 ```go
-// cache_strategies.go:23 - Search result caching with pagination
+// Search result caching with pagination
 type SearchCache struct {
     cache *Cache
     log   *slog.Logger
@@ -886,7 +886,7 @@ func NewWithCache(config *Config) (*LDAP, error) {
 ### Advanced Configuration
 
 ```go
-// cache_config.go:12 - Comprehensive cache configuration
+// Comprehensive cache configuration
 type CacheConfig struct {
     // Size limits
     MaxSize       int           `json:"max_size"`
@@ -987,7 +987,7 @@ func (c *Cache) calculateHitRate() float64 {
 ### Monitoring Integration
 
 ```go
-// monitoring.go:45 - Prometheus metrics export
+// Prometheus metrics export
 func (c *Cache) ExportMetrics() {
     // Register Prometheus metrics
     prometheus.MustRegister(
@@ -1021,7 +1021,7 @@ func (c *Cache) ExportMetrics() {
     )
 }
 
-// monitoring.go:78 - Structured logging for cache events
+// Structured logging for cache events
 func (c *Cache) logCacheEvent(event string, key string, hit bool) {
     c.log.Debug("cache event",
         slog.String("event", event),
@@ -1036,7 +1036,7 @@ func (c *Cache) logCacheEvent(event string, key string, hit bool) {
 ### Performance Analysis
 
 ```go
-// performance_analysis.go:23 - Cache effectiveness analyzer
+// Cache effectiveness analyzer
 type CacheAnalyzer struct {
     cache *Cache
     log   *slog.Logger

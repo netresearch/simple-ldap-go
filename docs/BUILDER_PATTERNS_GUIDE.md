@@ -225,12 +225,16 @@ server, err := ldap.NewComputerBuilder().
 Fluent configuration of LDAP client settings with validation.
 
 ### Basic Usage
+
+The builder covers server, base DN and the three sub-configurations. Everything
+else - TLS, timeouts, logging, circuit breaker - is set on the `Config` it
+returns, or passed to `New` as an `Option`.
+
 ```go
 config, err := ldap.NewConfigBuilder().
-    WithServer("ldap.example.com").
-    WithPort(636).
+    WithServer("ldaps://ldap.example.com:636").
     WithBaseDN("dc=example,dc=com").
-    WithTLS(true).
+    WithActiveDirectory(true).
     Build()
 
 if err != nil {
@@ -240,76 +244,97 @@ if err != nil {
 client, err := ldap.New(*config, "admin", "password")
 ```
 
+`MustBuild` is the same call for configuration that is known good at startup: it
+panics instead of returning an error.
+
 ### Advanced Features
 
 #### Connection Pooling
 ```go
 config, err := ldap.NewConfigBuilder().
-    WithServer("ldap.example.com").
-    WithPort(636).
+    WithServer("ldaps://ldap.example.com:636").
     WithBaseDN("dc=example,dc=com").
-    WithPooling(20, 5). // max: 20, min: 5
-    WithPoolHealthCheck(30 * time.Second).
-    WithIdleTimeout(5 * time.Minute).
+    WithConnectionPool(&ldap.PoolConfig{
+        MaxConnections:      20,
+        MinConnections:      5,
+        HealthCheckInterval: 30 * time.Second,
+        MaxIdleTime:         5 * time.Minute,
+    }).
     Build()
 ```
 
 #### Caching Configuration
 ```go
 config, err := ldap.NewConfigBuilder().
-    WithServer("ldap.example.com").
+    WithServer("ldaps://ldap.example.com:636").
     WithBaseDN("dc=example,dc=com").
-    WithCache(10000, 5*time.Minute). // size: 10000, TTL: 5 min
-    WithCacheCompression(true).
+    WithCache(&ldap.CacheConfig{
+        Enabled:            true,
+        MaxSize:            10000,
+        TTL:                5 * time.Minute,
+        CompressionEnabled: true,
+    }).
     Build()
 ```
 
-#### Security Configuration
+Note that `WithCache` fills `Config.Cache` but does not set `Config.EnableCache`;
+the client activates caching on `EnableCache` or `EnableOptimizations`
+(`client.go:154`), so set one of them alongside.
+
+#### Security and timeouts
+
+Not builder methods. Set them on the built `Config`, or pass `WithTLS` as an
+option to `New`:
+
 ```go
-config, err := ldap.NewConfigBuilder().
-    WithServer("ldaps://secure.example.com").
-    WithPort(636).
+config := ldap.NewConfigBuilder().
+    WithServer("ldaps://secure.example.com:636").
     WithBaseDN("dc=example,dc=com").
-    WithTLSConfig(&tls.Config{
-        MinVersion:               tls.VersionTLS12,
-        PreferServerCipherSuites: true,
+    MustBuild()
+
+config.DialTimeout = 10 * time.Second
+config.ReadTimeout = 30 * time.Second
+
+client, err := ldap.New(*config, "admin", "password",
+    ldap.WithTLS(&tls.Config{
+        MinVersion: tls.VersionTLS12,
         CipherSuites: []uint16{
             tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
             tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
         },
-    }).
-    WithReadOnly(true).
-    WithTimeout(10*time.Second, 30*time.Second). // dial, request
-    Build()
+    }),
+)
 ```
 
 #### Resilience Configuration
+
+The circuit breaker is configured on `Config.Resilience`, not through the
+builder. There is no retry runner and no rate limiter in this library.
+
 ```go
-config, err := ldap.NewConfigBuilder().
-    WithServer("ldap.example.com").
+config := ldap.NewConfigBuilder().
+    WithServer("ldaps://ldap.example.com:636").
     WithBaseDN("dc=example,dc=com").
-    WithCircuitBreaker(5, 1*time.Minute). // failures: 5, timeout: 1 min
-    WithRetry(3, 100*time.Millisecond). // attempts: 3, initial delay: 100ms
-    WithRateLimit(100). // 100 requests per second
-    Build()
+    MustBuild()
+
+config.Resilience = &ldap.ResilienceConfig{
+    EnableCircuitBreaker: true,
+    CircuitBreaker:       ldap.DefaultCircuitBreakerConfig(),
+}
 ```
 
 ### Methods Reference
 
 | Method | Description | Validation |
 |--------|-------------|------------|
-| `WithServer(server string)` | LDAP server | Required, valid hostname/IP |
-| `WithPort(port int)` | Server port | 1-65535 |
-| `WithBaseDN(dn string)` | Base DN | Valid DN format |
-| `WithTLS(enabled bool)` | Enable TLS | - |
-| `WithTLSConfig(config *tls.Config)` | Custom TLS | Valid config |
-| `WithPooling(max, min int)` | Connection pool | max >= min > 0 |
-| `WithCache(size int, ttl time.Duration)` | Enable cache | size > 0 |
-| `WithTimeout(dial, request time.Duration)` | Timeouts | > 0 |
-| `WithRetry(attempts int, delay time.Duration)` | Retry logic | attempts > 0 |
-| `WithCircuitBreaker(failures int, timeout time.Duration)` | Circuit breaker | failures > 0 |
-| `WithReadOnly(enabled bool)` | Read-only mode | - |
+| `WithServer(server string)` | LDAP server URL | Required |
+| `WithBaseDN(dn string)` | Base DN | Required |
+| `WithActiveDirectory(isAD bool)` | Active Directory semantics | - |
+| `WithConnectionPool(*PoolConfig)` | Connection pool | - |
+| `WithCache(*CacheConfig)` | Cache settings | - |
+| `WithPerformanceMonitoring(*PerformanceConfig)` | Metrics collection | - |
 | `Build()` | Create config | Returns validation errors |
+| `MustBuild()` | Create config | Panics on validation errors |
 
 ## 🏗️ QueryBuilder
 

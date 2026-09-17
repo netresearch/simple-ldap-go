@@ -30,50 +30,41 @@ This guide provides comprehensive strategies for optimizing simple-ldap-go perfo
 ### Key Performance Indicators
 
 ```go
-// performance.go:45 - Core performance metrics
+// performance.go - what GetPerformanceStats returns.
+// PerformanceStats is an alias of PerformanceMetrics; times are durations,
+// not float milliseconds, and rates are not precomputed.
 type PerformanceMetrics struct {
-    // Latency metrics (in milliseconds)
-    AvgLatency      float64
-    P50Latency      float64
-    P95Latency      float64
-    P99Latency      float64
-    MaxLatency      float64
+    OperationsTotal int64
+    ErrorCount      int64
+    TimeoutCount    int64
+    SlowQueries     int64
+    CacheHits       int64
+    CacheMisses     int64
 
-    // Throughput metrics
-    RequestsPerSec  float64
-    BytesPerSec     int64
+    AvgResponseTime time.Duration
+    MinResponseTime time.Duration
+    MaxResponseTime time.Duration
+    P50ResponseTime time.Duration
+    P95ResponseTime time.Duration
+    P99ResponseTime time.Duration
 
-    // Resource metrics
-    ActiveConns     int
-    PoolUtilization float64
-    CacheHitRate    float64
-    MemoryUsageMB   float64
+    MemoryUsageMB  float64
+    GoroutineCount int
 
-    // Error metrics
-    ErrorRate       float64
-    TimeoutRate     float64
-}
+    OperationsByType  map[string]int64
+    ErrorsByType      map[string]int64
+    SlowQueriesByType map[string]int64
 
-// performance.go:78 - Real-time monitoring
-func (l *LDAP) GetPerformanceMetrics() *PerformanceMetrics {
-    return &PerformanceMetrics{
-        AvgLatency:      l.latencyHistogram.Mean(),
-        P50Latency:      l.latencyHistogram.Percentile(0.50),
-        P95Latency:      l.latencyHistogram.Percentile(0.95),
-        P99Latency:      l.latencyHistogram.Percentile(0.99),
-        RequestsPerSec:  l.requestRate.Rate(),
-        CacheHitRate:    l.cache.Stats().HitRate,
-        ActiveConns:     l.pool.ActiveConnections(),
-        PoolUtilization: l.pool.Utilization(),
-        MemoryUsageMB:   getMemoryUsage() / 1024 / 1024,
-    }
+    // Nil unless a pool is configured.
+    PoolStats *ConnectionPoolStats
+    // ... time series and cache fields omitted
 }
 ```
 
 ### Performance Monitoring
 
 ```go
-// monitoring.go:34 - Continuous performance monitoring
+// Continuous performance monitoring
 type PerformanceMonitor struct {
     client   *LDAP
     interval time.Duration
@@ -96,29 +87,36 @@ func (pm *PerformanceMonitor) Start(ctx context.Context) {
     }
 }
 
-func (pm *PerformanceMonitor) analyzeMetrics(metrics *PerformanceMetrics) {
-    // Alert on performance degradation
-    if metrics.P95Latency > 500 {
+func (pm *PerformanceMonitor) analyzeMetrics(metrics ldap.PerformanceStats) {
+    if metrics.P95ResponseTime > 500*time.Millisecond {
         pm.alerts <- &PerformanceAlert{
             Type:     "high_latency",
-            Message:  fmt.Sprintf("P95 latency is %0.2fms", metrics.P95Latency),
+            Message:  fmt.Sprintf("P95 response time is %v", metrics.P95ResponseTime),
             Severity: "warning",
         }
     }
 
-    if metrics.CacheHitRate < 70 {
-        pm.alerts <- &PerformanceAlert{
-            Type:     "low_cache_hit_rate",
-            Message:  fmt.Sprintf("Cache hit rate is %0.2f%%", metrics.CacheHitRate),
-            Severity: "info",
+    // Hit rate is derived, not reported.
+    if lookups := metrics.CacheHits + metrics.CacheMisses; lookups > 0 {
+        hitRate := float64(metrics.CacheHits) / float64(lookups) * 100
+        if hitRate < 70 {
+            pm.alerts <- &PerformanceAlert{
+                Type:     "low_cache_hit_rate",
+                Message:  fmt.Sprintf("Cache hit rate is %0.2f%%", hitRate),
+                Severity: "info",
+            }
         }
     }
 
-    if metrics.PoolUtilization > 80 {
-        pm.alerts <- &PerformanceAlert{
-            Type:     "high_pool_utilization",
-            Message:  fmt.Sprintf("Pool utilization is %0.2f%%", metrics.PoolUtilization),
-            Severity: "warning",
+    // PoolStats is nil when the client runs without a pool.
+    if pool := metrics.PoolStats; pool != nil && pool.MaxConnections > 0 {
+        utilization := float64(pool.ActiveConnections) / float64(pool.MaxConnections) * 100
+        if utilization > 80 {
+            pm.alerts <- &PerformanceAlert{
+                Type:     "high_pool_utilization",
+                Message:  fmt.Sprintf("Pool utilization is %0.2f%%", utilization),
+                Severity: "warning",
+            }
         }
     }
 }
@@ -212,7 +210,7 @@ log.Printf("connections: %d created, %d closed, %d idle",
 ### Cache Sizing Strategy
 
 ```go
-// cache_sizing.go:34 - Intelligent cache sizing
+// Intelligent cache sizing
 func DetermineCacheSize(availableMemoryMB int, avgEntrySize int) int {
     // Reserve memory for application
     appOverheadMB := 256
@@ -246,7 +244,7 @@ func DetermineCacheSize(availableMemoryMB int, avgEntrySize int) int {
 ### TTL Optimization
 
 ```go
-// ttl_optimization.go:23 - Dynamic TTL based on access patterns
+// Dynamic TTL based on access patterns
 type AdaptiveTTL struct {
     baseT TL      time.Duration
     minTTL       time.Duration
@@ -282,7 +280,7 @@ func (a *AdaptiveTTL) RecordAccess(key string) {
 ### Cache Preloading
 
 ```go
-// cache_preload.go:56 - Strategic cache preloading
+// Strategic cache preloading
 func (l *LDAP) PreloadCriticalData(ctx context.Context) error {
     start := time.Now()
 
@@ -344,7 +342,7 @@ func (l *LDAP) PreloadCriticalData(ctx context.Context) error {
 ### Filter Optimization
 
 ```go
-// query_optimization.go:34 - Optimize LDAP filters
+// Optimize LDAP filters
 func OptimizeFilter(filter string) string {
     // Use indexed attributes first
     indexedAttrs := []string{"objectGUID", "objectSid", "sAMAccountName", "mail"}
@@ -374,7 +372,7 @@ func OptimizeFilter(filter string) string {
     return "(&" + strings.Join(optimized, "") + ")"
 }
 
-// query_optimization.go:78 - Use paged searches for large results
+// Use paged searches for large results
 func (l *LDAP) SearchPaged(filter string, pageSize int) ([]*ldap.Entry, error) {
     var allEntries []*ldap.Entry
 
@@ -416,7 +414,7 @@ func (l *LDAP) SearchPaged(filter string, pageSize int) ([]*ldap.Entry, error) {
 ### Attribute Selection
 
 ```go
-// attribute_optimization.go:23 - Request only needed attributes
+// Request only needed attributes
 func (l *LDAP) SearchWithAttributes(filter string, attributes []string) ([]*ldap.Entry, error) {
     // Only request attributes we need
     searchRequest := &ldap.SearchRequest{
@@ -473,7 +471,7 @@ func (l *LDAP) GetUserBasicInfo(ctx context.Context, username string) (*BasicUse
 ### Batch Operations
 
 ```go
-// batch_operations.go:45 - Efficient batch processing
+// Efficient batch processing
 func (l *LDAP) BatchGetUsers(usernames []string, batchSize int) ([]*User, error) {
     var allUsers []*User
     var mu sync.Mutex
@@ -524,7 +522,7 @@ func (l *LDAP) BatchGetUsers(usernames []string, batchSize int) ([]*User, error)
 ### Worker Pool Pattern
 
 ```go
-// worker_pool.go:34 - Efficient worker pool implementation
+// Efficient worker pool implementation
 type WorkerPool struct {
     workers    int
     jobQueue   chan Job
@@ -606,7 +604,7 @@ func (l *LDAP) ParallelUserLookup(usernames []string) ([]*User, error) {
 ### Pipeline Pattern
 
 ```go
-// pipeline.go:45 - Stream processing for large datasets
+// Stream processing for large datasets
 func (l *LDAP) StreamUsers(ctx context.Context) (<-chan *User, <-chan error) {
     userChan := make(chan *User, 100)
     errChan := make(chan error, 1)
@@ -674,7 +672,7 @@ func ProcessUsersInPipeline(ctx context.Context, l *LDAP) error {
 ### Semaphore Pattern
 
 ```go
-// semaphore.go:23 - Control concurrency with semaphores
+// Control concurrency with semaphores
 type Semaphore struct {
     sem chan struct{}
 }
@@ -718,7 +716,7 @@ func (l *LDAP) RateLimitedOperations(operations []Operation) error {
 ### Object Pooling
 
 ```go
-// object_pool.go:34 - Reuse objects to reduce GC pressure
+// Reuse objects to reduce GC pressure
 var userPool = sync.Pool{
     New: func() interface{} {
         return &User{
@@ -763,7 +761,7 @@ func (l *LDAP) parseUserOptimized(entry *ldap.Entry) *User {
 ### String Interning
 
 ```go
-// string_intern.go:23 - Reduce memory for repeated strings
+// Reduce memory for repeated strings
 type StringInterner struct {
     mu    sync.RWMutex
     cache map[string]string
@@ -813,7 +811,7 @@ func (l *LDAP) internAttributes(attrs map[string][]string) {
 ### Memory Monitoring
 
 ```go
-// memory_monitor.go:45 - Track and manage memory usage
+// Track and manage memory usage
 func MonitorMemory(ctx context.Context, threshold uint64) {
     ticker := time.NewTicker(10 * time.Second)
     defer ticker.Stop()
@@ -849,7 +847,7 @@ func MonitorMemory(ctx context.Context, threshold uint64) {
 ### Micro-benchmarks
 
 ```go
-// benchmark_test.go:23 - Benchmark individual operations
+// Benchmark individual operations
 func BenchmarkUserLookup(b *testing.B) {
     client := setupTestClient(b)
 
@@ -891,7 +889,7 @@ func BenchmarkCachedVsUncached(b *testing.B) {
 ### Load Testing
 
 ```go
-// load_test.go:45 - Simulate production load
+// Simulate production load
 func TestLoadScenario(t *testing.T) {
     client := setupTestClient(t)
 
@@ -921,7 +919,7 @@ func TestLoadScenario(t *testing.T) {
 ### CPU Profiling
 
 ```go
-// profiling.go:23 - CPU profiling integration
+// CPU profiling integration
 func EnableCPUProfiling(profilePath string) func() {
     f, err := os.Create(profilePath)
     if err != nil {
@@ -949,7 +947,7 @@ func main() {
 ### Memory Profiling
 
 ```go
-// memory_profile.go:34 - Memory profiling
+// Memory profiling
 func WriteMemProfile(profilePath string) error {
     f, err := os.Create(profilePath)
     if err != nil {
@@ -986,7 +984,7 @@ func PeriodicMemoryProfile(interval time.Duration, dir string) {
 ### Trace Analysis
 
 ```go
-// trace.go:45 - Execution tracing
+// Execution tracing
 func EnableTracing(tracePath string) (func(), error) {
     f, err := os.Create(tracePath)
     if err != nil {
@@ -1091,7 +1089,7 @@ func productionConfig() ldap.Config {
 ### Performance Troubleshooting
 
 ```go
-// troubleshooting.go:34 - Common performance issues
+// Common performance issues
 func DiagnosePerformance(client *LDAP) *PerformanceDiagnostic {
     diag := &PerformanceDiagnostic{
         Timestamp: time.Now(),
