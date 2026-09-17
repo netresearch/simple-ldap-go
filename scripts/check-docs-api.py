@@ -165,8 +165,8 @@ def skip_string(text: str, i: int) -> int:
     return i
 
 
-def balanced_span(text: str, start: int, opener: str, closer: str) -> str | None:
-    """Text between `text[start]` == `opener` and its matching `closer`.
+def balanced_span(text: str, start: int, closer: str) -> str | None:
+    """Text between the bracket at `text[start]` and its matching `closer`.
 
     Walks the whole document rather than a single line, so a construct split
     across lines or nested to any depth is read in full. String literals are
@@ -193,7 +193,7 @@ def balanced_span(text: str, start: int, opener: str, closer: str) -> str | None
 
 def argument_text(text: str, open_paren: int) -> str | None:
     """Text between `text[open_paren]` == "(" and its matching ")"."""
-    return balanced_span(text, open_paren, "(", ")")
+    return balanced_span(text, open_paren, ")")
 
 
 def go_doc(repo: pathlib.Path, package: str = ".") -> str:
@@ -251,7 +251,7 @@ def package_names(doc: str) -> set[str]:
 
 def literal_body(text: str, open_brace: int) -> str | None:
     """Text between `text[open_brace]` == "{" and its matching "}"."""
-    return balanced_span(text, open_brace, "{", "}")
+    return balanced_span(text, open_brace, "}")
 
 
 def top_level_keys(body: str) -> list[str]:
