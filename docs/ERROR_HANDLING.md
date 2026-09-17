@@ -414,7 +414,7 @@ func (cb *CircuitBreaker) Execute(fn func() error) error {
 
 ```go
 // bulk_operations.go:78 - Handling errors in batch operations
-func (l *LDAP) BulkCreateUsers(users []FullUser) (*BulkResult, error) {
+func (l *LDAP) BulkCreateUsers(users []FullUser, password string) (*BulkResult, error) {
     result := &BulkResult{
         Total:     len(users),
         Succeeded: 0,
@@ -431,11 +431,13 @@ func (l *LDAP) BulkCreateUsers(users []FullUser) (*BulkResult, error) {
         wg.Add(1)
         sem <- struct{}{}
 
-        go func(idx int, u FullUser) {
+        go func(idx int, u FullUser, password string) {
             defer wg.Done()
             defer func() { <-sem }()
 
-            dn, err := l.CreateUser(u)
+            // CreateUser takes the new account's initial password as its
+            // second argument and returns the created DN.
+            dn, err := l.CreateUser(u, password)
 
             mu.Lock()
             defer mu.Unlock()
@@ -453,7 +455,7 @@ func (l *LDAP) BulkCreateUsers(users []FullUser) (*BulkResult, error) {
                 result.Succeeded++
                 result.CreatedDNs = append(result.CreatedDNs, dn)
             }
-        }(i, user)
+        }(i, user, password)
     }
 
     wg.Wait()
