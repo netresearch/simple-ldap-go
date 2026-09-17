@@ -14,11 +14,11 @@
 
 ## 📚 Documentation Structure
 
-### [📖 Knowledge Base](../KNOWLEDGE_BASE.md)
-- [Complete Project Overview](../KNOWLEDGE_BASE.md)
-- [Architecture Components](../KNOWLEDGE_BASE.md#architecture-components)
-- [Performance Optimizations](../KNOWLEDGE_BASE.md#performance-optimizations)
-- [Configuration Patterns](../KNOWLEDGE_BASE.md#configuration-patterns)
+### [📖 Project Overview](../README.md)
+- [Complete Project Overview](../README.md)
+- [Architecture Components](ARCHITECTURE.md)
+- [Performance Optimizations](PERFORMANCE_CONFIGURATION_GUIDE.md)
+- [Configuration Patterns](../README.md#configuration)
 
 ### [🚀 Quick Start](README.md)
 - [Installation](README.md#installation)
