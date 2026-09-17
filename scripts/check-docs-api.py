@@ -7,11 +7,19 @@ Before this existed they had accumulated 48 call sites naming methods that were
 never written, plus two calls with the wrong arity, and the drift was only
 found by hand.
 
-What is checked, for every `l.X(...)`, `client.X(...)` and `ldapClient.X(...)`
-call in docs/*.md and README.md:
+Two things are checked in docs/*.md and README.md, both against `go doc -all`.
 
-  1. X is a real exported method on *LDAP, per `go doc -all`.
+Client calls — every `l.X(...)`, `client.X(...)` and `ldapClient.X(...)`:
+
+  1. X is a real exported method on *LDAP.
   2. The call passes a number of arguments the signature accepts.
+
+Result members — every `user.X`, `group.X` and `computer.X`:
+
+  3. X is a real field or method on User / Group / Computer.
+  4. A method is called and a field is not: `user.DN` is a method value, not
+     the DN, and `user.MustChangePassword()` does not compile. Both shapes were
+     in the guides — 26 and 1 respectively — and read as correct until copied.
 
 A symbol a document defines in its own snippets is exempt only when it is not
 a real method: a guide may write `func (l *LDAP) StreamUsers(...)` as an
@@ -41,6 +49,12 @@ SIGNATURE = re.compile(
 # that is a call on the client, not on whatever the free function belongs to.
 SELF_DEFINED = (re.compile(r"func \(\w+ \*LDAP\) ([A-Z][A-Za-z0-9]*)"),)
 UNBOUNDED = 10**6
+
+# Result types the guides bind to conventionally named variables.
+RESULT_VARS = {"user": "User", "group": "Group", "computer": "Computer"}
+MEMBER = re.compile(rf"\b(?:{'|'.join(RESULT_VARS)})\.([A-Z][A-Za-z0-9]*)(\s*\()?")
+MEMBER_VAR = re.compile(rf"\b({'|'.join(RESULT_VARS)})\.")
+STRUCT_FIELDS = re.compile(r"^\t([A-Z][A-Za-z0-9]*)\s+\S", re.MULTILINE)
 
 
 def split_top_level(text: str) -> list[str]:
@@ -128,7 +142,8 @@ def argument_text(text: str, open_paren: int) -> str | None:
     return None
 
 
-def real_signatures(repo: pathlib.Path) -> dict[str, tuple[str, tuple[int, int]]]:
+def go_doc(repo: pathlib.Path) -> str:
+    """`go doc -all` for the package, or exit 2 if it cannot be produced."""
     result = subprocess.run(
         ["go", "doc", "-all", "."],
         cwd=repo,
@@ -139,10 +154,26 @@ def real_signatures(repo: pathlib.Path) -> dict[str, tuple[str, tuple[int, int]]
     if result.returncode != 0:
         print(f"go doc failed: {result.stderr.strip()}", file=sys.stderr)
         sys.exit(2)
+    return result.stdout
+
+
+def real_signatures(doc: str) -> dict[str, tuple[str, tuple[int, int]]]:
     return {
-        m.group(1): (m.group(2), arity(m.group(2)))
-        for m in SIGNATURE.finditer(result.stdout)
+        m.group(1): (m.group(2), arity(m.group(2))) for m in SIGNATURE.finditer(doc)
     }
+
+
+def type_surface(doc: str, typ: str) -> tuple[set[str], set[str]]:
+    """(fields, methods) of `typ`, with Object's promoted methods folded in."""
+    body = re.search(rf"^type {typ} struct \{{(.*?)^\}}", doc, re.MULTILINE | re.DOTALL)
+    fields = set(STRUCT_FIELDS.findall(body.group(1))) if body else set()
+    methods = set(
+        re.findall(rf"^func \(\w+ \*?{typ}\) ([A-Z][A-Za-z0-9]*)", doc, re.MULTILINE)
+    )
+    promoted = set(
+        re.findall(r"^func \(\w+ \*?Object\) ([A-Z][A-Za-z0-9]*)", doc, re.MULTILINE)
+    )
+    return fields, methods | promoted
 
 
 def documents(repo: pathlib.Path) -> list[pathlib.Path]:
@@ -152,15 +183,17 @@ def documents(repo: pathlib.Path) -> list[pathlib.Path]:
 def main() -> int:
     verbose = "--verbose" in sys.argv
     repo = pathlib.Path(__file__).resolve().parent.parent
-    signatures = real_signatures(repo)
+    doc = go_doc(repo)
+    signatures = real_signatures(doc)
+    surfaces = {var: type_surface(doc, typ) for var, typ in RESULT_VARS.items()}
 
     findings: list[str] = []
     checked = 0
 
-    for doc in documents(repo):
-        if not doc.exists():
+    for doc_path in documents(repo):
+        if not doc_path.exists():
             continue
-        text = doc.read_text()
+        text = doc_path.read_text()
         local = set()
         for pattern in SELF_DEFINED:
             local |= set(pattern.findall(text))
@@ -177,7 +210,7 @@ def main() -> int:
                 continue
             checked += 1
             lineno = text.count("\n", 0, match.start()) + 1
-            where = f"{doc.relative_to(repo)}:{lineno}"
+            where = f"{doc_path.relative_to(repo)}:{lineno}"
             if name not in signatures:
                 findings.append(f"{where}: {name} is not a method on *LDAP")
                 continue
@@ -190,10 +223,31 @@ def main() -> int:
                     f"signature takes {wanted} ({params})"
                 )
 
+        # Result members: user.X / group.X / computer.X
+        for match in MEMBER.finditer(text):
+            name, called = match.group(1), bool(match.group(2))
+            var = MEMBER_VAR.match(text, match.start()).group(1)
+            typ = RESULT_VARS[var]
+            fields, methods = surfaces[var]
+            lineno = text.count("\n", 0, match.start()) + 1
+            where = f"{doc_path.relative_to(repo)}:{lineno}"
+            checked += 1
+            if name not in fields and name not in methods:
+                findings.append(f"{where}: {var}.{name} is not on {typ}")
+            elif name in methods and name not in fields and not called:
+                findings.append(
+                    f"{where}: {var}.{name} is a method — it needs () to be called"
+                )
+            elif name in fields and name not in methods and called:
+                findings.append(
+                    f"{where}: {var}.{name} is a field — it cannot be called"
+                )
+
     if verbose:
         print(
-            f"checked {checked} call site(s) against "
-            f"{len(signatures)} exported *LDAP methods"
+            f"checked {checked} reference(s) against "
+            f"{len(signatures)} exported *LDAP methods "
+            f"and {len(surfaces)} result types"
         )
 
     if findings:
@@ -202,7 +256,7 @@ def main() -> int:
             print(f"  {finding}")
         return 1
 
-    print(f"documentation matches the API ({checked} call sites checked)")
+    print(f"documentation matches the API ({checked} references checked)")
     return 0
 
 

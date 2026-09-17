@@ -138,7 +138,7 @@ func (p *PasswordPolicy) Validate(password string, user *User) error {
 
     // Password history check
     if p.HistoryCount > 0 {
-        if err := p.checkPasswordHistory(user.DN, password); err != nil {
+        if err := p.checkPasswordHistory(user.DN(), password); err != nil {
             return err
         }
     }
@@ -210,20 +210,34 @@ func (t *TOTPAuthenticator) ValidateToken(secret, token string) (bool, error) {
 }
 
 // mfa.go:123 - Complete MFA flow
-func (l *LDAP) AuthenticateWithMFA(username, password, mfaToken string) error {
+func (l *LDAP) AuthenticateWithMFA(ctx context.Context, username, password, mfaToken string) error {
     // First factor: password
     if _, err := l.CheckPasswordForSAMAccountName(username, password); err != nil {
         l.auditor.LogFailedAuth(username, "password", err)
         return ErrInvalidCredentials
     }
 
-    // Get user's MFA secret
+    // Get the user's MFA secret. *User decodes a fixed set of attributes and
+    // has no GetAttributeValue — a custom attribute is read from the raw
+    // entry, which is what SearchIter yields.
     user, err := l.FindUserBySAMAccountName(username)
     if err != nil {
         return err
     }
 
-    mfaSecret := user.GetAttributeValue("mfaSecret")
+    req := ldap.NewSearchRequest(
+        user.DN(), ldap.ScopeBaseObject, ldap.NeverDerefAliases, 1, 0, false,
+        "(objectClass=*)", []string{"mfaSecret"}, nil,
+    )
+
+    mfaSecret := ""
+    for entry, err := range l.SearchIter(ctx, req) {
+        if err != nil {
+            return err
+        }
+        mfaSecret = entry.GetAttributeValue("mfaSecret")
+        break
+    }
     if mfaSecret == "" {
         return errors.New("MFA not configured for user")
     }

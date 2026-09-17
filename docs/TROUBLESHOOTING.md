@@ -291,42 +291,51 @@ func DiagnoseAuthentication(l *LDAP, username, password string) (*AuthDiagnostic
         return diag, err
     }
 
-    diag.UserDN = user.DN
+    diag.UserDN = user.DN()
     diag.UserFound = true
 
-    // Step 2: Check account status
-    if user.IsDisabled() {
+    // Step 2: Check account status. There are no Is* helpers on User — the
+    // state is decoded into fields when the entry is read.
+    if !user.Enabled {
         diag.Issue = "Account is disabled"
         diag.Resolution = "Contact administrator to enable account"
         return diag, ErrAccountDisabled
     }
 
-    if user.IsLocked() {
+    // LockoutTime is the Unix-seconds timestamp of the most recent lockout,
+    // and 0 when the account has never been locked.
+    if user.LockoutTime > 0 {
         diag.Issue = "Account is locked"
-        diag.Resolution = fmt.Sprintf("Account locked until %s", user.LockoutTime)
+        diag.Resolution = fmt.Sprintf("Locked since %s; clear it with UnlockUser",
+            time.Unix(user.LockoutTime, 0).Format(time.RFC3339))
         return diag, ErrAccountLocked
     }
 
-    if user.IsExpired() {
+    // AccountExpires: 0 means no expiry recorded, -1 means never expires.
+    if user.AccountExpires > 0 && time.Now().Unix() > user.AccountExpires {
         diag.Issue = "Account has expired"
         diag.Resolution = "Contact administrator to renew account"
-        return diag, ErrAccountExpired
+        return diag, fmt.Errorf("account %s expired at %s", user.DN(),
+            time.Unix(user.AccountExpires, 0).Format(time.RFC3339))
     }
 
-    // Step 3: Check password status
-    if user.MustChangePassword() {
+    // Step 3: Check password status. MustChangePassword is a field, not a
+    // method: it is true when AD reports pwdLastSet == 0.
+    if user.MustChangePassword {
         diag.Issue = "Password must be changed"
         diag.Resolution = "User must change password at next logon"
     }
 
-    if user.IsPasswordExpired() {
+    // PasswordExpiresAt follows the same 0 / -1 / timestamp convention.
+    // LDAP.PasswordExpiryFor gives a directory-independent answer.
+    if user.PasswordExpiresAt > 0 && time.Now().Unix() > user.PasswordExpiresAt {
         diag.Issue = "Password has expired"
         diag.Resolution = "Password must be reset"
         return diag, ErrPasswordExpired
     }
 
     // Step 4: Attempt bind
-    _, err = l.CheckPasswordForDN(user.DN, password)
+    _, err = l.CheckPasswordForDN(user.DN(), password)
     if err != nil {
         diag.Issue = "Authentication failed"
         diag.Resolution = "Verify password is correct"

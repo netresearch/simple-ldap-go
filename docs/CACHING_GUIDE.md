@@ -379,7 +379,7 @@ func (c *Cache) SetWithPrimaryKey(cacheKey string, value interface{}, ttl time.D
 // Usage example - automatic tracking registration
 user := &User{DN: "CN=john.doe,OU=Users,DC=company,DC=com", SAMAccountName: "john.doe"}
 cacheKey := "user:sam:john.doe"
-cache.SetWithPrimaryKey(cacheKey, user, 5*time.Minute, user.DN)
+cache.SetWithPrimaryKey(cacheKey, user, 5*time.Minute, user.DN())
 ```
 
 #### GetRelatedKeys
@@ -431,8 +431,14 @@ func (l *LDAP) InvalidateUserCache(userDN string) error {
 
     // Iterate through all cache keys
     for key := range l.cache.items {
+        // User.Mail is a *string and is nil when the entry has no mail
+        // attribute, so it is dereferenced only after a nil check.
+        mail := ""
+        if user.Mail != nil {
+            mail = *user.Mail
+        }
         if strings.Contains(key, user.SAMAccountName) ||
-           strings.Contains(key, user.Email) ||
+           (mail != "" && strings.Contains(key, mail)) ||
            strings.Contains(key, userDN) {
             keysToDelete = append(keysToDelete, key)
         }
@@ -602,21 +608,23 @@ func ExampleUserLifecycle() {
     }
 
     // Cache user by different access patterns, all tracked to primary DN
-    cache.SetWithPrimaryKey("user:dn:" + user.DN, user, 5*time.Minute, user.DN)
-    cache.SetWithPrimaryKey("user:sam:" + user.SAMAccountName, user, 5*time.Minute, user.DN)
-    cache.SetWithPrimaryKey("user:email:" + user.Email, user, 5*time.Minute, user.DN)
+    cache.SetWithPrimaryKey("user:dn:" + user.DN(), user, 5*time.Minute, user.DN())
+    cache.SetWithPrimaryKey("user:sam:" + user.SAMAccountName, user, 5*time.Minute, user.DN())
+    if user.Mail != nil {
+        cache.SetWithPrimaryKey("user:email:" + *user.Mail, user, 5*time.Minute, user.DN())
+    }
 
     // 2. Cache user's group memberships
     groups := []string{"CN=Developers,OU=Groups,DC=company,DC=com", "CN=All Users,OU=Groups,DC=company,DC=com"}
-    cache.SetWithPrimaryKey("groups:user:" + user.SAMAccountName, groups, 2*time.Minute, user.DN)
+    cache.SetWithPrimaryKey("groups:user:" + user.SAMAccountName, groups, 2*time.Minute, user.DN())
 
     // 3. Check what's being tracked
-    relatedKeys := cache.GetRelatedKeys(user.DN)
+    relatedKeys := cache.GetRelatedKeys(user.DN())
     fmt.Printf("Tracking %d cache keys for user %s\n", len(relatedKeys), user.SAMAccountName)
     // Output: Tracking 4 cache keys for user jane.smith
 
     // 4. User gets modified - single operation invalidates everything
-    invalidatedCount := cache.InvalidateByPrimaryKey(user.DN)
+    invalidatedCount := cache.InvalidateByPrimaryKey(user.DN())
     fmt.Printf("Invalidated %d cache entries in O(1) time\n", invalidatedCount)
     // Output: Invalidated 4 cache entries in O(1) time
 }
@@ -746,7 +754,7 @@ func (l *LDAP) GetUserDetails(username string) (*FullUser, error) {
     l.cache.Set(primaryKey, user, 5*time.Minute)
 
     // Also cache by DN for cross-reference
-    l.cache.Set(fmt.Sprintf("user:dn:%s", user.DN), user, 5*time.Minute)
+    l.cache.Set(fmt.Sprintf("user:dn:%s", user.DN()), user, 5*time.Minute)
 
     return user, nil
 }
@@ -794,7 +802,7 @@ func (l *LDAP) GetUserGroups(username string) ([]Group, error) {
 
     // Warm cache with individual groups
     for _, group := range groups {
-        groupKey := fmt.Sprintf("group:dn:%s", group.DN)
+        groupKey := fmt.Sprintf("group:dn:%s", group.DN())
         l.cache.Set(groupKey, group, 10*time.Minute)
     }
 
@@ -1158,7 +1166,7 @@ func (l *LDAP) WarmCache(ctx context.Context) error {
         }
 
         for _, group := range groups {
-            key := BuildCacheKey(GroupKeyPrefix, "dn", group.DN)
+            key := BuildCacheKey(GroupKeyPrefix, "dn", group.DN())
             l.cache.Set(key, group, 30*time.Minute)
         }
         return nil
@@ -1395,13 +1403,13 @@ func (wtc *WriteThroughCache) UpdateUser(user *User) error {
     }
 
     // Update cache
-    key := BuildCacheKey(UserKeyPrefix, "dn", user.DN)
+    key := BuildCacheKey(UserKeyPrefix, "dn", user.DN())
     wtc.cache.Set(key, user, 10*time.Minute)
 
     // Invalidate related entries
-    wtc.InvalidateRelated(user.DN)
+    wtc.InvalidateRelated(user.DN())
 
-    wtc.log.Info("write-through update completed", "user", user.DN)
+    wtc.log.Info("write-through update completed", "user", user.DN())
 
     return nil
 }
@@ -1463,7 +1471,7 @@ func (l *LDAP) PreloadCache(ctx context.Context) error {
         }
 
         for _, group := range groups {
-            key := BuildCacheKey(GroupKeyPrefix, "dn", group.DN)
+            key := BuildCacheKey(GroupKeyPrefix, "dn", group.DN())
             l.cache.Set(key, group, 1*time.Hour)
         }
 
