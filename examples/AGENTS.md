@@ -1,19 +1,20 @@
-<!-- Managed by agent: keep sections and order; edit content, not structure. Last updated: 2025-09-29 -->
+<!-- Managed by agent: keep sections and order; edit content, not structure. Last updated: 2026-09-17 -->
 
 # AGENTS.md — Examples
 
 ## Overview
-Example applications demonstrating library usage patterns for authentication, user management, performance optimization, context handling, and error patterns. Entry points are the main.go files in each subdirectory.
+Example applications demonstrating library usage patterns for authentication, user management, performance optimization, context handling, and error patterns. Each subdirectory holds one program; the file is named after the example (`authentication/authentication.go`, `performance/performance_example.go`), not `main.go`.
 
 ## Setup & environment
 - Install: `go mod download`
-- Run example: `go run examples/<name>/main.go`
-- Env: Examples use environment variables from `.env` files when present
+- Run example: `go run ./examples/<name>`
+- Env: examples read LDAP_SERVER, LDAP_BASE_DN and credentials from the environment; none is required to compile
 
 ## Build & tests (prefer file-scoped)
-- Typecheck a file: `go build -v examples/<name>/main.go`
-- Format a file: `gofmt -w examples/<name>/main.go`
-- Run example: `go run examples/<name>/main.go`
+- Typecheck one example: `go build -v ./examples/<name>`
+- Format a file: `gofmt -w examples/<name>/<file>.go`
+- Run example: `go run ./examples/<name>`
+- Test them: every example has a `_test.go` beside it; `go test ./examples/...`
 
 ## Code style & conventions
 - Examples should be self-contained and runnable
@@ -30,13 +31,13 @@ Example applications demonstrating library usage patterns for authentication, us
 
 ## PR/commit checklist
 - Examples must compile without errors
-- Include README.md explaining the example's purpose
+- Add the example to `examples/README.md`
 - Test example with both real and mock LDAP servers if possible
 - Ensure examples follow library best practices
 
 ## Good vs. bad examples
-- Good: `authentication/main.go` (clear flow, error handling)
-- Good: `context-usage/main.go` (proper context propagation)
+- Good: `authentication/authentication.go` (clear flow, error handling)
+- Good: `context-usage/context_usage.go` (proper context propagation)
 - Pattern to follow: Simple, focused, well-commented demonstrations
 
 ## When stuck

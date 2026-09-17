@@ -1,61 +1,51 @@
 # Simple LDAP Go - Suggested Commands
 
-## Development Commands
+Everything below is a Makefile target; `make help` lists them all.
 
-### Testing
+## Testing
+
+No LDAP server and no environment variables are needed. Unit tests run on their
+own; the integration tier starts an OpenLDAP container through testcontainers.
+
 ```bash
-# Run all tests (requires LDAP server environment variables)
-go test -v ./...
-
-# Required environment variables for testing:
-# LDAP_SERVER, LDAP_BASE_DN, LDAP_READ_USER, LDAP_READ_PASSWORD
+make test-fast          # unit tests, no Docker, the one to run while editing
+make test-unit          # all unit tests
+make test-integration   # requires Docker
+make test-all           # unit + integration
+make test-coverage      # coverage report; CI enforces 79%
+make test-race          # race detector
+make test-compat        # build and unit-test on every supported Go release
+make docker-clean       # remove containers left behind by a failed run
 ```
 
-### Code Formatting
+`LDAP_SERVER`, `LDAP_BASE_DN` and `LDAP_BIND_DN` are optional and read only by
+the pool benchmarks (`benchmark_pool_test.go`), which skip without them.
+
+## Quality
+
 ```bash
-# Format all Go code using gofmt
-go fmt ./...
-# or
-gofmt -w .
+make qa                 # build, vet, lint, fmt, mod-tidy
+make lint               # golangci-lint
+make fmt                # gofmt
+python3 scripts/check-docs-api.py   # CI job docs-api: docs against the real API
 ```
 
-### Code Quality
-```bash
-# Run Go vet for static analysis
-go vet ./...
+## Building
 
-# Check for race conditions (if applicable)
-go test -race ./...
+```bash
+make build
+go mod verify && go mod tidy
 ```
 
-### Building
+## Documentation
+
 ```bash
-# Build the package (library - no executable)
-go build ./...
-
-# Validate module dependencies
-go mod verify
-go mod tidy
+go doc -all .           # the package surface; the source of truth for the guides
 ```
-
-### Documentation
-```bash
-# Generate and view documentation
-go doc ./...
-go doc -all ./...
-```
-
-## System Commands (Linux)
-- `ls` - list files
-- `cd` - change directory
-- `grep` - search text patterns
-- `find` - find files
-- `git` - version control
-
-## Git Workflow
-The project uses Conventional Commits for commit messages.
 
 ## Notes
-- Tests are disabled in CI due to LDAP server dependency requirements
-- The project is a library package, not an executable
-- Primary focus is on LDAP/Active Directory integration
+
+- CI runs the full suite: 13 workflows under `.github/workflows/`, with a 79%
+  coverage gate in `ci.yml`.
+- The project is a library package, not an executable.
+- Conventional Commits, signed (`git commit -S --signoff`).
