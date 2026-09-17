@@ -578,17 +578,10 @@ func (l *LDAP) GetUserWithFallback(username string) (*User, error) {
         return cached.(*User), nil
     }
 
-    // Last resort: a context-bounded retry against the directory.
-    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-    defer cancel()
-
-    user, err = l.FindUserBySAMAccountNameContext(ctx, username)
-    if err != nil {
-        return nil, fmt.Errorf("all lookup methods failed for %s: %w",
-            username, err)
-    }
-
-    return user, nil
+    // Nothing else to try: the directory is the only source, and a second
+    // identical lookup would fail for the same reason the first did. Return
+    // the original error rather than retrying it.
+    return nil, fmt.Errorf("all lookup methods failed for %s: %w", username, err)
 }
 ```
 

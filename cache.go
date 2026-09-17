@@ -164,6 +164,10 @@ type LRUCache struct {
 	ticker   *time.Ticker
 	stopChan chan struct{}
 	wg       sync.WaitGroup
+	// closed guards Close against a second call. Closing stopChan twice
+	// panics, and `defer c.Close()` beside an explicit shutdown Close is an
+	// ordinary pattern. ConnectionPool.Close already guards this way.
+	closed bool
 
 	// Memory management
 	memoryUsage int64 // Atomic counter for memory usage
@@ -590,6 +594,14 @@ func (c *LRUCache) Close() error {
 	if !c.config.Enabled {
 		return nil
 	}
+
+	c.mu.Lock()
+	if c.closed {
+		c.mu.Unlock()
+		return nil
+	}
+	c.closed = true
+	c.mu.Unlock()
 
 	if c.stopChan != nil {
 		close(c.stopChan)

@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `go-compat` CI job and `make test-compat`: the library is now built, vetted and unit-tested under every supported Go release (1.26 and 1.27) with `GOTOOLCHAIN=local`, so the `go 1.26.0` minimum in `go.mod` is enforced rather than merely declared. The shared `go-check` workflow derives its Go version from the `toolchain` line alone, so Go 1.26 had no gate.
 - `scripts/check-docs-api.py` and the `docs-api` CI job: every `l.`/`client.`/`ldapClient.` call in `docs/*.md` and `README.md` is checked against `go doc` for both a real method name and an argument count the signature accepts. The guides are prose, not compiled, so nothing noticed when they drifted; two calls with the wrong arity survived the previous pass, which only checked that the method existed.
 
+### Fixed
+
+- **`Close` is now idempotent.** `LRUCache.Close` and `PerformanceMonitor.Close` closed a channel behind nothing but a nil check, so a second call panicked with `close of closed channel` and took the process down. `defer client.Close()` beside an explicit shutdown `Close()` is an ordinary pattern, and `LDAP.Close` fans out to both, so any client built with caching or performance monitoring enabled was exposed. Both now carry the same `closed` guard `ConnectionPool.Close` has always had.
+
 ### Changed
 
 - Dependencies: all indirect modules updated across the graph. The direct requirements (`go-ldap/ldap/v3` v3.4.14, `golang.org/x/text` v0.42.0, `stretchr/testify` v1.12.1, `testcontainers-go` v0.44.0) were already at their latest releases and are unchanged.

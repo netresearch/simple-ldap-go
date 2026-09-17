@@ -165,6 +165,8 @@ type PerformanceMonitor struct {
 	// Goroutine management
 	done chan struct{}
 	wg   sync.WaitGroup
+	// closed guards Close against a second call; see LRUCache.closed.
+	closed bool
 }
 
 // NewPerformanceMonitor creates a new performance monitor with the given configuration
@@ -419,6 +421,14 @@ func (pm *PerformanceMonitor) Flush() {
 
 // Close stops background tasks and cleans up resources
 func (pm *PerformanceMonitor) Close() error {
+	pm.mutex.Lock()
+	if pm.closed {
+		pm.mutex.Unlock()
+		return nil
+	}
+	pm.closed = true
+	pm.mutex.Unlock()
+
 	pm.logger.Debug("performance_monitor_stopping")
 
 	// Flush any pending metrics before closing

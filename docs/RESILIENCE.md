@@ -294,11 +294,9 @@ go func() {
 
 ```go
 func getUserGroups(userDN string) ([]string, error) {
-    // Group membership rides along on the user entry as User.Groups.
+    // Group membership rides along on the user entry as User.Groups ([]string
+    // of DNs); there is no separate group lookup to call.
     user, err := ldapClient.FindUserByDN(userDN)
-    if err == nil {
-        return user.Groups, nil
-    }
     if err != nil {
         if strings.Contains(err.Error(), "circuit breaker") {
             // Fall back to cached groups
@@ -308,8 +306,8 @@ func getUserGroups(userDN string) ([]string, error) {
     }
 
     // Update cache for future fallback
-    cache.SetUserGroups(userDN, groups)
-    return groups, nil
+    cache.SetUserGroups(userDN, user.Groups)
+    return user.Groups, nil
 }
 ```
 
