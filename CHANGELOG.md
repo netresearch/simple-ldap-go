@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   Callers who have been setting these fields will see the cache they configured: memory use follows `MaxSize` and `MaxMemoryMB` rather than the 1000-entry, 64 MB default.
 
+### Changed
+
+- `New` no longer writes into the configuration structs it is handed. It enabled monitoring on the caller's `PerformanceConfig`, and `NewConnectionPool` fills its defaults into whatever `PoolConfig` it receives, so a caller who set only `MaxConnections` found the remaining fields filled in behind their back. Both are copied now, as `Config.Cache` is.
+
 ---
 
 ## [v1.17.0] - 2026-09-17
