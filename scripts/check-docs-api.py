@@ -151,36 +151,49 @@ def arity(params: str) -> tuple[int, int]:
     return (count, count)
 
 
-def argument_text(text: str, open_paren: int) -> str | None:
-    """Text between `text[open_paren]` == "(" and its matching ")".
+def skip_string(text: str, i: int) -> int:
+    """Index just past the string literal that opens at `text[i]`."""
+    quote = text[i]
+    i += 1
+    while i < len(text):
+        if text[i] == "\\":
+            i += 2
+            continue
+        if text[i] == quote:
+            return i + 1
+        i += 1
+    return i
 
-    Walks the whole document rather than a single line, so a call split across
-    lines or nested to any depth is read in full. Returns None on an unbalanced
-    run (a snippet cut off mid-call), which is skipped rather than guessed at.
+
+def balanced_span(text: str, start: int, opener: str, closer: str) -> str | None:
+    """Text between `text[start]` == `opener` and its matching `closer`.
+
+    Walks the whole document rather than a single line, so a construct split
+    across lines or nested to any depth is read in full. String literals are
+    stepped over, so a bracket inside one does not shift the depth. Returns None
+    on an unbalanced run (a snippet cut off mid-call), which is skipped rather
+    than guessed at.
     """
     depth = 0
-    quote = ""
-    i = open_paren
+    i = start
     while i < len(text):
         char = text[i]
-        if quote:
-            if char == "\\":
-                i += 2
-                continue
-            if char == quote:
-                quote = ""
-            i += 1
-            continue
         if char in "\"'`":
-            quote = char
-        elif char in "([{":
+            i = skip_string(text, i)
+            continue
+        if char in "([{":
             depth += 1
         elif char in ")]}":
             depth -= 1
             if depth == 0:
-                return text[open_paren + 1 : i]
+                return text[start + 1 : i] if char == closer else None
         i += 1
     return None
+
+
+def argument_text(text: str, open_paren: int) -> str | None:
+    """Text between `text[open_paren]` == "(" and its matching ")"."""
+    return balanced_span(text, open_paren, "(", ")")
 
 
 def go_doc(repo: pathlib.Path, package: str = ".") -> str:
@@ -238,34 +251,11 @@ def package_names(doc: str) -> set[str]:
 
 def literal_body(text: str, open_brace: int) -> str | None:
     """Text between `text[open_brace]` == "{" and its matching "}"."""
-    depth = 0
-    quote = ""
-    i = open_brace
-    while i < len(text):
-        char = text[i]
-        if quote:
-            if char == "\\":
-                i += 2
-                continue
-            if char == quote:
-                quote = ""
-            i += 1
-            continue
-        if char in "\"'`":
-            quote = char
-        elif char == "{":
-            depth += 1
-        elif char == "}":
-            depth -= 1
-            if depth == 0:
-                return text[open_brace + 1 : i]
-        i += 1
-    return None
+    return balanced_span(text, open_brace, "{", "}")
 
 
 def top_level_keys(body: str) -> list[str]:
     """Field keys at depth 0 of a literal body, skipping nested literals."""
-    keys: list[str] = []
     depth = 0
     segment = ""
     for char in body:
@@ -275,7 +265,7 @@ def top_level_keys(body: str) -> list[str]:
             depth -= 1
         if depth == 0:
             segment += char
-    return [m.group(1) for m in LITERAL_KEY.finditer(segment)] + keys
+    return [m.group(1) for m in LITERAL_KEY.finditer(segment)]
 
 
 def documents(repo: pathlib.Path) -> list[pathlib.Path]:
