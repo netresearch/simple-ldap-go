@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`New` ignored `Config.Cache`.** The cache was built from `DefaultCacheConfig()` and the supplied configuration was read in exactly one place, `users.go`, for `TTL` alone — so `MaxSize`, `MaxMemoryMB`, `NegativeCacheTTL`, `RefreshInterval`, `RefreshOnAccess`, `CompressionEnabled` and `CompressionThreshold` had no effect whatever the caller set, with no error and no log line saying so. A client asking for `MaxSize: 100000` ran at the default 1000. This also silently disarmed `NewCachedClient`, whose `maxSize` and `ttl` arguments are passed as a `CacheConfig`, and `NewHighPerformanceClient` ([#240](https://github.com/netresearch/simple-ldap-go/issues/240)).
+
+  Callers who have been setting these fields will see the cache they configured: memory use follows `MaxSize` and `MaxMemoryMB` rather than the 1000-entry, 64 MB default.
+
 ---
 
 ## [v1.17.0] - 2026-09-17

@@ -277,12 +277,10 @@ config, err := ldap.NewConfigBuilder().
     Build()
 ```
 
-Two things this does not do. It does not set `Config.EnableCache`, and the
-client activates caching on `EnableCache` or `EnableOptimizations` (`client.go`),
-so set one of them alongside. And the configuration itself does not reach the
-cache yet: `New` builds it from `DefaultCacheConfig()`, so of the fields above
-only `TTL` has an effect today - see
-[#240](https://github.com/netresearch/simple-ldap-go/issues/240).
+One thing this does not do: it does not set `Config.EnableCache`. The client
+activates caching on `EnableCache` or `EnableOptimizations` (`client.go`), so set
+one of them alongside. The configuration itself is honoured in full - the client
+copies it and builds the cache from it.
 
 #### Security and timeouts
 

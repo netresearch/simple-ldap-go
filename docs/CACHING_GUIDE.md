@@ -857,17 +857,14 @@ func (sc *SearchCache) calculateTTL(resultSize int) time.Duration {
 
 ## Configuration
 
-> **Most of `CacheConfig` does not reach the cache yet.** `New` builds the cache
-> from `DefaultCacheConfig()` and sets `Enabled` itself (`client.go`), so a
-> `CacheConfig` supplied through `Config.Cache`, `WithCache` or
-> `ConfigBuilder.WithCache` is stored but not used to construct it. The one field
-> that is read is `TTL`, which `users.go` applies to user-cache writes.
-> `MaxSize`, `MaxMemoryMB`, `NegativeCacheTTL`, `RefreshInterval`,
-> `RefreshOnAccess`, `CompressionEnabled` and `CompressionThreshold` therefore
-> have no effect today, and the cache runs with the defaults below. The examples
-> in this guide show the intended shape; treat the values as documentation of
-> intent until [#240](https://github.com/netresearch/simple-ldap-go/issues/240)
-> is fixed.
+Every field below reaches the cache. `New` builds it from the `CacheConfig` you
+supply through `Config.Cache`, `WithCache` or `ConfigBuilder.WithCache`, and
+falls back to `DefaultCacheConfig()` only when you supply none. The struct you
+pass is copied, so the client does not write its defaults back into it.
+
+`Enabled` is the one field the client sets itself: reaching cache construction
+already means caching was asked for, through `Config.EnableCache` or
+`Config.EnableOptimizations`.
 
 ### Basic Configuration
 

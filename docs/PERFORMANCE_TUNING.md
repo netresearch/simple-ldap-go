@@ -1042,10 +1042,6 @@ func productionConfig() ldap.Config {
 }
 ```
 
-> `CacheConfig` is stored but not yet used to build the cache: `New` constructs
-> it from `DefaultCacheConfig()`, so only `TTL` takes effect today. See
-> [#240](https://github.com/netresearch/simple-ldap-go/issues/240).
-
 ### Deployment Checklist
 
 ```markdown

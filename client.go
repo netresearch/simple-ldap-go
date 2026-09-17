@@ -150,10 +150,11 @@ func New(config Config, username, password string, opts ...Option) (*LDAP, error
 	// still hit slog.Default() because `logger` was captured before options ran.
 	logger = client.logger
 
-	// Initialize cache if enabled (skip for example servers)
+	// Initialize cache if enabled (skip for example servers).
+	// config.Cache may have been set by the caller or by a WithCache option
+	// applied above; client.config is &config, so both land in the same struct.
 	if (config.EnableCache || config.EnableOptimizations) && !isExample {
-		cacheConfig := DefaultCacheConfig()
-		cacheConfig.Enabled = true
+		cacheConfig := cacheConfigFor(config)
 		cache, err := NewLRUCache(cacheConfig, logger)
 		if err != nil {
 			logger.Warn("cache_initialization_failed",
@@ -245,6 +246,27 @@ func New(config Config, username, password string, opts ...Option) (*LDAP, error
 	}
 
 	return client, nil
+}
+
+// cacheConfigFor resolves the cache configuration the client builds its cache
+// from: the one the caller supplied through Config.Cache, WithCache or
+// ConfigBuilder.WithCache, or the defaults when none was.
+//
+// The result is always a copy. NewLRUCache writes its defaults into the config
+// it is handed, so passing the caller's struct through would rewrite the fields
+// they left at zero and flip Enabled underneath them.
+//
+// Enabled is set here rather than read: activation is governed by
+// Config.EnableCache and Config.EnableOptimizations, so reaching this function
+// already means a cache was asked for.
+func cacheConfigFor(config Config) *CacheConfig {
+	cacheConfig := DefaultCacheConfig()
+	if config.Cache != nil {
+		copied := *config.Cache
+		cacheConfig = &copied
+	}
+	cacheConfig.Enabled = true
+	return cacheConfig
 }
 
 // isExampleServerName checks if a server name is an example/test server
