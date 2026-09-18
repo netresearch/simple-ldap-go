@@ -531,7 +531,6 @@ func TestCreateDirectConnection(t *testing.T) {
 		config := &Config{
 			SkipConnectionCheck: true,
 			Server:              "ldap://localhost:1",
-			Port:                389,
 			BaseDN:              "dc=local,dc=com",
 		}
 
