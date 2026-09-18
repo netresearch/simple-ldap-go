@@ -121,13 +121,14 @@ type PerformanceMetrics struct {
 	TotalConnections   int   `json:"total_connections"`
 	ConnectionsCreated int64 `json:"connections_created"`
 
+	ActiveConnections  int   `json:"active_connections"`
+	IdleConnections    int   `json:"idle_connections"`
+	HealthChecksPassed int64 `json:"health_checks_passed"`
+	HealthChecksFailed int64 `json:"health_checks_failed"`
+	ConnectionsClosed  int64 `json:"connections_closed"`
+
 	// ConnectionPoolRatio is active connections over PoolConfig.MaxConnections,
-	// in [0,1], and 0 when the ceiling is unknown.
-	ActiveConnections   int               `json:"active_connections"`
-	IdleConnections     int               `json:"idle_connections"`
-	HealthChecksPassed  int64             `json:"health_checks_passed"`
-	HealthChecksFailed  int64             `json:"health_checks_failed"`
-	ConnectionsClosed   int64             `json:"connections_closed"`
+	// in [0,1]. It is 0 when no ceiling is known and saturates at 1.
 	ConnectionPoolRatio float64           `json:"connection_pool_ratio"`
 	TopSlowOperations   []OperationMetric `json:"top_slow_operations,omitempty"`
 
@@ -373,7 +374,7 @@ func (pm *PerformanceMonitor) GetStats() *PerformanceMetrics {
 // FailedConnections and TimeoutsCount — have no source in PoolStats and keep
 // their zero values; the pool does not count them.
 func applyPoolStats(stats *PerformanceMetrics, pool *ConnectionPool) {
-	if stats == nil || pool == nil {
+	if pool == nil {
 		return
 	}
 
@@ -414,9 +415,19 @@ func applyPoolStats(stats *PerformanceMetrics, pool *ConnectionPool) {
 // poolUtilisation is the fraction of the pool's capacity currently checked out:
 // active connections over MaxConnections, in [0,1]. It is 0 when the ceiling is
 // unknown, so a caller cannot read a ratio off an undefined denominator.
+//
+// It saturates at 1 rather than reporting above it. The pool's capacity check
+// in createConnection reads len(p.connections) under an RLock it then releases
+// before appending, so two callers racing at capacity-1 can both pass it and
+// active connections can briefly exceed MaxConnections. That is a pool
+// accounting question of its own; a published ratio must not leave its
+// documented range because of it.
 func poolUtilisation(active, maxConnections int) float64 {
 	if maxConnections <= 0 {
 		return 0
+	}
+	if active >= maxConnections {
+		return 1
 	}
 	return float64(active) / float64(maxConnections)
 }

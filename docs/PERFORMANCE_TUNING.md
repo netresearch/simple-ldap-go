@@ -32,7 +32,7 @@ This guide provides comprehensive strategies for optimizing simple-ldap-go perfo
 ```go
 // performance.go - what GetPerformanceStats returns.
 // PerformanceStats is an alias of PerformanceMetrics. Times are durations, not
-// float milliseconds. CacheHitRatio is computed for you; since v1.18.0 so is
+// float milliseconds. CacheHitRatio is computed for you, and so now is
 // ConnectionPoolRatio — active connections over PoolConfig.MaxConnections, and
 // 0 when no pool is configured. The flat pool fields beside it (TotalConnections,
 // ActiveConnections, IdleConnections, PoolHits, PoolMisses, ConnectionsCreated,

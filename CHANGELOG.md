@@ -25,7 +25,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   `GetPoolStats` also reads the pool directly when no performance monitor exists. `Config.Pool` is honoured on its own and does not imply `EnableMetrics`, so a pool-without-metrics client — an ordinary configuration, and the more likely one after the flag change above — used to get zeros from the empty-stats branch.
 
+  `ConnectionPoolRatio` saturates at `1`: the pool's capacity check reads `len(p.connections)` under a read lock it releases before appending, so two callers racing at capacity-1 can both pass it and the active count can briefly exceed `MaxConnections`. The raw counts are reported as they are; only the ratio is clamped, so it cannot leave the range its documentation promises.
+
   A pool that is not configured still reports zeros, and `PoolStats` stays `nil` there, so "no pool" remains distinguishable from "a pool with nothing in it".
+
+  **For readiness probes:** `TotalConnections > 0` holds only while the pool keeps connections. The idle-cleanup loop stops closing at `MinConnections`, so with `MinConnections: 0` an idle pool drains to zero and the predicate goes false again on a perfectly healthy client. `DefaultPoolConfig()` sets `MinConnections: 2`; a caller who overrides it to `0` should test `PoolStats != nil` instead.
 
 - **`New` never released the connection it opens to test the server.** The initialization check called `GetConnection()` and discarded the result. With a pool that connection stayed checked out for the life of the client: one slot of `MaxConnections` was permanently gone and `ActiveConnections` never fell back to zero. Without a pool the socket was left open. It is released now — which is also what makes `ConnectionPoolRatio` read as `0` on an idle client rather than as one connection's worth of utilisation.
 

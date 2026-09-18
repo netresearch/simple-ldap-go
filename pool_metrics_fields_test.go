@@ -61,6 +61,20 @@ func TestApplyPoolStatsPopulatesTheFlatFields(t *testing.T) {
 	assert.Equal(t, int64(12), stats.PoolStats.PoolMisses)
 }
 
+// The pool can report more connections than its ceiling: createConnection
+// reads len(p.connections) under an RLock it releases before appending, so two
+// callers racing at capacity-1 both pass the check. The published ratio must
+// stay inside the range its documentation promises anyway.
+func TestApplyPoolStatsClampsAnOverCapacityRatio(t *testing.T) {
+	pool := poolWithStats(4, 1, PoolStats{ActiveConnections: 6, TotalConnections: 6})
+
+	stats := PerformanceMetrics{}
+	applyPoolStats(&stats, pool)
+
+	assert.InDelta(t, 1.0, stats.ConnectionPoolRatio, 1e-9)
+	assert.Equal(t, 6, stats.ActiveConnections, "the raw count is still reported as-is")
+}
+
 func TestApplyPoolStatsWithoutAPoolLeavesStatsAlone(t *testing.T) {
 	stats := PerformanceMetrics{OperationsTotal: 7}
 	applyPoolStats(&stats, nil)
@@ -82,6 +96,7 @@ func TestPoolUtilisation(t *testing.T) {
 		{"empty pool", 0, 10, 0},
 		{"half checked out", 5, 10, 0.5},
 		{"saturated", 10, 10, 1},
+		{"over capacity saturates at 1", 12, 10, 1},
 		{"unknown ceiling reports no ratio", 4, 0, 0},
 		{"negative ceiling reports no ratio", 4, -1, 0},
 	}
