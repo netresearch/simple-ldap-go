@@ -607,7 +607,7 @@ func TestGetConnectionProtected(t *testing.T) {
 	t.Run("with circuit breaker handles failures", func(t *testing.T) {
 		config := &Config{
 			SkipConnectionCheck: true,
-			Server:              "ldap://failing.server",
+			Server:              "ldap://failing.invalid",
 			Port:                389,
 			BaseDN:              "dc=example,dc=com",
 			Resilience: &ResilienceConfig{
@@ -658,7 +658,7 @@ func TestConnectionFieldName(t *testing.T) {
 
 		// With a pool config it would be set, whatever the server is called
 		config2 := &Config{
-			Server: "ldap://real.server.com",
+			Server: "ldap://real.server.invalid",
 			Port:   389,
 			BaseDN: "dc=real,dc=com",
 			Pool: &PoolConfig{

@@ -17,19 +17,19 @@ import (
 // ---------- LDAPError coverage ----------
 
 func TestLDAPError_ErrorWithoutDN(t *testing.T) {
-	err := NewLDAPError("Bind", "ldaps://prod.corp.local", errors.New("fail"))
+	err := NewLDAPError("Bind", "ldaps://prod.corp.invalid", errors.New("fail"))
 	msg := err.Error()
-	// Server should be masked (not test.com)
+	// Server should be masked
 	assert.Contains(t, msg, "ldap Bind failed on server")
-	assert.NotContains(t, msg, "prod.corp.local") // masked
+	assert.NotContains(t, msg, "prod.corp.invalid") // masked
 
 	umsg := err.UnmaskedError()
-	assert.Contains(t, umsg, "prod.corp.local")
+	assert.Contains(t, umsg, "prod.corp.invalid")
 	assert.NotContains(t, umsg, `for DN`)
 }
 
 func TestLDAPError_ErrorWithDN(t *testing.T) {
-	err := NewLDAPError("Search", "ldaps://prod.corp.local", errors.New("fail")).
+	err := NewLDAPError("Search", "ldaps://prod.corp.invalid", errors.New("fail")).
 		WithDN("CN=admin,DC=corp,DC=local")
 	msg := err.Error()
 	assert.Contains(t, msg, "for DN")
@@ -101,7 +101,7 @@ func TestWrapLDAPError_ContextErrors(t *testing.T) {
 
 func TestWrapLDAPError_NonLDAPError(t *testing.T) {
 	baseErr := errors.New("network timeout")
-	wrapped := WrapLDAPError("Search", "ldaps://srv", baseErr)
+	wrapped := WrapLDAPError("Search", "ldaps://srv.invalid", baseErr)
 	ldapErr, ok := errors.AsType[*LDAPError](wrapped)
 	require.True(t, ok)
 	assert.Equal(t, "Search", ldapErr.Op)
@@ -310,7 +310,7 @@ func TestMaskContextValue(t *testing.T) {
 		{"sensitive key - username", "username", "admin", true},
 		{"sensitive key - dn", "dn", "CN=admin,DC=corp", true},
 		{"sensitive key - token", "token", "abc123", true},
-		{"sensitive key - server", "server", "ldaps://corp.local", true},
+		{"sensitive key - server", "server", "ldaps://corp.invalid", true},
 		{"sensitive key - credential", "credential", "cred123", true},
 		{"sensitive key - secret", "secret", "s3cr3t", true},
 		{"non-sensitive key", "filter", "(cn=test)", false},

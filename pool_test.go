@@ -775,7 +775,7 @@ func TestPoolInitialization(t *testing.T) {
 		servers := []string{
 			"ldap://example.invalid",
 			"ldap://localhost",
-			"ldaps://example.org",
+			"ldaps://example.invalid",
 			"ldap://test.example.invalid",
 		}
 
@@ -918,7 +918,7 @@ func TestPoolInitialization(t *testing.T) {
 		// the client can still be created and fall back to direct connections
 		config := &Config{
 			SkipConnectionCheck: true,
-			Server:              "ldap://unreachable.server.com",
+			Server:              "ldap://unreachable.server.invalid",
 			Port:                389,
 			BaseDN:              "dc=test,dc=com",
 			Pool: &PoolConfig{

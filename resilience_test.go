@@ -256,7 +256,7 @@ func TestLDAPCircuitBreakerIntegration(t *testing.T) {
 	t.Run("circuit breaker protects connections", func(t *testing.T) {
 		config := &Config{
 			SkipConnectionCheck: true,
-			Server:              "ldap://failing.server",
+			Server:              "ldap://failing.invalid",
 			Port:                389,
 			BaseDN:              "dc=example,dc=com",
 			Resilience: &ResilienceConfig{

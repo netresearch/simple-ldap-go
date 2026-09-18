@@ -28,9 +28,10 @@ func TestClientOptionsCreation(t *testing.T) {
 		{
 			name: "basic_client_success",
 			config: Config{
-				Server:            "ldaps://test.example.invalid:636",
-				BaseDN:            "DC=test,DC=example,DC=com",
-				IsActiveDirectory: true,
+				Server:              "ldaps://test.example.invalid:636",
+				BaseDN:              "DC=test,DC=example,DC=com",
+				IsActiveDirectory:   true,
+				SkipConnectionCheck: true,
 			},
 			username:    "CN=test,CN=Users,DC=test,DC=example,DC=com",
 			password:    "password123",
@@ -40,9 +41,10 @@ func TestClientOptionsCreation(t *testing.T) {
 		{
 			name: "client_with_logger",
 			config: Config{
-				Server:            "ldaps://test.example.invalid:636",
-				BaseDN:            "DC=test,DC=example,DC=com",
-				IsActiveDirectory: true,
+				Server:              "ldaps://test.example.invalid:636",
+				BaseDN:              "DC=test,DC=example,DC=com",
+				IsActiveDirectory:   true,
+				SkipConnectionCheck: true,
 			},
 			username: "CN=test,CN=Users,DC=test,DC=example,DC=com",
 			password: "password123",
@@ -54,16 +56,18 @@ func TestClientOptionsCreation(t *testing.T) {
 		{
 			name: "client_with_connection_pool",
 			config: Config{
-				Server:            "ldaps://test.example.invalid:636",
-				BaseDN:            "DC=test,DC=example,DC=com",
-				IsActiveDirectory: true,
+				Server:              "ldaps://test.example.invalid:636",
+				BaseDN:              "DC=test,DC=example,DC=com",
+				IsActiveDirectory:   true,
+				SkipConnectionCheck: true,
 			},
 			username: "CN=test,CN=Users,DC=test,DC=example,DC=com",
 			password: "password123",
 			options: []Option{
 				WithConnectionPool(&PoolConfig{
 					MaxConnections: 10,
-					MinConnections: 2,
+					// 0, so the pool is built without dialling.
+					MinConnections: 0,
 					MaxIdleTime:    5 * time.Minute,
 				}),
 			},
@@ -72,9 +76,10 @@ func TestClientOptionsCreation(t *testing.T) {
 		{
 			name: "client_with_cache",
 			config: Config{
-				Server:            "ldaps://test.example.invalid:636",
-				BaseDN:            "DC=test,DC=example,DC=com",
-				IsActiveDirectory: true,
+				Server:              "ldaps://test.example.invalid:636",
+				BaseDN:              "DC=test,DC=example,DC=com",
+				IsActiveDirectory:   true,
+				SkipConnectionCheck: true,
 			},
 			username: "CN=test,CN=Users,DC=test,DC=example,DC=com",
 			password: "password123",
@@ -90,9 +95,10 @@ func TestClientOptionsCreation(t *testing.T) {
 		{
 			name: "client_with_all_options",
 			config: Config{
-				Server:            "ldaps://test.example.invalid:636",
-				BaseDN:            "DC=test,DC=example,DC=com",
-				IsActiveDirectory: true,
+				Server:              "ldaps://test.example.invalid:636",
+				BaseDN:              "DC=test,DC=example,DC=com",
+				IsActiveDirectory:   true,
+				SkipConnectionCheck: true,
 			},
 			username: "CN=test,CN=Users,DC=test,DC=example,DC=com",
 			password: "password123",
@@ -150,12 +156,13 @@ func TestClientOptionsCreation(t *testing.T) {
 				}
 				assert.Nil(t, client)
 			} else {
-				// Against a real directory these succeed. Here there is none, so
-				// the dial fails — which is now what happens for every server
-				// name, rather than being decided by the hostname (#246).
-				if err != nil {
-					assert.Contains(t, err.Error(), "failed to dial LDAP server")
-				}
+				// These cases carry SkipConnectionCheck, so construction must
+				// succeed outright. The previous form accepted either outcome,
+				// which meant it asserted nothing about the options it exists
+				// to test.
+				require.NoError(t, err)
+				require.NotNil(t, client)
+				t.Cleanup(func() { _ = client.Close() })
 			}
 		})
 	}

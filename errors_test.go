@@ -435,7 +435,7 @@ func ExampleLDAPError() {
 	baseErr := &ldap.Error{ResultCode: ldap.LDAPResultInvalidCredentials}
 
 	// Wrap with enhanced context
-	enhancedErr := WrapLDAPError("AuthenticateUser", "ldaps://ad.company.com", baseErr)
+	enhancedErr := WrapLDAPError("AuthenticateUser", "ldaps://ad.company.invalid", baseErr)
 
 	// Check error type
 	if IsAuthenticationError(enhancedErr) {
