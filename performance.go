@@ -416,14 +416,14 @@ func applyPoolStats(stats *PerformanceMetrics, pool *ConnectionPool) {
 // active connections over MaxConnections, in [0,1]. It is 0 when the ceiling is
 // unknown, so a caller cannot read a ratio off an undefined denominator.
 //
-// It saturates at 1 rather than reporting above it. The pool's capacity check
+// It saturates at both ends rather than reporting outside the range. The pool's capacity check
 // in createConnection reads len(p.connections) under an RLock it then releases
 // before appending, so two callers racing at capacity-1 can both pass it and
 // active connections can briefly exceed MaxConnections. That is a pool
 // accounting question of its own; a published ratio must not leave its
 // documented range because of it.
 func poolUtilisation(active, maxConnections int) float64 {
-	if maxConnections <= 0 {
+	if maxConnections <= 0 || active <= 0 {
 		return 0
 	}
 	if active >= maxConnections {

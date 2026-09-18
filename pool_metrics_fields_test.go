@@ -99,6 +99,7 @@ func TestPoolUtilisation(t *testing.T) {
 		{"over capacity saturates at 1", 12, 10, 1},
 		{"unknown ceiling reports no ratio", 4, 0, 0},
 		{"negative ceiling reports no ratio", 4, -1, 0},
+		{"negative active saturates at 0", -1, 10, 0},
 	}
 
 	for _, tt := range tests {
