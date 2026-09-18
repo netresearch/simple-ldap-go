@@ -5,8 +5,9 @@ package main
 import "testing"
 
 // TestMain_Smoke exercises main() so that the example source file contributes
-// to statement coverage. All LDAP operations short-circuit against example
-// servers.
+// to statement coverage. The LDAP operations fail against an unreachable
+// address and main() reports them rather than exiting, so what this covers is
+// the example's error handling.
 func TestMain_Smoke(t *testing.T) {
 	main()
 }
