@@ -231,9 +231,9 @@ func TestBulkOps_DisabledByDefault(t *testing.T) {
 		EnableBulkOps: false,
 	}, "admin", "pass")
 	require.NoError(t, err)
-	// The default path in New() sets EnableOptimizations=true, which in turn
-	// flips EnableBulkOps. To exercise the error branch explicitly, flip it off.
-	client.config.EnableBulkOps = false
+	// EnableBulkOps is read on its own (users.go), so the zero value above is
+	// what the bulk calls see. The comment that used to stand here claimed
+	// EnableOptimizations flips it; nothing in the package ever did.
 
 	t.Run("BulkCreateUsers", func(t *testing.T) {
 		res, err := client.BulkCreateUsers([]FullUser{{CN: "a"}}, "x")

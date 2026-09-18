@@ -68,9 +68,6 @@ type Config struct {
 
 // New creates a new LDAP client with the given configuration and optional functional options
 func New(config Config, username, password string, opts ...Option) (*LDAP, error) {
-	// Enable optimizations by default for better performance
-	config.EnableOptimizations = true
-
 	start := time.Now()
 
 	// Value types cannot be nil, so no nil validation needed
@@ -149,6 +146,17 @@ func New(config Config, username, password string, opts ...Option) (*LDAP, error
 	// WithLogger(...) was passed as an option. Without this, those logs would
 	// still hit slog.Default() because `logger` was captured before options ran.
 	logger = client.logger
+
+	// Until v1.17.0 New set EnableOptimizations itself, so caching and metrics
+	// were on for every client whatever the caller wrote. Now that the flags are
+	// honoured, a caller who set none gets neither — and nothing fails to tell
+	// them. This record is the signal for an operator upgrading across that
+	// change; it is gated on a real server like the other initialization logs.
+	if !config.EnableCache && !config.EnableMetrics && !config.EnableOptimizations && !isExample {
+		logger.Info("optimizations_disabled",
+			slog.String("server", config.Server),
+			slog.String("hint", "no cache and no metrics: set EnableCache, EnableMetrics or EnableOptimizations to enable them"))
+	}
 
 	// Initialize cache if enabled (skip for example servers).
 	// config.Cache may have been set by the caller or by a WithCache option

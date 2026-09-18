@@ -865,12 +865,14 @@ pass is copied, so the client does not write its defaults back into it.
 `Enabled` is the one field the client sets itself, because reaching cache
 construction already means a cache is being built.
 
-Note what that means for the two flags: `New` sets `Config.EnableOptimizations`
-before it applies any option, and the cache is built when either that or
-`Config.EnableCache` is set. A client built through `New` therefore always
-caches, and setting `EnableCache: false` does not turn it off - see
-[#243](https://github.com/netresearch/simple-ldap-go/issues/243). The example
-below sets the flag to say what it wants, not because it is required.
+Caching is opt-in. The cache is built when `Config.EnableCache` or
+`Config.EnableOptimizations` is set, and both default to false - so the flag in
+the example below is what asks for the cache, not decoration.
+
+Up to and including v1.17.0, `New` set `EnableOptimizations` itself, so every
+client cached whatever the caller wrote and neither flag could turn it off. A
+client that relied on that and sets no flag now runs uncached, and logs
+`optimizations_disabled` at INFO once at construction to say so.
 
 ### Basic Configuration
 

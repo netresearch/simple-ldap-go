@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **BEHAVIOUR: the optimization flags are honoured, so a client that asks for nothing gets nothing.** `New` set `Config.EnableOptimizations = true` at its top, before validation and before any option ran. The cache and the performance monitor are built when their own flag *or* `EnableOptimizations` is set, so both were on for every client whatever the caller wrote — `EnableCache: false` could not turn caching off, and neither could `EnableOptimizations: false`. Every client against a real server allocated a 1000-entry, 64 MB cache and started three background loops ([#243](https://github.com/netresearch/simple-ldap-go/issues/243)).
+
+  The line arrived in `e7becee` (2025-09-27), the same commit that added the four flags "for fine-grained control over performance features" — it contradicted its own purpose, and `DefaultCacheConfig()` has said `Enabled: false // Disabled by default for backwards compatibility` throughout.
+
+  **What to check before upgrading:** if you construct a client without setting `EnableCache`, `EnableMetrics` or `EnableOptimizations`, you have been running with a cache and metrics you did not ask for, and after this change you will not be. Nothing fails and nothing warns at compile time — the directory simply sees more traffic. Set the flag you want. For one release, `New` logs `optimizations_disabled` at INFO when none of the three is set, naming the flags.
+
+  `EnableBulkOps` is unaffected: it was always read on its own and always opt-in.
+
 ### Fixed
 
 - **`New` ignored `Config.Cache`.** The cache was built from `DefaultCacheConfig()` and the supplied configuration was read in exactly one place, `users.go`, for `TTL` alone — so `MaxSize`, `MaxMemoryMB`, `NegativeCacheTTL`, `RefreshInterval`, `RefreshOnAccess`, `CompressionEnabled` and `CompressionThreshold` had no effect whatever the caller set, with no error and no log line saying so. A client asking for `MaxSize: 100000` ran at the default 1000. It also took `NewCachedClient`'s `maxSize` argument with it — that constructor wraps `maxSize` and `ttl` in a `CacheConfig` and passes it through `WithCache`, and only the `ttl` half survived, because `getCacheTTL` in `users.go` reads it back. `NewHighPerformanceClient` lost its cache sizing the same way ([#240](https://github.com/netresearch/simple-ldap-go/issues/240)).

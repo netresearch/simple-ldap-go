@@ -277,11 +277,24 @@ config, err := ldap.NewConfigBuilder().
     Build()
 ```
 
-No enable flag is needed alongside it. `New` sets `Config.EnableOptimizations`
-itself before it applies any option (`client.go`), and the cache is built when
-either that or `EnableCache` is set - so a client built through `New` caches
-whatever the caller does. The configuration is honoured in full: the client
-copies it and builds the cache from it.
+That block configures a cache; it does not yet produce one. Two things have to
+be true for the client to build it:
+
+```go
+config.EnableCache = true // or EnableOptimizations
+
+// …and the server must not look like a test server. New treats a host
+// containing "example.", "localhost", "test.com" and a handful of similar
+// names as one, and skips the cache, the pool, the metrics and the connection
+// check for it - so the address in the snippet above builds nothing.
+config.Server = "ldaps://ldap.corp.internal:636"
+
+client, err := ldap.New(*config, bindDN, password)
+```
+
+`WithCache` supplies the settings, the flag asks for the cache, and the address
+decides whether any of it is built. The settings themselves are honoured in
+full: the client copies the struct and builds the cache from it.
 
 #### Security and timeouts
 

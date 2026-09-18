@@ -136,11 +136,15 @@ type Config struct {
 }
 ```
 
-#### Flag Priority
+#### How the flags combine
 
-1. **Specific flags override global**: `EnableCache` overrides `EnableOptimizations` for caching
-2. **EnableOptimizations = true**: Enables all optimization features by default
-3. **Individual control**: Each feature can be controlled independently
+They are an OR, not a priority, and nothing overrides anything:
+
+1. The cache is built when `EnableCache` **or** `EnableOptimizations` is set, and the performance monitor when `EnableMetrics` **or** `EnableOptimizations` is set.
+2. `EnableBulkOps` stands alone: the bulk operations check that flag only, and `EnableOptimizations` does not cover them.
+3. All four default to false. A feature you do not ask for is not built — there is no way to switch one off that a flag turned on, because no flag turns anything on that you did not set.
+
+Up to and including v1.17.0, `New` set `EnableOptimizations` itself, so the cache and the monitor were on for every client and neither flag could turn them off.
 
 ## Metrics Collection and Analysis
 
