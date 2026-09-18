@@ -11,15 +11,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// newExampleClient builds a client that points at an example/test server so
+// newOfflineClient builds a client that points at an unreachable address so
 // that GetConnection returns an error before touching the network. This lets
 // us exercise error paths in every LDAP client method without requiring an
 // actual directory.
-func newExampleClient(t *testing.T) *LDAP {
+func newOfflineClient(t *testing.T) *LDAP {
 	t.Helper()
 	client, err := New(Config{
-		Server: "ldap://example.com:389",
-		BaseDN: "dc=example,dc=com",
+		SkipConnectionCheck: true,
+		Server:              "ldap://example.invalid:389",
+		BaseDN:              "dc=example,dc=com",
 	}, "cn=admin,dc=example,dc=com", "pass")
 	require.NoError(t, err)
 	require.NotNil(t, client)
@@ -31,14 +32,14 @@ func newExampleClient(t *testing.T) *LDAP {
 // =============================================================================
 
 func TestFindUserByDN_ConnectionError(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	user, err := client.FindUserByDN("cn=x,dc=example,dc=com")
 	assert.Error(t, err)
 	assert.Nil(t, user)
 }
 
 func TestFindUserByDN_CancelledContext(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	user, err := client.FindUserByDNContext(ctx, "cn=x,dc=example,dc=com")
@@ -47,14 +48,14 @@ func TestFindUserByDN_CancelledContext(t *testing.T) {
 }
 
 func TestFindUserByMail_ConnectionError(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	user, err := client.FindUserByMail("foo@example.com")
 	assert.Error(t, err)
 	assert.Nil(t, user)
 }
 
 func TestFindUserByMail_CancelledContext(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	user, err := client.FindUserByMailContext(ctx, "foo@example.com")
@@ -63,14 +64,14 @@ func TestFindUserByMail_CancelledContext(t *testing.T) {
 }
 
 func TestFindUsersBySAMAccountNames_Empty(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	users, err := client.FindUsersBySAMAccountNames(nil)
 	assert.NoError(t, err)
 	assert.Empty(t, users)
 }
 
 func TestFindUsersBySAMAccountNames_CancelledContext(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	users, err := client.FindUsersBySAMAccountNamesContext(ctx, []string{"a", "b"})
@@ -79,22 +80,8 @@ func TestFindUsersBySAMAccountNames_CancelledContext(t *testing.T) {
 	assert.Empty(t, users)
 }
 
-func TestFindUsers_ExampleServerReturnsMockData(t *testing.T) {
-	client := newExampleClient(t)
-	users, err := client.FindUsers()
-	assert.NoError(t, err)
-	assert.NotEmpty(t, users)
-	// Example server produces 150 mock users.
-	assert.Len(t, users, 150)
-	// Mock users are wired as enabled and have sAMAccountName values.
-	for _, u := range users[:5] {
-		assert.True(t, u.Enabled)
-		assert.NotEmpty(t, u.SAMAccountName)
-	}
-}
-
 func TestFindUsers_CancelledContext(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	users, err := client.FindUsersContext(ctx)
@@ -103,13 +90,13 @@ func TestFindUsers_CancelledContext(t *testing.T) {
 }
 
 func TestAddUserToGroup_ConnectionError(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	err := client.AddUserToGroup("cn=u,dc=example,dc=com", "cn=g,dc=example,dc=com")
 	assert.Error(t, err)
 }
 
 func TestAddUserToGroup_CancelledContext(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	err := client.AddUserToGroupContext(ctx, "cn=u,dc=example,dc=com", "cn=g,dc=example,dc=com")
@@ -117,13 +104,13 @@ func TestAddUserToGroup_CancelledContext(t *testing.T) {
 }
 
 func TestRemoveUserFromGroup_ConnectionError(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	err := client.RemoveUserFromGroup("cn=u,dc=example,dc=com", "cn=g,dc=example,dc=com")
 	assert.Error(t, err)
 }
 
 func TestRemoveUserFromGroup_CancelledContext(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	err := client.RemoveUserFromGroupContext(ctx, "cn=u,dc=example,dc=com", "cn=g,dc=example,dc=com")
@@ -131,7 +118,7 @@ func TestRemoveUserFromGroup_CancelledContext(t *testing.T) {
 }
 
 func TestCreateUser_ConnectionError(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	sam := "newuser"
 	email := "new@example.com"
 	desc := "d"
@@ -148,7 +135,7 @@ func TestCreateUser_ConnectionError(t *testing.T) {
 }
 
 func TestCreateUser_WithPath(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	path := "ou=users"
 	sam := "user"
 	user := FullUser{
@@ -163,7 +150,7 @@ func TestCreateUser_WithPath(t *testing.T) {
 }
 
 func TestCreateUser_CancelledContext(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	_, err := client.CreateUserContext(ctx, FullUser{CN: "c"}, "pass")
@@ -171,8 +158,8 @@ func TestCreateUser_CancelledContext(t *testing.T) {
 }
 
 func TestCreateUser_InvalidIdentifier(t *testing.T) {
-	client := newExampleClient(t)
-	// newExampleClient is non-AD, so the identifier is validated with the uid
+	client := newOfflineClient(t)
+	// newOfflineClient is non-AD, so the identifier is validated with the uid
 	// rules. A leading space is invalid there (and would be under sAMAccountName
 	// too), so creation is rejected before any connection is attempted. An
 	// interior space, by contrast, is now legal on OpenLDAP — that over-strict
@@ -189,7 +176,7 @@ func TestCreateUser_InvalidIdentifier(t *testing.T) {
 }
 
 func TestModifyUser_ConnectionError(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	err := client.ModifyUser("cn=x,dc=example,dc=com", map[string][]string{
 		"description": {"new"},
 	})
@@ -197,7 +184,7 @@ func TestModifyUser_ConnectionError(t *testing.T) {
 }
 
 func TestModifyUser_CancelledContext(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	err := client.ModifyUserContext(ctx, "cn=x,dc=example,dc=com", map[string][]string{"description": {"new"}})
@@ -205,13 +192,13 @@ func TestModifyUser_CancelledContext(t *testing.T) {
 }
 
 func TestDeleteUser_ConnectionError(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	err := client.DeleteUser("cn=x,dc=example,dc=com")
 	assert.Error(t, err)
 }
 
 func TestDeleteUser_CancelledContext(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	err := client.DeleteUserContext(ctx, "cn=x,dc=example,dc=com")
@@ -226,9 +213,10 @@ func TestBulkOps_DisabledByDefault(t *testing.T) {
 	// The exported bulk operations are gated behind EnableBulkOps. When
 	// disabled they must return an explicit error.
 	client, err := New(Config{
-		Server:        "ldap://example.com:389",
-		BaseDN:        "dc=example,dc=com",
-		EnableBulkOps: false,
+		SkipConnectionCheck: true,
+		Server:              "ldap://example.invalid:389",
+		BaseDN:              "dc=example,dc=com",
+		EnableBulkOps:       false,
 	}, "admin", "pass")
 	require.NoError(t, err)
 	// EnableBulkOps is read on its own (users.go), so the zero value above is
@@ -273,9 +261,10 @@ func newBulkOpsClient(t *testing.T) *LDAP {
 	// operations will fail at GetConnection time — which is fine: we only
 	// care that the bulk call RETURNS rather than hangs.
 	client, err := New(Config{
-		Server:        "ldap://example.com:389",
-		BaseDN:        "dc=example,dc=com",
-		EnableBulkOps: true,
+		SkipConnectionCheck: true,
+		Server:              "ldap://example.invalid:389",
+		BaseDN:              "dc=example,dc=com",
+		EnableBulkOps:       true,
 	}, "cn=admin,dc=example,dc=com", "pass")
 	require.NoError(t, err)
 	require.NotNil(t, client)
@@ -374,14 +363,14 @@ func TestBulkDeleteUsersContext_NoDeadlock(t *testing.T) {
 // =============================================================================
 
 func TestFindGroupByDN_ConnectionError(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	group, err := client.FindGroupByDN("cn=g,dc=example,dc=com")
 	assert.Error(t, err)
 	assert.Nil(t, group)
 }
 
 func TestFindGroupByDN_CancelledContext(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	group, err := client.FindGroupByDNContext(ctx, "cn=g,dc=example,dc=com")
@@ -390,14 +379,14 @@ func TestFindGroupByDN_CancelledContext(t *testing.T) {
 }
 
 func TestFindGroups_ConnectionError(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	groups, err := client.FindGroups()
 	assert.Error(t, err)
 	assert.Nil(t, groups)
 }
 
 func TestFindGroups_CancelledContext(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	groups, err := client.FindGroupsContext(ctx)
@@ -410,14 +399,14 @@ func TestFindGroups_CancelledContext(t *testing.T) {
 // =============================================================================
 
 func TestFindComputerByDN_ConnectionError(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	c, err := client.FindComputerByDN("cn=c,dc=example,dc=com")
 	assert.Error(t, err)
 	assert.Nil(t, c)
 }
 
 func TestFindComputerByDN_CancelledContext(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	c, err := client.FindComputerByDNContext(ctx, "cn=c,dc=example,dc=com")
@@ -426,16 +415,15 @@ func TestFindComputerByDN_CancelledContext(t *testing.T) {
 }
 
 func TestFindComputers_ConnectionError(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	computers, err := client.FindComputers()
-	// Implementation may return mock data for example server or a connection error.
-	// Either way, it must not panic and the result must be coherent.
-	if err != nil {
-		assert.Nil(t, computers)
-	} else {
-		// nil-safe; just iterate defensively
-		_ = computers
-	}
+
+	// The assertion used to sit under `if err != nil`, with an empty else, so
+	// a (nil, nil) return — the shape #246 was about — kept it green. There is
+	// no directory here, so the dial must fail and say so.
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to dial LDAP server")
+	assert.Nil(t, computers)
 }
 
 // =============================================================================
@@ -443,14 +431,14 @@ func TestFindComputers_ConnectionError(t *testing.T) {
 // =============================================================================
 
 func TestCheckPasswordForDN_ConnectionError(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	u, err := client.CheckPasswordForDN("cn=x,dc=example,dc=com", "pw")
 	assert.Error(t, err)
 	assert.Nil(t, u)
 }
 
 func TestCheckPasswordForDN_CancelledContext(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	u, err := client.CheckPasswordForDNContext(ctx, "cn=x,dc=example,dc=com", "pw")
@@ -459,7 +447,7 @@ func TestCheckPasswordForDN_CancelledContext(t *testing.T) {
 }
 
 func TestCheckPasswordForDN_EmptyPassword(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	// Empty password should still produce a handled error (rather than panicking).
 	u, err := client.CheckPasswordForDN("cn=x,dc=example,dc=com", "")
 	assert.Error(t, err)
@@ -472,7 +460,7 @@ func TestCheckPasswordForDN_EmptyPassword(t *testing.T) {
 // =============================================================================
 
 func TestConcurrentOps_BulkCreateUsers(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	co := NewConcurrentOperations(client, 2)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -488,7 +476,7 @@ func TestConcurrentOps_BulkCreateUsers(t *testing.T) {
 }
 
 func TestConcurrentOps_BulkFindUsers(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	co := NewConcurrentOperations(client, 2)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -499,7 +487,7 @@ func TestConcurrentOps_BulkFindUsers(t *testing.T) {
 }
 
 func TestConcurrentOps_BulkDeleteUsers(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	co := NewConcurrentOperations(client, 2)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -513,15 +501,16 @@ func TestConcurrentOps_BulkDeleteUsers(t *testing.T) {
 // =============================================================================
 
 func TestGetCacheTTL_Default(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	ttl := client.getCacheTTL()
 	assert.Equal(t, 5*time.Minute, ttl)
 }
 
 func TestGetCacheTTL_FromConfig(t *testing.T) {
 	client, err := New(Config{
-		Server: "ldap://example.com:389",
-		BaseDN: "dc=example,dc=com",
+		SkipConnectionCheck: true,
+		Server:              "ldap://example.invalid:389",
+		BaseDN:              "dc=example,dc=com",
 		Cache: &CacheConfig{
 			Enabled: true,
 			TTL:     30 * time.Second,

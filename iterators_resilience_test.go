@@ -2,6 +2,11 @@
 
 package ldap
 
+// Every address here is 127.0.0.1:1, which refuses immediately and asks no
+// resolver. These tests drive iterators, so each operation dials; a name —
+// even under .invalid, which RFC 6761 reserves — still goes through the
+// resolver, and a wildcard one would answer it.
+
 import (
 	"context"
 	"testing"
@@ -16,9 +21,10 @@ func TestIteratorsWithCircuitBreaker(t *testing.T) {
 	t.Run("SearchIter without circuit breaker", func(t *testing.T) {
 		// Setup client without circuit breaker
 		config := &Config{
-			Server: "ldap://example.com",
-			Port:   389,
-			BaseDN: "dc=example,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://127.0.0.1:1",
+			Port:                389,
+			BaseDN:              "dc=example,dc=com",
 		}
 
 		client, err := New(*config, "user", "pass")
@@ -45,15 +51,17 @@ func TestIteratorsWithCircuitBreaker(t *testing.T) {
 
 		assert.Error(t, iterErr)
 		assert.NotContains(t, iterErr.Error(), "circuit breaker")
-		assert.Contains(t, iterErr.Error(), "connection to example server not available")
+		assert.Contains(t, iterErr.Error(), "failed to dial LDAP server",
+			"the stub is gone, so a real dial must have been attempted")
 	})
 
 	t.Run("SearchIter with circuit breaker fast failure", func(t *testing.T) {
 		// Setup client with circuit breaker
 		config := &Config{
-			Server: "ldap://failing.server",
-			Port:   389,
-			BaseDN: "dc=example,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://127.0.0.1:1",
+			Port:                389,
+			BaseDN:              "dc=example,dc=com",
 			Resilience: &ResilienceConfig{
 				EnableCircuitBreaker: true,
 				CircuitBreaker: &CircuitBreakerConfig{
@@ -105,9 +113,10 @@ func TestIteratorsWithCircuitBreaker(t *testing.T) {
 
 	t.Run("SearchPagedIter with circuit breaker", func(t *testing.T) {
 		config := &Config{
-			Server: "ldap://test.server",
-			Port:   389,
-			BaseDN: "dc=example,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://127.0.0.1:1",
+			Port:                389,
+			BaseDN:              "dc=example,dc=com",
 			Resilience: &ResilienceConfig{
 				EnableCircuitBreaker: true,
 				CircuitBreaker: &CircuitBreakerConfig{
@@ -157,9 +166,10 @@ func TestIteratorsWithCircuitBreaker(t *testing.T) {
 
 	t.Run("GroupMembersIter inherits circuit breaker protection", func(t *testing.T) {
 		config := &Config{
-			Server: "ldap://test.server",
-			Port:   389,
-			BaseDN: "dc=example,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://127.0.0.1:1",
+			Port:                389,
+			BaseDN:              "dc=example,dc=com",
 			Resilience: &ResilienceConfig{
 				EnableCircuitBreaker: true,
 				CircuitBreaker: &CircuitBreakerConfig{
@@ -203,9 +213,10 @@ func TestIteratorsWithCircuitBreaker(t *testing.T) {
 
 	t.Run("circuit breaker recovery", func(t *testing.T) {
 		config := &Config{
-			Server: "ldap://recovering.server",
-			Port:   389,
-			BaseDN: "dc=example,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://127.0.0.1:1",
+			Port:                389,
+			BaseDN:              "dc=example,dc=com",
 			Resilience: &ResilienceConfig{
 				EnableCircuitBreaker: true,
 				CircuitBreaker: &CircuitBreakerConfig{
@@ -262,9 +273,10 @@ func TestIteratorsWithCircuitBreaker(t *testing.T) {
 	t.Run("performance comparison with and without circuit breaker", func(t *testing.T) {
 		// Without circuit breaker - slow failures
 		configNoCB := &Config{
-			Server: "ldap://slow.server",
-			Port:   389,
-			BaseDN: "dc=example,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://127.0.0.1:1",
+			Port:                389,
+			BaseDN:              "dc=example,dc=com",
 		}
 
 		clientNoCB, err := New(*configNoCB, "user", "pass")
@@ -272,9 +284,10 @@ func TestIteratorsWithCircuitBreaker(t *testing.T) {
 
 		// With circuit breaker - fast failures after initial failures
 		configWithCB := &Config{
-			Server: "ldap://slow.server",
-			Port:   389,
-			BaseDN: "dc=example,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://127.0.0.1:1",
+			Port:                389,
+			BaseDN:              "dc=example,dc=com",
 			Resilience: &ResilienceConfig{
 				EnableCircuitBreaker: true,
 				CircuitBreaker: &CircuitBreakerConfig{
@@ -339,9 +352,10 @@ func TestIteratorsWithCircuitBreaker(t *testing.T) {
 
 	t.Run("context cancellation at connection level", func(t *testing.T) {
 		config := &Config{
-			Server: "ldap://test.server",
-			Port:   389,
-			BaseDN: "dc=example,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://127.0.0.1:1",
+			Port:                389,
+			BaseDN:              "dc=example,dc=com",
 			Resilience: &ResilienceConfig{
 				EnableCircuitBreaker: true,
 				CircuitBreaker: &CircuitBreakerConfig{
@@ -384,9 +398,10 @@ func TestIteratorsWithCircuitBreaker(t *testing.T) {
 
 	t.Run("context timeout at connection level", func(t *testing.T) {
 		config := &Config{
-			Server: "ldap://test.server",
-			Port:   389,
-			BaseDN: "dc=example,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://127.0.0.1:1",
+			Port:                389,
+			BaseDN:              "dc=example,dc=com",
 			Resilience: &ResilienceConfig{
 				EnableCircuitBreaker: true,
 				CircuitBreaker: &CircuitBreakerConfig{

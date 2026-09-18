@@ -209,14 +209,14 @@ func TestValidateServerURL(t *testing.T) {
 		url         string
 		expectValid bool
 	}{
-		{"Valid LDAP", "ldap://example.com:389", true},
-		{"Valid LDAPS", "ldaps://example.com:636", true},
-		{"Valid without port", "ldaps://example.com", true},
+		{"Valid LDAP", "ldap://example.invalid:389", true},
+		{"Valid LDAPS", "ldaps://example.invalid:636", true},
+		{"Valid without port", "ldaps://example.invalid", true},
 		{"Empty URL", "", false},
 		{"Invalid scheme", "http://example.com", false},
 		{"No hostname", "ldap://", false},
-		{"Invalid port", "ldap://example.com:abc", false},
-		{"Port out of range", "ldap://example.com:99999", false},
+		{"Invalid port", "ldap://example.invalid:abc", false},
+		{"Port out of range", "ldap://example.invalid:99999", false},
 	}
 
 	for _, tt := range tests {

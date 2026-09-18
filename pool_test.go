@@ -740,13 +740,16 @@ func TestLDAP_PoolWithCredentials(t *testing.T) {
 
 // Tests from client_pool_init_test.go
 func TestPoolInitialization(t *testing.T) {
-	t.Run("pool enabled for non-example servers", func(t *testing.T) {
+	t.Run("a pool that cannot be warmed leaves the client without one", func(t *testing.T) {
 		config := &Config{
-			Server: "ldap://production.server.com",
-			Port:   389,
-			BaseDN: "dc=prod,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://production.server.invalid",
+			Port:                389,
+			BaseDN:              "dc=prod,dc=com",
 			Pool: &PoolConfig{
-				MaxConnections:      10,
+				MaxConnections: 10,
+				// A positive minimum means NewConnectionPool dials that many
+				// times before returning, and nothing here answers.
 				MinConnections:      2,
 				MaxIdleTime:         5 * time.Minute,
 				HealthCheckInterval: 30 * time.Second,
@@ -754,29 +757,34 @@ func TestPoolInitialization(t *testing.T) {
 		}
 
 		client, err := New(*config, "user", "pass")
+
+		// New logs the pool failure and continues without a pool rather than
+		// failing construction — the documented fallback to direct connections.
+		// The previous form of this assertion was `if connPool != nil { NotNil }`,
+		// which could not fail either way.
 		require.NoError(t, err)
 		require.NotNil(t, client)
-
-		// Pool initialization may fail for non-reachable servers
-		// but the client should still be created
-		if client.connPool != nil {
-			assert.NotNil(t, client.connPool)
-		}
+		assert.Nil(t, client.connPool, "warm-up failed, so no pool should be attached")
 	})
 
-	t.Run("pool disabled for example servers", func(t *testing.T) {
-		exampleServers := []string{
-			"ldap://example.com",
+	t.Run("the pool is built whatever the server is called", func(t *testing.T) {
+		// This subtest used to assert the opposite: any server name matching a
+		// substring list got no pool at all, silently, which covered every
+		// locally running directory (#246). MinConnections is 0 here, so the
+		// pool is created without dialling.
+		servers := []string{
+			"ldap://example.invalid",
 			"ldap://localhost",
-			"ldaps://example.org",
-			"ldap://test.example.com",
+			"ldaps://example.invalid",
+			"ldap://test.example.invalid",
 		}
 
-		for _, server := range exampleServers {
+		for _, server := range servers {
 			config := &Config{
-				Server: server,
-				Port:   389,
-				BaseDN: "dc=example,dc=com",
+				Server:              server,
+				Port:                389,
+				BaseDN:              "dc=example,dc=com",
+				SkipConnectionCheck: true,
 				Pool: &PoolConfig{
 					MaxConnections: 5,
 				},
@@ -784,16 +792,20 @@ func TestPoolInitialization(t *testing.T) {
 
 			client, err := New(*config, "user", "pass")
 			require.NoError(t, err, "Failed for server: %s", server)
-			assert.Nil(t, client.connPool, "Pool should be nil for example server: %s", server)
+			assert.NotNil(t, client.connPool, "Config.Pool was set, so a pool must be built: %s", server)
+			if client.connPool != nil {
+				_ = client.Close()
+			}
 		}
 	})
 
 	t.Run("pool not initialized when config is nil", func(t *testing.T) {
 		config := &Config{
-			Server: "ldap://prod.server.com",
-			Port:   389,
-			BaseDN: "dc=prod,dc=com",
-			Pool:   nil,
+			Server:              "ldap://prod.server.invalid",
+			Port:                389,
+			BaseDN:              "dc=prod,dc=com",
+			SkipConnectionCheck: true,
+			Pool:                nil,
 		}
 
 		client, err := New(*config, "user", "pass")
@@ -836,10 +848,11 @@ func TestPoolInitialization(t *testing.T) {
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
 				config := &Config{
-					Server: "ldap://server.com",
-					Port:   389,
-					BaseDN: "dc=test,dc=com",
-					Pool:   tc.poolConfig,
+					Server:              "ldap://server.invalid",
+					Port:                389,
+					BaseDN:              "dc=test,dc=com",
+					SkipConnectionCheck: true,
+					Pool:                tc.poolConfig,
 				}
 
 				client, err := New(*config, "user", "pass")
@@ -856,9 +869,10 @@ func TestPoolInitialization(t *testing.T) {
 
 	t.Run("pool with connection options", func(t *testing.T) {
 		config := &Config{
-			Server: "ldap://server.com",
-			Port:   389,
-			BaseDN: "dc=test,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://server.invalid",
+			Port:                389,
+			BaseDN:              "dc=test,dc=com",
 			Pool: &PoolConfig{
 				MaxConnections: 5,
 				MaxIdleTime:    10 * time.Minute,
@@ -877,9 +891,10 @@ func TestPoolInitialization(t *testing.T) {
 
 	t.Run("pool initialization with circuit breaker", func(t *testing.T) {
 		config := &Config{
-			Server: "ldap://server.com",
-			Port:   389,
-			BaseDN: "dc=test,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://server.invalid",
+			Port:                389,
+			BaseDN:              "dc=test,dc=com",
 			Pool: &PoolConfig{
 				MaxConnections: 5,
 			},
@@ -902,9 +917,10 @@ func TestPoolInitialization(t *testing.T) {
 		// This tests that even if pool initialization fails,
 		// the client can still be created and fall back to direct connections
 		config := &Config{
-			Server: "ldap://unreachable.server.com",
-			Port:   389,
-			BaseDN: "dc=test,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://unreachable.server.invalid",
+			Port:                389,
+			BaseDN:              "dc=test,dc=com",
 			Pool: &PoolConfig{
 				MaxConnections: 5,
 				MinConnections: 5, // Force immediate connection attempts
@@ -913,17 +929,26 @@ func TestPoolInitialization(t *testing.T) {
 
 		client, err := New(*config, "user", "pass")
 		require.NoError(t, err)
-		assert.NotNil(t, client)
-		// Pool may be nil if initialization failed
-		// Client should fall back to direct connections
+		require.NotNil(t, client)
+
+		// The two behaviours this subtest names, now asserted rather than
+		// described. Before #246 neither ran: pool initialization was skipped
+		// outright for a name like this one, so the fallback was never reached.
+		assert.Nil(t, client.connPool, "warm-up cannot succeed, so no pool is attached")
+
+		_, err = client.GetConnectionContext(context.Background())
+		require.Error(t, err, "the fallback is a direct dial, which also fails here")
+		assert.Contains(t, err.Error(), "failed to dial LDAP server",
+			"the error must come from a real dial, not from the pool")
 	})
 
 	t.Run("connection retrieval with and without pool", func(t *testing.T) {
 		// Without pool
 		configNoPool := &Config{
-			Server: "ldap://example.com",
-			Port:   389,
-			BaseDN: "dc=example,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://example.invalid",
+			Port:                389,
+			BaseDN:              "dc=example,dc=com",
 		}
 
 		clientNoPool, err := New(*configNoPool, "user", "pass")
@@ -934,13 +959,15 @@ func TestPoolInitialization(t *testing.T) {
 		conn, err := clientNoPool.GetConnectionContext(ctx)
 		assert.Error(t, err)
 		assert.Nil(t, conn)
-		assert.Contains(t, err.Error(), "connection to example server not available")
+		assert.Contains(t, err.Error(), "failed to dial LDAP server",
+			"the stub is gone, so a real dial must have been attempted")
 
-		// With pool (but for example server, so pool won't be initialized)
+		// With a pool configured, which is built whatever the server is called
 		configWithPool := &Config{
-			Server: "ldap://example.com",
-			Port:   389,
-			BaseDN: "dc=example,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://example.invalid",
+			Port:                389,
+			BaseDN:              "dc=example,dc=com",
 			Pool: &PoolConfig{
 				MaxConnections: 5,
 			},
@@ -948,21 +975,29 @@ func TestPoolInitialization(t *testing.T) {
 
 		clientWithPool, err := New(*configWithPool, "user", "pass")
 		require.NoError(t, err)
-		assert.Nil(t, clientWithPool.connPool) // Pool not initialized for example servers
+		// Config.Pool was set, so a pool is built — the hostname no longer
+		// decides that (#246). MinConnections is 0, so nothing was dialled.
+		assert.NotNil(t, clientWithPool.connPool)
+		t.Cleanup(func() { _ = clientWithPool.Close() })
 
 		conn, err = clientWithPool.GetConnectionContext(ctx)
 		assert.Error(t, err)
 		assert.Nil(t, conn)
-		assert.Contains(t, err.Error(), "connection to example server not available")
+		// This path goes through the pool, so the dial failure arrives wrapped
+		// in the pool's own message rather than the direct one.
+		assert.Contains(t, err.Error(), "failed to get connection from pool",
+			"the stub is gone, so a real dial must have been attempted")
+		assert.Contains(t, err.Error(), "dial tcp")
 	})
 
 	t.Run("pool with custom logger", func(t *testing.T) {
 		customLogger := slog.Default().With("test", "pool_init")
 
 		config := &Config{
-			Server: "ldap://server.com",
-			Port:   389,
-			BaseDN: "dc=test,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://server.invalid",
+			Port:                389,
+			BaseDN:              "dc=test,dc=com",
 			Pool: &PoolConfig{
 				MaxConnections: 5,
 			},
@@ -980,9 +1015,10 @@ func TestPoolInitialization(t *testing.T) {
 func TestPoolHealthCheck(t *testing.T) {
 	t.Run("health check interval configuration", func(t *testing.T) {
 		config := &Config{
-			Server: "ldap://server.com",
-			Port:   389,
-			BaseDN: "dc=test,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://server.invalid",
+			Port:                389,
+			BaseDN:              "dc=test,dc=com",
 			Pool: &PoolConfig{
 				MaxConnections:      5,
 				HealthCheckInterval: 10 * time.Second,
@@ -999,9 +1035,10 @@ func TestPoolHealthCheck(t *testing.T) {
 
 	t.Run("pool with idle timeout", func(t *testing.T) {
 		config := &Config{
-			Server: "ldap://server.com",
-			Port:   389,
-			BaseDN: "dc=test,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://server.invalid",
+			Port:                389,
+			BaseDN:              "dc=test,dc=com",
 			Pool: &PoolConfig{
 				MaxConnections: 5,
 				MaxIdleTime:    30 * time.Second,
@@ -1021,9 +1058,10 @@ func TestPoolHealthCheck(t *testing.T) {
 func TestPoolConcurrency(t *testing.T) {
 	t.Run("concurrent pool initialization", func(t *testing.T) {
 		config := &Config{
-			Server: "ldap://server.com",
-			Port:   389,
-			BaseDN: "dc=test,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://server.invalid",
+			Port:                389,
+			BaseDN:              "dc=test,dc=com",
 			Pool: &PoolConfig{
 				MaxConnections: 10,
 				MinConnections: 2,
@@ -1060,9 +1098,10 @@ func TestPoolConcurrency(t *testing.T) {
 func TestPoolWithOptions(t *testing.T) {
 	t.Run("pool with connection pool option", func(t *testing.T) {
 		config := &Config{
-			Server: "ldap://server.com",
-			Port:   389,
-			BaseDN: "dc=test,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://server.invalid",
+			Port:                389,
+			BaseDN:              "dc=test,dc=com",
 		}
 
 		poolConfig := &PoolConfig{
@@ -1078,9 +1117,10 @@ func TestPoolWithOptions(t *testing.T) {
 
 	t.Run("pool with multiple options", func(t *testing.T) {
 		config := &Config{
-			Server: "ldap://server.com",
-			Port:   389,
-			BaseDN: "dc=test,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://server.invalid",
+			Port:                389,
+			BaseDN:              "dc=test,dc=com",
 		}
 
 		poolConfig := &PoolConfig{
@@ -1107,9 +1147,10 @@ func TestPoolWithOptions(t *testing.T) {
 // BenchmarkPoolInitialization benchmarks pool initialization
 func BenchmarkPoolInitialization(b *testing.B) {
 	config := &Config{
-		Server: "ldap://server.com",
-		Port:   389,
-		BaseDN: "dc=test,dc=com",
+		SkipConnectionCheck: true,
+		Server:              "ldap://server.invalid",
+		Port:                389,
+		BaseDN:              "dc=test,dc=com",
 		Pool: &PoolConfig{
 			MaxConnections: 10,
 			MinConnections: 2,

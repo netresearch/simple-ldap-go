@@ -31,13 +31,12 @@ func TestACCOUNTDISABLEConstant(t *testing.T) {
 // context, and surface a useful error instead of a nil-pointer
 // panic when they can't connect.
 //
-// Server is `ldap://test:389` so isExampleServerName() short-circuits
-// createDirectConnection() before any real DNS / TCP dial. Test runs
-// offline, finishes fast, no network flakes.
+// The server address refuses immediately, so the test stays offline and
+// fast: the connection error is the one under test, not a dial timeout.
 func TestDisableEnableUser_NoConnection(t *testing.T) {
 	client := &LDAP{
 		config: &Config{
-			Server: "ldap://test:389",
+			Server: "ldap://127.0.0.1:1",
 			BaseDN: "dc=example,dc=com",
 		},
 		logger: slog.Default(),
@@ -155,7 +154,7 @@ func TestUpdateUACBit_BitArithmetic(t *testing.T) {
 func TestClassifyUACSearchResult(t *testing.T) {
 	const (
 		dn     = "cn=test,dc=example,dc=com"
-		server = "ldap://test:389"
+		server = "ldap://127.0.0.1:1"
 	)
 
 	t.Run("LDAPResultNoSuchObject maps to caller-supplied sentinel (user)", func(t *testing.T) {

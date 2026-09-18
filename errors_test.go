@@ -15,14 +15,14 @@ import (
 func TestLDAPError(t *testing.T) {
 	// Test basic error creation
 	baseErr := errors.New("connection refused")
-	ldapErr := NewLDAPError("TestOperation", "ldaps://test.com", baseErr)
+	ldapErr := NewLDAPError("TestOperation", "ldaps://test.invalid", baseErr)
 	_ = ldapErr.WithDN("CN=test,DC=example,DC=com").
 		WithCode(int(ldap.LDAPResultServerDown)).
 		WithContext("username", "testuser").
 		WithContext("filter", "(objectClass=user)")
 
 	// Test error message formatting - use UnmaskedError for testing
-	expectedMsg := `ldap TestOperation failed for DN "CN=test,DC=example,DC=com" on server "ldaps://test.com": connection refused`
+	expectedMsg := `ldap TestOperation failed for DN "CN=test,DC=example,DC=com" on server "ldaps://test.invalid": connection refused`
 	if ldapErr.UnmaskedError() != expectedMsg {
 		t.Errorf("Expected error message %q, got %q", expectedMsg, ldapErr.UnmaskedError())
 	}
@@ -132,21 +132,21 @@ func TestWrapLDAPError(t *testing.T) {
 		{
 			name:             "Context Cancelled",
 			op:               "TestOp",
-			server:           "ldaps://test.com",
+			server:           "ldaps://test.invalid",
 			baseErr:          context.Canceled,
 			expectedSentinel: ErrContextCancelled,
 		},
 		{
 			name:             "Context Deadline Exceeded",
 			op:               "TestOp",
-			server:           "ldaps://test.com",
+			server:           "ldaps://test.invalid",
 			baseErr:          context.DeadlineExceeded,
 			expectedSentinel: ErrContextDeadlineExceeded,
 		},
 		{
 			name:             "LDAP Invalid Credentials",
 			op:               "TestAuth",
-			server:           "ldaps://test.com",
+			server:           "ldaps://test.invalid",
 			baseErr:          &ldap.Error{ResultCode: ldap.LDAPResultInvalidCredentials, Err: fmt.Errorf("invalid credentials")},
 			expectedSentinel: ErrInvalidCredentials,
 			expectedCode:     int(ldap.LDAPResultInvalidCredentials),
@@ -154,7 +154,7 @@ func TestWrapLDAPError(t *testing.T) {
 		{
 			name:             "LDAP No Such Object",
 			op:               "TestSearch",
-			server:           "ldaps://test.com",
+			server:           "ldaps://test.invalid",
 			baseErr:          &ldap.Error{ResultCode: ldap.LDAPResultNoSuchObject, Err: fmt.Errorf("no such object")},
 			expectedSentinel: ErrObjectNotFound,
 			expectedCode:     int(ldap.LDAPResultNoSuchObject),
@@ -289,7 +289,7 @@ func TestEnhancedBackwardCompatibility(t *testing.T) {
 
 	// Test that LDAP result code checking still works
 	ldapErr := &ldap.Error{ResultCode: ldap.LDAPResultNoSuchObject}
-	classifiedErr := WrapLDAPError("TestOp", "ldaps://test.com", ldapErr)
+	classifiedErr := WrapLDAPError("TestOp", "ldaps://test.invalid", ldapErr)
 
 	if !IsNoSuchObjectError(classifiedErr) {
 		t.Error("Backward compatibility broken: LDAP result code checking doesn't work")
@@ -305,7 +305,7 @@ func TestEnhancedBackwardCompatibility(t *testing.T) {
 // TestFormatErrorWithContext tests detailed error formatting
 func TestFormatErrorWithContext(t *testing.T) {
 	baseErr := errors.New("connection timeout")
-	ldapErr := NewLDAPError("TestOperation", "ldaps://test.com", baseErr).
+	ldapErr := NewLDAPError("TestOperation", "ldaps://test.invalid", baseErr).
 		WithDN("CN=test,DC=example,DC=com").
 		WithCode(int(ldap.LDAPResultTimeLimitExceeded)).
 		WithContext("timeout_seconds", 30).
@@ -318,7 +318,7 @@ func TestFormatErrorWithContext(t *testing.T) {
 	// has a test-domain carve-out, #215), so derive the expected masked forms.
 	expectedSubstrings := []string{
 		"TestOperation",
-		maskSensitiveData("ldaps://test.com"),
+		maskSensitiveData("ldaps://test.invalid"),
 		maskSensitiveData("CN=test,DC=example,DC=com"),
 		"connection timeout",
 		"LDAP code:",
@@ -412,7 +412,7 @@ func BenchmarkErrorCreation(b *testing.B) {
 
 	b.Run("EnhancedError", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			_ = NewLDAPError("TestOp", "ldaps://test.com", baseErr).
+			_ = NewLDAPError("TestOp", "ldaps://test.invalid", baseErr).
 				WithDN("CN=test,DC=example,DC=com").
 				WithContext("key", "value")
 		}
@@ -435,7 +435,7 @@ func ExampleLDAPError() {
 	baseErr := &ldap.Error{ResultCode: ldap.LDAPResultInvalidCredentials}
 
 	// Wrap with enhanced context
-	enhancedErr := WrapLDAPError("AuthenticateUser", "ldaps://ad.company.com", baseErr)
+	enhancedErr := WrapLDAPError("AuthenticateUser", "ldaps://ad.company.invalid", baseErr)
 
 	// Check error type
 	if IsAuthenticationError(enhancedErr) {

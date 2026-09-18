@@ -19,7 +19,7 @@ import (
 func Example_connectionPooling() {
 	// Configure connection pooling for high-volume scenarios
 	config := ldap.Config{
-		Server:            "ldaps://ad.example.com:636",
+		Server:            "ldaps://ad.example.invalid:636",
 		BaseDN:            "DC=example,DC=com",
 		IsActiveDirectory: true,
 		Pool: &ldap.PoolConfig{
@@ -61,10 +61,12 @@ func Example_connectionPooling() {
 		stats.PoolHits, stats.PoolMisses,
 		float64(stats.PoolHits)/float64(stats.PoolHits+stats.PoolMisses)*100)
 
-	// Output:
-	// Found 150 users
-	// Pool stats: 0 active, 5 idle, 5 total connections
-	// Pool efficiency: 1 hits, 1 misses (50.0% hit ratio)
+	// No Output: comment, so godoc renders this example without running it.
+	// It needs a directory to talk to. The expected output it used to carry —
+	// "Found 150 users", "0 active, 5 idle, 5 total connections", "1 hits,
+	// 1 misses" — was the fabricated data the library returned for any server
+	// whose name matched a substring list, and documented those numbers as
+	// what a pooled client reports (#246).
 }
 
 // Example_concurrentOperations shows how connection pooling improves
@@ -241,9 +243,8 @@ func Example_backwardCompatibility() {
 		fmt.Println("No connection pooling configured - using direct connections")
 	}
 
-	// Output:
-	// Found 150 users using direct connections
-	// No connection pooling configured - using direct connections
+	// No Output: comment — this example needs a directory. Its expected output
+	// was the fabricated 150 users described above (#246).
 }
 
 // Example_poolConfiguration demonstrates various pool configuration options

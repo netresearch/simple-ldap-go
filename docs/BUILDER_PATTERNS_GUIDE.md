@@ -277,24 +277,23 @@ config, err := ldap.NewConfigBuilder().
     Build()
 ```
 
-That block configures a cache; it does not yet produce one. Two things have to
-be true for the client to build it:
+That block configures a cache; it does not yet produce one. The flag is what
+asks for it:
 
 ```go
 config.EnableCache = true // or EnableOptimizations
 
-// …and the server must not look like a test server. New treats a host
-// containing "example.", "localhost", "test.com" and a handful of similar
-// names as one, and skips the cache, the pool, the metrics and the connection
-// check for it - so the address in the snippet above builds nothing.
-config.Server = "ldaps://ldap.corp.internal:636"
-
 client, err := ldap.New(*config, bindDN, password)
 ```
 
-`WithCache` supplies the settings, the flag asks for the cache, and the address
-decides whether any of it is built. The settings themselves are honoured in
-full: the client copies the struct and builds the cache from it.
+`WithCache` supplies the settings and the flag asks for the cache. The settings
+themselves are honoured in full: the client copies the struct and builds the
+cache from it.
+
+Until v1.18.0 the server's name was a third condition — a host containing
+`example.`, `localhost`, `test.com` or one of a dozen similar substrings had its
+cache, pool, metrics and connection check silently skipped, so the address
+decided whether any of it was built. It does not any more.
 
 #### Security and timeouts
 

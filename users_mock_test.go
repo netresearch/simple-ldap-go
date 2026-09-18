@@ -77,7 +77,7 @@ func TestUserOperationsWithMock(t *testing.T) {
 	t.Run("FindUserByDN", func(t *testing.T) {
 		client := &LDAP{
 			config: &Config{
-				Server: "ldap://test:389",
+				Server: "ldap://test.invalid:389",
 				BaseDN: "dc=example,dc=com",
 			},
 			logger: slog.Default(),
@@ -250,7 +250,7 @@ func TestUserMethods(t *testing.T) {
 func TestBulkFindUsersBySAMAccountNameWithMock(t *testing.T) {
 	client := &LDAP{
 		config: &Config{
-			Server: "ldap://test:389",
+			Server: "ldap://test.invalid:389",
 			BaseDN: "dc=example,dc=com",
 		},
 		logger: slog.Default(),

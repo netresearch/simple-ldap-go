@@ -1002,7 +1002,7 @@ func TestConfigBuilderWithServer(t *testing.T) {
 		errorMsg    string
 	}{
 		{"valid ldap URL", "ldap://ad.example.com:389", false, ""},
-		{"valid ldaps URL", "ldaps://ad.example.com:636", false, ""},
+		{"valid ldaps URL", "ldaps://ad.example.invalid:636", false, ""},
 		{"rejects empty server", "", true, "server URL cannot be empty"},
 		{"rejects invalid scheme", "http://ad.example.com", true, "must start with ldap:// or ldaps://"},
 		{"rejects bare hostname", "ad.example.com", true, "must start with ldap:// or ldaps://"},
@@ -1112,7 +1112,7 @@ func TestConfigBuilderBuild(t *testing.T) {
 		perfCfg := &PerformanceConfig{Enabled: true}
 
 		config, err := NewConfigBuilder().
-			WithServer("ldaps://ad.example.com:636").
+			WithServer("ldaps://ad.example.invalid:636").
 			WithBaseDN("DC=example,DC=com").
 			WithActiveDirectory(true).
 			WithConnectionPool(poolCfg).
@@ -1121,7 +1121,7 @@ func TestConfigBuilderBuild(t *testing.T) {
 			Build()
 
 		require.NoError(t, err)
-		assert.Equal(t, "ldaps://ad.example.com:636", config.Server)
+		assert.Equal(t, "ldaps://ad.example.invalid:636", config.Server)
 		assert.Equal(t, "DC=example,DC=com", config.BaseDN)
 		assert.True(t, config.IsActiveDirectory)
 		assert.Equal(t, poolCfg, config.Pool)
@@ -1176,12 +1176,12 @@ func TestConfigBuilderBuild(t *testing.T) {
 func TestConfigBuilderMustBuild(t *testing.T) {
 	t.Run("returns config on valid build", func(t *testing.T) {
 		config := NewConfigBuilder().
-			WithServer("ldaps://ad.example.com:636").
+			WithServer("ldaps://ad.example.invalid:636").
 			WithBaseDN("DC=example,DC=com").
 			MustBuild()
 
 		assert.NotNil(t, config)
-		assert.Equal(t, "ldaps://ad.example.com:636", config.Server)
+		assert.Equal(t, "ldaps://ad.example.invalid:636", config.Server)
 	})
 
 	t.Run("panics on invalid build", func(t *testing.T) {

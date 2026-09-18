@@ -311,10 +311,11 @@ func setupTestLDAPWithConfig(t *testing.T, poolConfig *PoolConfig) *LDAP {
 	// Use environment variables or test config for LDAP connection
 	// This assumes LDAP_TEST_SERVER, LDAP_TEST_PORT, etc. are set
 	cfg := Config{
-		Server: getEnvOrDefault("LDAP_TEST_SERVER", "localhost"),
-		Port:   getEnvOrDefaultInt("LDAP_TEST_PORT", 389),
-		BaseDN: getEnvOrDefault("LDAP_TEST_BASEDN", "dc=example,dc=com"),
-		Pool:   poolConfig,
+		SkipConnectionCheck: true,
+		Server:              getEnvOrDefault("LDAP_TEST_SERVER", "localhost"),
+		Port:                getEnvOrDefaultInt("LDAP_TEST_PORT", 389),
+		BaseDN:              getEnvOrDefault("LDAP_TEST_BASEDN", "dc=example,dc=com"),
+		Pool:                poolConfig,
 	}
 
 	username := getEnvOrDefault("LDAP_TEST_BINDDN", "cn=admin,dc=example,dc=com")

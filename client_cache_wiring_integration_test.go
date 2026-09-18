@@ -14,8 +14,8 @@ import (
 // The unit tests beside this one pin cacheConfigFor; this one pins that New
 // actually calls it. Without the wiring the cache is built from
 // DefaultCacheConfig() and holds 1000 entries whatever the caller asked for
-// (#240). It needs a real server because New skips cache initialization for
-// example server names.
+// (#240). It runs against a real server so the whole path is exercised; since
+// #246 the cache is built whatever the server is called.
 
 func TestNewBuildsTheCacheFromTheSuppliedConfig(t *testing.T) {
 	tc := SetupTestContainer(t)

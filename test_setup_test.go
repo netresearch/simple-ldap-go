@@ -69,7 +69,11 @@ func SetupTestContainer(t *testing.T) *TestContainer {
 	mappedPort, err := genericContainer.MappedPort(ctx, "389/tcp")
 	require.NoError(t, err)
 
-	// Use the IP address directly to avoid isExampleServer() matching "localhost"
+	// The IP address rather than "localhost", which can resolve to ::1 while
+	// the container publishes on IPv4 only. This rewrite was introduced for a
+	// different reason — a server name containing "localhost" used to have its
+	// cache, pool, metrics and connection check skipped — and that reason is
+	// gone since #246; the address-family one is not.
 	if host == "localhost" {
 		host = "127.0.0.1"
 	}

@@ -20,27 +20,31 @@ import (
 // client.go coverage
 // =============================================================================
 
-func TestClientNewWithExampleServers(t *testing.T) {
+func TestClientNewWithSkipConnectionCheck(t *testing.T) {
+	// These names used to be recognised by a hostname matcher, which skipped
+	// the connection check for them. The matcher is gone: what skips the check
+	// now is the caller saying so, whatever the name.
 	tests := []struct {
 		name   string
 		server string
 	}{
-		{"example.com", "ldap://example.com:389"},
+		{"example.com", "ldap://example.invalid:389"},
 		{"localhost", "ldap://localhost:389"},
-		{"enterprise.com", "ldap://enterprise.com:636"},
-		{"test.com", "ldap://test.com:389"},
-		{"test.server", "ldap://test.server:389"},
+		{"enterprise.com", "ldaps://enterprise.invalid:636"},
+		{"test.com", "ldap://test.invalid:389"},
+		{"ordinary corporate name", "ldap://dc01.corp.invalid:389"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			client, err := New(Config{
-				Server: tt.server,
-				BaseDN: "dc=example,dc=com",
+				Server:              tt.server,
+				BaseDN:              "dc=example,dc=com",
+				SkipConnectionCheck: true,
 			}, "user", "pass")
 			require.NoError(t, err)
 			require.NotNil(t, client)
-			assert.True(t, client.isExampleServer())
+			assert.True(t, client.config.SkipConnectionCheck)
 		})
 	}
 }
@@ -62,21 +66,21 @@ func TestClientNewValidationErrors(t *testing.T) {
 		},
 		{
 			name:     "empty baseDN",
-			config:   Config{Server: "ldap://example.com", BaseDN: ""},
+			config:   Config{Server: "ldap://example.invalid", BaseDN: ""},
 			user:     "user",
 			pass:     "pass",
 			errorMsg: "base DN cannot be empty",
 		},
 		{
 			name:     "empty username",
-			config:   Config{Server: "ldap://example.com", BaseDN: "dc=test,dc=com"},
+			config:   Config{Server: "ldap://example.invalid", BaseDN: "dc=test,dc=com"},
 			user:     "",
 			pass:     "pass",
 			errorMsg: "username cannot be empty",
 		},
 		{
 			name:     "empty password",
-			config:   Config{Server: "ldap://example.com", BaseDN: "dc=test,dc=com"},
+			config:   Config{Server: "ldap://example.invalid", BaseDN: "dc=test,dc=com"},
 			user:     "user",
 			pass:     "",
 			errorMsg: "password cannot be empty",
@@ -93,14 +97,16 @@ func TestClientNewValidationErrors(t *testing.T) {
 	}
 }
 
-func TestClientWithCredentialsExampleServer(t *testing.T) {
+func TestClientWithCredentialsKeepsTheConfig(t *testing.T) {
 	client, err := New(Config{
-		Server: "ldap://example.com",
-		BaseDN: "dc=example,dc=com",
+		SkipConnectionCheck: true,
+		Server:              "ldap://example.invalid",
+		BaseDN:              "dc=example,dc=com",
 	}, "admin", "adminpass")
 	require.NoError(t, err)
 
-	// WithCredentials on example server should succeed (no real connection)
+	// WithCredentials calls New again with the same Config, so
+	// SkipConnectionCheck propagates and no connection is attempted.
 	newClient, err := client.WithCredentials("cn=newuser,dc=example,dc=com", "newpass")
 	require.NoError(t, err)
 	require.NotNil(t, newClient)
@@ -110,8 +116,9 @@ func TestClientWithCredentialsExampleServer(t *testing.T) {
 
 func TestClientWithCredentialsEmptyCreds(t *testing.T) {
 	client, err := New(Config{
-		Server: "ldap://example.com",
-		BaseDN: "dc=example,dc=com",
+		SkipConnectionCheck: true,
+		Server:              "ldap://example.invalid",
+		BaseDN:              "dc=example,dc=com",
 	}, "admin", "adminpass")
 	require.NoError(t, err)
 
@@ -128,7 +135,7 @@ func TestClientWithCredentialsEmptyCreds(t *testing.T) {
 
 func TestClientReleaseConnectionNil(t *testing.T) {
 	client := &LDAP{
-		config: &Config{Server: "ldap://test:389"},
+		config: &Config{Server: "ldap://test.invalid:389"},
 		logger: slog.Default(),
 	}
 	err := client.ReleaseConnection(nil)
@@ -137,7 +144,7 @@ func TestClientReleaseConnectionNil(t *testing.T) {
 
 func TestClientCloseNoResources(t *testing.T) {
 	client := &LDAP{
-		config:         &Config{Server: "ldap://test:389"},
+		config:         &Config{Server: "ldap://test.invalid:389"},
 		logger:         slog.Default(),
 		connPool:       nil,
 		cache:          nil,
@@ -157,7 +164,7 @@ func TestClientCloseWithCache(t *testing.T) {
 	require.NoError(t, err)
 
 	client := &LDAP{
-		config: &Config{Server: "ldap://test:389"},
+		config: &Config{Server: "ldap://test.invalid:389"},
 		logger: slog.Default(),
 		cache:  cache,
 	}
@@ -171,7 +178,7 @@ func TestClientCloseWithPerfMonitor(t *testing.T) {
 	monitor := NewPerformanceMonitor(perfConfig, slog.Default())
 
 	client := &LDAP{
-		config:      &Config{Server: "ldap://test:389"},
+		config:      &Config{Server: "ldap://test.invalid:389"},
 		logger:      slog.Default(),
 		perfMonitor: monitor,
 	}
@@ -179,44 +186,50 @@ func TestClientCloseWithPerfMonitor(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestClientGetPerformanceStatsExampleServer(t *testing.T) {
-	t.Run("example server without pool", func(t *testing.T) {
+func TestClientGetPerformanceStatsWithoutAReachableServer(t *testing.T) {
+	// Until v1.18.0 this test asserted fabricated numbers: for a server name the
+	// matcher recognised, GetPerformanceStats returned IdleConnections: 5,
+	// TotalConnections: 5, PoolHits: 1, PoolMisses: 1 regardless of any pool
+	// (#246). Those figures described nothing.
+	t.Run("no pool configured reports nothing, not zero connections", func(t *testing.T) {
 		client, err := New(Config{
-			Server: "ldap://example.com",
-			BaseDN: "dc=example,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://example.invalid",
+			BaseDN:              "dc=example,dc=com",
 		}, "user", "pass")
 		require.NoError(t, err)
 
 		stats := client.GetPerformanceStats()
-		assert.Equal(t, 0, stats.ActiveConnections)
-		assert.Equal(t, 0, stats.IdleConnections)
+		assert.Nil(t, stats.PoolStats, "no pool configured must stay distinguishable from an empty pool")
 		assert.Equal(t, 0, stats.TotalConnections)
 		assert.Equal(t, int64(0), stats.PoolHits)
-		assert.Equal(t, int64(0), stats.PoolMisses)
 	})
 
-	t.Run("example server with pool config", func(t *testing.T) {
+	t.Run("an empty pool reports its own zeros", func(t *testing.T) {
+		// MinConnections: 0 so the pool is built without dialling.
 		client, err := New(Config{
-			Server: "ldap://example.com",
-			BaseDN: "dc=example,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://example.invalid",
+			BaseDN:              "dc=example,dc=com",
 			Pool: &PoolConfig{
 				MaxConnections: 10,
-				MinConnections: 2,
+				MinConnections: 0,
 			},
 		}, "user", "pass")
 		require.NoError(t, err)
+		require.NotNil(t, client.connPool, "setup: the pool must have been built")
+		t.Cleanup(func() { _ = client.Close() })
 
 		stats := client.GetPerformanceStats()
-		assert.Equal(t, 5, stats.IdleConnections)
-		assert.Equal(t, 5, stats.TotalConnections)
-		assert.Equal(t, int64(1), stats.PoolHits)
-		assert.Equal(t, int64(1), stats.PoolMisses)
+		require.NotNil(t, stats.PoolStats, "a configured pool reports, even when empty")
+		assert.Equal(t, 10, stats.PoolStats.MaxConnections)
+		assert.Equal(t, 0, stats.TotalConnections, "nothing was ever dialled")
+		assert.Equal(t, int64(0), stats.PoolHits)
 	})
 
-	t.Run("non-example server without perfMonitor", func(t *testing.T) {
-		// Directly create client without initializing perfMonitor
+	t.Run("no perfMonitor and no pool reports zeros", func(t *testing.T) {
 		client := &LDAP{
-			config:      &Config{Server: "ldap://real-ldap.corp.net:389", BaseDN: "dc=corp,dc=net"},
+			config:      &Config{Server: "ldap://real-ldap.corp.invalid:389", BaseDN: "dc=corp,dc=net"},
 			logger:      slog.Default(),
 			perfMonitor: nil,
 		}
@@ -224,11 +237,11 @@ func TestClientGetPerformanceStatsExampleServer(t *testing.T) {
 		assert.Equal(t, 0, stats.ActiveConnections)
 	})
 }
-
 func TestClientGetPoolStats(t *testing.T) {
 	client, err := New(Config{
-		Server: "ldap://example.com",
-		BaseDN: "dc=example,dc=com",
+		SkipConnectionCheck: true,
+		Server:              "ldap://example.invalid",
+		BaseDN:              "dc=example,dc=com",
 	}, "user", "pass")
 	require.NoError(t, err)
 
@@ -238,8 +251,9 @@ func TestClientGetPoolStats(t *testing.T) {
 
 func TestClientNewBasicClient(t *testing.T) {
 	client, err := NewBasicClient(Config{
-		Server: "ldap://example.com",
-		BaseDN: "dc=example,dc=com",
+		SkipConnectionCheck: true,
+		Server:              "ldap://example.invalid",
+		BaseDN:              "dc=example,dc=com",
 	}, "user", "pass")
 	require.NoError(t, err)
 	require.NotNil(t, client)
@@ -248,8 +262,9 @@ func TestClientNewBasicClient(t *testing.T) {
 func TestClientNewPooledClient(t *testing.T) {
 	// Example server, pool won't actually be initialized
 	client, err := NewPooledClient(Config{
-		Server: "ldap://example.com",
-		BaseDN: "dc=example,dc=com",
+		SkipConnectionCheck: true,
+		Server:              "ldap://example.invalid",
+		BaseDN:              "dc=example,dc=com",
 	}, "user", "pass", 5)
 	require.NoError(t, err)
 	require.NotNil(t, client)
@@ -259,8 +274,9 @@ func TestClientNewPooledClient(t *testing.T) {
 
 func TestClientNewCachedClient(t *testing.T) {
 	client, err := NewCachedClient(Config{
-		Server: "ldap://example.com",
-		BaseDN: "dc=example,dc=com",
+		SkipConnectionCheck: true,
+		Server:              "ldap://example.invalid",
+		BaseDN:              "dc=example,dc=com",
 	}, "user", "pass", 500, 3*time.Minute)
 	require.NoError(t, err)
 	require.NotNil(t, client)
@@ -271,8 +287,9 @@ func TestClientNewCachedClient(t *testing.T) {
 
 func TestClientNewHighPerformanceClient(t *testing.T) {
 	client, err := NewHighPerformanceClient(Config{
-		Server: "ldap://example.com",
-		BaseDN: "dc=example,dc=com",
+		SkipConnectionCheck: true,
+		Server:              "ldap://example.invalid",
+		BaseDN:              "dc=example,dc=com",
 	}, "user", "pass")
 	require.NoError(t, err)
 	require.NotNil(t, client)
@@ -284,8 +301,9 @@ func TestClientNewHighPerformanceClient(t *testing.T) {
 func TestClientNewSecureClient(t *testing.T) {
 	t.Run("without TLS config", func(t *testing.T) {
 		client, err := NewSecureClient(Config{
-			Server: "ldap://example.com",
-			BaseDN: "dc=example,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://example.invalid",
+			BaseDN:              "dc=example,dc=com",
 		}, "user", "pass")
 		require.NoError(t, err)
 		require.NotNil(t, client)
@@ -294,8 +312,9 @@ func TestClientNewSecureClient(t *testing.T) {
 	t.Run("with TLS config", func(t *testing.T) {
 		tlsConfig := &tls.Config{InsecureSkipVerify: true}
 		client, err := NewSecureClient(Config{
-			Server: "ldap://example.com",
-			BaseDN: "dc=example,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://example.invalid",
+			BaseDN:              "dc=example,dc=com",
 		}, "user", "pass", tlsConfig)
 		require.NoError(t, err)
 		require.NotNil(t, client)
@@ -304,8 +323,9 @@ func TestClientNewSecureClient(t *testing.T) {
 
 	t.Run("with nil TLS config", func(t *testing.T) {
 		client, err := NewSecureClient(Config{
-			Server: "ldap://example.com",
-			BaseDN: "dc=example,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://example.invalid",
+			BaseDN:              "dc=example,dc=com",
 		}, "user", "pass", nil)
 		require.NoError(t, err)
 		require.NotNil(t, client)
@@ -314,8 +334,9 @@ func TestClientNewSecureClient(t *testing.T) {
 
 func TestClientNewReadOnlyClient(t *testing.T) {
 	client, err := NewReadOnlyClient(Config{
-		Server: "ldap://example.com",
-		BaseDN: "dc=example,dc=com",
+		SkipConnectionCheck: true,
+		Server:              "ldap://example.invalid",
+		BaseDN:              "dc=example,dc=com",
 	}, "user", "pass")
 	require.NoError(t, err)
 	require.NotNil(t, client)
@@ -326,8 +347,9 @@ func TestClientNewReadOnlyClient(t *testing.T) {
 
 func TestClientBulkFindEmptyList(t *testing.T) {
 	client, err := New(Config{
-		Server: "ldap://example.com",
-		BaseDN: "dc=example,dc=com",
+		SkipConnectionCheck: true,
+		Server:              "ldap://example.invalid",
+		BaseDN:              "dc=example,dc=com",
 	}, "user", "pass")
 	require.NoError(t, err)
 
@@ -338,12 +360,14 @@ func TestClientBulkFindEmptyList(t *testing.T) {
 
 func TestClientBulkFindWithBatchSize(t *testing.T) {
 	client, err := New(Config{
-		Server: "ldap://example.com",
-		BaseDN: "dc=example,dc=com",
+		SkipConnectionCheck: true,
+		Server:              "ldap://example.invalid",
+		BaseDN:              "dc=example,dc=com",
 	}, "user", "pass")
 	require.NoError(t, err)
 
-	// This will fail to find users (example server) but exercises the concurrency code
+	// The lookups fail against an unreachable address; what this exercises is
+	// the concurrency code around them.
 	names := []string{"user1", "user2", "user3"}
 	result, err := client.BulkFindUsersBySAMAccountName(context.Background(), names, &BulkSearchOptions{
 		BatchSize:       2,
@@ -351,28 +375,30 @@ func TestClientBulkFindWithBatchSize(t *testing.T) {
 	})
 	// With ContinueOnError, we get partial results
 	assert.NotNil(t, result)
-	// Errors from example server lookups
+	// Errors from the failed lookups
 	assert.Error(t, err)
 }
 
 func TestClientBulkFindWithoutContinueOnError(t *testing.T) {
 	client, err := New(Config{
-		Server: "ldap://example.com",
-		BaseDN: "dc=example,dc=com",
+		SkipConnectionCheck: true,
+		Server:              "ldap://example.invalid",
+		BaseDN:              "dc=example,dc=com",
 	}, "user", "pass")
 	require.NoError(t, err)
 
 	names := []string{"user1"}
 	result, err := client.BulkFindUsersBySAMAccountName(context.Background(), names, nil)
-	// Without ContinueOnError, should still get errors for example server
+	// Without ContinueOnError, the failed lookups still surface
 	assert.NotNil(t, result)
 	assert.Error(t, err)
 }
 
 func TestClientNewWithCircuitBreakerConfig(t *testing.T) {
 	client, err := New(Config{
-		Server: "ldap://example.com",
-		BaseDN: "dc=example,dc=com",
+		SkipConnectionCheck: true,
+		Server:              "ldap://example.invalid",
+		BaseDN:              "dc=example,dc=com",
 		Resilience: &ResilienceConfig{
 			EnableCircuitBreaker: true,
 			CircuitBreaker: &CircuitBreakerConfig{
@@ -389,9 +415,10 @@ func TestClientNewWithCircuitBreakerConfig(t *testing.T) {
 func TestClientNewWithCustomLogger(t *testing.T) {
 	logger := slog.Default().With("component", "test")
 	client, err := New(Config{
-		Server: "ldap://example.com",
-		BaseDN: "dc=example,dc=com",
-		Logger: logger,
+		SkipConnectionCheck: true,
+		Server:              "ldap://example.invalid",
+		BaseDN:              "dc=example,dc=com",
+		Logger:              logger,
 	}, "user", "pass")
 	require.NoError(t, err)
 	require.NotNil(t, client)
@@ -405,8 +432,9 @@ func TestOptionWithTLS(t *testing.T) {
 	t.Run("with valid TLS config", func(t *testing.T) {
 		tlsConfig := &tls.Config{InsecureSkipVerify: true}
 		client, err := New(Config{
-			Server: "ldap://example.com",
-			BaseDN: "dc=example,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://example.invalid",
+			BaseDN:              "dc=example,dc=com",
 		}, "user", "pass", WithTLS(tlsConfig))
 		require.NoError(t, err)
 		assert.NotEmpty(t, client.config.DialOptions)
@@ -414,8 +442,9 @@ func TestOptionWithTLS(t *testing.T) {
 
 	t.Run("with nil TLS config", func(t *testing.T) {
 		client, err := New(Config{
-			Server: "ldap://example.com",
-			BaseDN: "dc=example,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://example.invalid",
+			BaseDN:              "dc=example,dc=com",
 		}, "user", "pass", WithTLS(nil))
 		require.NoError(t, err)
 		// nil TLS config should be a no-op
@@ -431,8 +460,9 @@ func TestOptionWithCache(t *testing.T) {
 			TTL:     time.Minute,
 		}
 		client, err := New(Config{
-			Server: "ldap://example.com",
-			BaseDN: "dc=example,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://example.invalid",
+			BaseDN:              "dc=example,dc=com",
 		}, "user", "pass", WithCache(cacheConfig))
 		require.NoError(t, err)
 		assert.NotNil(t, client.config.Cache)
@@ -440,8 +470,9 @@ func TestOptionWithCache(t *testing.T) {
 
 	t.Run("with nil cache config", func(t *testing.T) {
 		client, err := New(Config{
-			Server: "ldap://example.com",
-			BaseDN: "dc=example,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://example.invalid",
+			BaseDN:              "dc=example,dc=com",
 		}, "user", "pass", WithCache(nil))
 		require.NoError(t, err)
 		assert.Nil(t, client.config.Cache)
@@ -454,8 +485,9 @@ func TestOptionWithConnectionOptions(t *testing.T) {
 			ConnectionTimeout: 15 * time.Second,
 		}
 		client, err := New(Config{
-			Server: "ldap://example.com",
-			BaseDN: "dc=example,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://example.invalid",
+			BaseDN:              "dc=example,dc=com",
 		}, "user", "pass", WithConnectionOptions(connOpts))
 		require.NoError(t, err)
 		assert.NotEmpty(t, client.config.DialOptions)
@@ -466,8 +498,9 @@ func TestOptionWithConnectionOptions(t *testing.T) {
 			ConnectionTimeout: 0,
 		}
 		client, err := New(Config{
-			Server: "ldap://example.com",
-			BaseDN: "dc=example,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://example.invalid",
+			BaseDN:              "dc=example,dc=com",
 		}, "user", "pass", WithConnectionOptions(connOpts))
 		require.NoError(t, err)
 		assert.NotNil(t, client)
@@ -475,8 +508,9 @@ func TestOptionWithConnectionOptions(t *testing.T) {
 
 	t.Run("with nil connection options", func(t *testing.T) {
 		client, err := New(Config{
-			Server: "ldap://example.com",
-			BaseDN: "dc=example,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://example.invalid",
+			BaseDN:              "dc=example,dc=com",
 		}, "user", "pass", WithConnectionOptions(nil))
 		require.NoError(t, err)
 		assert.NotNil(t, client)
@@ -490,8 +524,9 @@ func TestOptionWithPerformanceMonitoring(t *testing.T) {
 			SlowQueryThreshold: 500 * time.Millisecond,
 		}
 		client, err := New(Config{
-			Server: "ldap://example.com",
-			BaseDN: "dc=example,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://example.invalid",
+			BaseDN:              "dc=example,dc=com",
 		}, "user", "pass", WithPerformanceMonitoring(perfConfig))
 		require.NoError(t, err)
 		assert.NotNil(t, client.config.Performance)
@@ -499,8 +534,9 @@ func TestOptionWithPerformanceMonitoring(t *testing.T) {
 
 	t.Run("with nil config", func(t *testing.T) {
 		client, err := New(Config{
-			Server: "ldap://example.com",
-			BaseDN: "dc=example,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://example.invalid",
+			BaseDN:              "dc=example,dc=com",
 		}, "user", "pass", WithPerformanceMonitoring(nil))
 		require.NoError(t, err)
 		assert.Nil(t, client.config.Performance)
@@ -511,8 +547,9 @@ func TestOptionWithDialOptions(t *testing.T) {
 	t.Run("with dial options", func(t *testing.T) {
 		dialOpt := ldap.DialWithTLSConfig(&tls.Config{InsecureSkipVerify: true})
 		client, err := New(Config{
-			Server: "ldap://example.com",
-			BaseDN: "dc=example,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://example.invalid",
+			BaseDN:              "dc=example,dc=com",
 		}, "user", "pass", WithDialOptions(dialOpt))
 		require.NoError(t, err)
 		assert.NotEmpty(t, client.config.DialOptions)
@@ -520,8 +557,9 @@ func TestOptionWithDialOptions(t *testing.T) {
 
 	t.Run("with empty dial options", func(t *testing.T) {
 		client, err := New(Config{
-			Server: "ldap://example.com",
-			BaseDN: "dc=example,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://example.invalid",
+			BaseDN:              "dc=example,dc=com",
 		}, "user", "pass", WithDialOptions())
 		require.NoError(t, err)
 		assert.NotNil(t, client)
@@ -531,8 +569,9 @@ func TestOptionWithDialOptions(t *testing.T) {
 func TestOptionWithLogger(t *testing.T) {
 	t.Run("with nil logger", func(t *testing.T) {
 		client, err := New(Config{
-			Server: "ldap://example.com",
-			BaseDN: "dc=example,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://example.invalid",
+			BaseDN:              "dc=example,dc=com",
 		}, "user", "pass", WithLogger(nil))
 		require.NoError(t, err)
 		// nil logger should be ignored, default used
@@ -542,8 +581,9 @@ func TestOptionWithLogger(t *testing.T) {
 
 func TestOptionWithCircuitBreakerNilConfig(t *testing.T) {
 	client, err := New(Config{
-		Server: "ldap://example.com",
-		BaseDN: "dc=example,dc=com",
+		SkipConnectionCheck: true,
+		Server:              "ldap://example.invalid",
+		BaseDN:              "dc=example,dc=com",
 	}, "user", "pass", WithCircuitBreaker(nil))
 	require.NoError(t, err)
 	// Should use default circuit breaker config
@@ -621,7 +661,7 @@ func TestUtilsParseLastLogonTimestamp(t *testing.T) {
 
 func TestUtilsEncodePasswordPair(t *testing.T) {
 	client := &LDAP{
-		config: &Config{Server: "ldap://example.com"},
+		config: &Config{Server: "ldap://example.invalid"},
 		logger: slog.Default(),
 	}
 
@@ -641,7 +681,7 @@ func TestUtilsEncodePasswordPair(t *testing.T) {
 
 func TestUtilsCheckContextCancellation(t *testing.T) {
 	client := &LDAP{
-		config: &Config{Server: "ldap://example.com"},
+		config: &Config{Server: "ldap://example.invalid"},
 		logger: slog.Default(),
 	}
 
@@ -771,8 +811,9 @@ func TestUACStringIndividualFlags(t *testing.T) {
 
 func TestIteratorSearchIterConnectionError(t *testing.T) {
 	client, err := New(Config{
-		Server: "ldap://example.com",
-		BaseDN: "dc=example,dc=com",
+		SkipConnectionCheck: true,
+		Server:              "ldap://example.invalid",
+		BaseDN:              "dc=example,dc=com",
 	}, "user", "pass")
 	require.NoError(t, err)
 
@@ -794,13 +835,15 @@ func TestIteratorSearchIterConnectionError(t *testing.T) {
 		}
 	}
 	assert.Error(t, iterErr)
-	assert.Contains(t, iterErr.Error(), "connection to example server not available")
+	assert.Contains(t, iterErr.Error(), "failed to dial LDAP server",
+		"the stub is gone, so a real dial must have been attempted")
 }
 
 func TestIteratorSearchPagedIterConnectionError(t *testing.T) {
 	client, err := New(Config{
-		Server: "ldap://example.com",
-		BaseDN: "dc=example,dc=com",
+		SkipConnectionCheck: true,
+		Server:              "ldap://example.invalid",
+		BaseDN:              "dc=example,dc=com",
 	}, "user", "pass")
 	require.NoError(t, err)
 
@@ -822,13 +865,15 @@ func TestIteratorSearchPagedIterConnectionError(t *testing.T) {
 		}
 	}
 	assert.Error(t, iterErr)
-	assert.Contains(t, iterErr.Error(), "connection to example server not available")
+	assert.Contains(t, iterErr.Error(), "failed to dial LDAP server",
+		"the stub is gone, so a real dial must have been attempted")
 }
 
 func TestIteratorGroupMembersIterConnectionError(t *testing.T) {
 	client, err := New(Config{
-		Server: "ldap://example.com",
-		BaseDN: "dc=example,dc=com",
+		SkipConnectionCheck: true,
+		Server:              "ldap://example.invalid",
+		BaseDN:              "dc=example,dc=com",
 	}, "user", "pass")
 	require.NoError(t, err)
 
@@ -841,13 +886,15 @@ func TestIteratorGroupMembersIterConnectionError(t *testing.T) {
 		}
 	}
 	assert.Error(t, iterErr)
-	assert.Contains(t, iterErr.Error(), "connection to example server not available")
+	assert.Contains(t, iterErr.Error(), "failed to dial LDAP server",
+		"the stub is gone, so a real dial must have been attempted")
 }
 
 func TestIteratorWithCancelledContext(t *testing.T) {
 	client, err := New(Config{
-		Server: "ldap://example.com",
-		BaseDN: "dc=example,dc=com",
+		SkipConnectionCheck: true,
+		Server:              "ldap://example.invalid",
+		BaseDN:              "dc=example,dc=com",
 	}, "user", "pass")
 	require.NoError(t, err)
 
@@ -903,8 +950,9 @@ func TestIteratorWithCancelledContext(t *testing.T) {
 
 func TestGenericSearchConnectionError(t *testing.T) {
 	client, err := New(Config{
-		Server: "ldap://example.com",
-		BaseDN: "dc=example,dc=com",
+		SkipConnectionCheck: true,
+		Server:              "ldap://example.invalid",
+		BaseDN:              "dc=example,dc=com",
 	}, "user", "pass")
 	require.NoError(t, err)
 
@@ -918,8 +966,9 @@ func TestGenericSearchConnectionError(t *testing.T) {
 
 func TestGenericSearchEmptyBaseDN(t *testing.T) {
 	client, err := New(Config{
-		Server: "ldap://example.com",
-		BaseDN: "dc=example,dc=com",
+		SkipConnectionCheck: true,
+		Server:              "ldap://example.invalid",
+		BaseDN:              "dc=example,dc=com",
 	}, "user", "pass")
 	require.NoError(t, err)
 
@@ -933,8 +982,9 @@ func TestGenericSearchEmptyBaseDN(t *testing.T) {
 
 func TestGenericSearchCustomBaseDN(t *testing.T) {
 	client, err := New(Config{
-		Server: "ldap://example.com",
-		BaseDN: "dc=example,dc=com",
+		SkipConnectionCheck: true,
+		Server:              "ldap://example.invalid",
+		BaseDN:              "dc=example,dc=com",
 	}, "user", "pass")
 	require.NoError(t, err)
 
@@ -946,8 +996,9 @@ func TestGenericSearchCustomBaseDN(t *testing.T) {
 
 func TestGenericCreateConnectionError(t *testing.T) {
 	client, err := New(Config{
-		Server: "ldap://example.com",
-		BaseDN: "dc=example,dc=com",
+		SkipConnectionCheck: true,
+		Server:              "ldap://example.invalid",
+		BaseDN:              "dc=example,dc=com",
 	}, "user", "pass")
 	require.NoError(t, err)
 
@@ -966,7 +1017,7 @@ func TestGenericCreateConnectionError(t *testing.T) {
 
 func TestGenericCreateValidationFailure(t *testing.T) {
 	client := &LDAP{
-		config: &Config{Server: "ldap://test:389", BaseDN: "dc=test,dc=com"},
+		config: &Config{Server: "ldap://test.invalid:389", BaseDN: "dc=test,dc=com"},
 		logger: slog.Default(),
 	}
 
@@ -983,8 +1034,9 @@ func TestGenericCreateValidationFailure(t *testing.T) {
 
 func TestGenericModifyConnectionError(t *testing.T) {
 	client, err := New(Config{
-		Server: "ldap://example.com",
-		BaseDN: "dc=example,dc=com",
+		SkipConnectionCheck: true,
+		Server:              "ldap://example.invalid",
+		BaseDN:              "dc=example,dc=com",
 	}, "user", "pass")
 	require.NoError(t, err)
 
@@ -1003,8 +1055,9 @@ func TestGenericModifyConnectionError(t *testing.T) {
 
 func TestGenericDeleteConnectionError(t *testing.T) {
 	client, err := New(Config{
-		Server: "ldap://example.com",
-		BaseDN: "dc=example,dc=com",
+		SkipConnectionCheck: true,
+		Server:              "ldap://example.invalid",
+		BaseDN:              "dc=example,dc=com",
 	}, "user", "pass")
 	require.NoError(t, err)
 
@@ -1020,8 +1073,9 @@ func TestGenericDeleteConnectionError(t *testing.T) {
 
 func TestGenericDeleteByDNConnectionError(t *testing.T) {
 	client, err := New(Config{
-		Server: "ldap://example.com",
-		BaseDN: "dc=example,dc=com",
+		SkipConnectionCheck: true,
+		Server:              "ldap://example.invalid",
+		BaseDN:              "dc=example,dc=com",
 	}, "user", "pass")
 	require.NoError(t, err)
 
@@ -1033,8 +1087,9 @@ func TestGenericDeleteByDNConnectionError(t *testing.T) {
 
 func TestGenericFindByDNConnectionError(t *testing.T) {
 	client, err := New(Config{
-		Server: "ldap://example.com",
-		BaseDN: "dc=example,dc=com",
+		SkipConnectionCheck: true,
+		Server:              "ldap://example.invalid",
+		BaseDN:              "dc=example,dc=com",
 	}, "user", "pass")
 	require.NoError(t, err)
 
@@ -1047,8 +1102,9 @@ func TestGenericFindByDNConnectionError(t *testing.T) {
 
 func TestGenericBatchProcessCreate(t *testing.T) {
 	client, err := New(Config{
-		Server: "ldap://example.com",
-		BaseDN: "dc=example,dc=com",
+		SkipConnectionCheck: true,
+		Server:              "ldap://example.invalid",
+		BaseDN:              "dc=example,dc=com",
 	}, "user", "pass")
 	require.NoError(t, err)
 
@@ -1072,8 +1128,9 @@ func TestGenericBatchProcessCreate(t *testing.T) {
 
 func TestGenericBatchProcessModify(t *testing.T) {
 	client, err := New(Config{
-		Server: "ldap://example.com",
-		BaseDN: "dc=example,dc=com",
+		SkipConnectionCheck: true,
+		Server:              "ldap://example.invalid",
+		BaseDN:              "dc=example,dc=com",
 	}, "user", "pass")
 	require.NoError(t, err)
 
@@ -1101,8 +1158,9 @@ func TestGenericBatchProcessModify(t *testing.T) {
 
 func TestGenericBatchProcessDelete(t *testing.T) {
 	client, err := New(Config{
-		Server: "ldap://example.com",
-		BaseDN: "dc=example,dc=com",
+		SkipConnectionCheck: true,
+		Server:              "ldap://example.invalid",
+		BaseDN:              "dc=example,dc=com",
 	}, "user", "pass")
 	require.NoError(t, err)
 
@@ -1124,8 +1182,9 @@ func TestGenericBatchProcessDelete(t *testing.T) {
 
 func TestGenericBatchProcessContextCancelled(t *testing.T) {
 	client, err := New(Config{
-		Server: "ldap://example.com",
-		BaseDN: "dc=example,dc=com",
+		SkipConnectionCheck: true,
+		Server:              "ldap://example.invalid",
+		BaseDN:              "dc=example,dc=com",
 	}, "user", "pass")
 	require.NoError(t, err)
 
@@ -1153,8 +1212,9 @@ func TestGenericBatchProcessContextCancelled(t *testing.T) {
 
 func TestGenericOperationPipelineDelete(t *testing.T) {
 	client, err := New(Config{
-		Server: "ldap://example.com",
-		BaseDN: "dc=example,dc=com",
+		SkipConnectionCheck: true,
+		Server:              "ldap://example.invalid",
+		BaseDN:              "dc=example,dc=com",
 	}, "user", "pass")
 	require.NoError(t, err)
 
@@ -1178,8 +1238,9 @@ func TestGenericOperationPipelineDelete(t *testing.T) {
 
 func TestSearchFindByDNContextConnectionError(t *testing.T) {
 	client, err := New(Config{
-		Server: "ldap://example.com",
-		BaseDN: "dc=example,dc=com",
+		SkipConnectionCheck: true,
+		Server:              "ldap://example.invalid",
+		BaseDN:              "dc=example,dc=com",
 	}, "user", "pass")
 	require.NoError(t, err)
 
@@ -1200,8 +1261,9 @@ func TestSearchFindByDNContextConnectionError(t *testing.T) {
 
 func TestSearchFindByDNContextCancelledContext(t *testing.T) {
 	client, err := New(Config{
-		Server: "ldap://example.com",
-		BaseDN: "dc=example,dc=com",
+		SkipConnectionCheck: true,
+		Server:              "ldap://example.invalid",
+		BaseDN:              "dc=example,dc=com",
 	}, "user", "pass")
 	require.NoError(t, err)
 
@@ -1236,7 +1298,7 @@ func TestErrorHelperAuthenticationError(t *testing.T) {
 	t.Run("with LDAP error", func(t *testing.T) {
 		ldapErr := &LDAPError{
 			Op:     "Bind",
-			Server: "ldap://example.com",
+			Server: "ldap://example.invalid",
 			Err:    errors.New("invalid credentials"),
 		}
 		err := authenticationError("Bind", "cn=user,dc=example,dc=com", ldapErr)
@@ -1260,22 +1322,24 @@ func TestErrorHelperConnectionError(t *testing.T) {
 func TestClientGetConnectionContextWithConnPool(t *testing.T) {
 	// Test the code path where connPool is nil and creates direct connection
 	client, err := New(Config{
-		Server: "ldap://example.com",
-		BaseDN: "dc=example,dc=com",
+		SkipConnectionCheck: true,
+		Server:              "ldap://example.invalid",
+		BaseDN:              "dc=example,dc=com",
 	}, "user", "pass")
 	require.NoError(t, err)
 	assert.Nil(t, client.connPool)
 
 	ctx := context.Background()
 	conn, err := client.GetConnectionContext(ctx)
-	assert.Error(t, err) // example server
+	assert.Error(t, err) // the address is unreachable
 	assert.Nil(t, conn)
 }
 
 func TestClientGetConnectionProtectedContextNoCB(t *testing.T) {
 	client, err := New(Config{
-		Server: "ldap://example.com",
-		BaseDN: "dc=example,dc=com",
+		SkipConnectionCheck: true,
+		Server:              "ldap://example.invalid",
+		BaseDN:              "dc=example,dc=com",
 	}, "user", "pass")
 	require.NoError(t, err)
 	assert.Nil(t, client.circuitBreaker)
@@ -1284,28 +1348,6 @@ func TestClientGetConnectionProtectedContextNoCB(t *testing.T) {
 	conn, err := client.GetConnectionProtectedContext(context.Background())
 	assert.Error(t, err)
 	assert.Nil(t, conn)
-}
-
-func TestClientIsExampleServerMethod(t *testing.T) {
-	tests := []struct {
-		server   string
-		expected bool
-	}{
-		{"ldap://example.com:389", true},
-		{"ldap://test.server:389", true},
-		{"ldap://real-corp.internal:389", false},
-		{"ldap://mycompany.org:636", false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.server, func(t *testing.T) {
-			client := &LDAP{
-				config: &Config{Server: tt.server},
-				logger: slog.Default(),
-			}
-			assert.Equal(t, tt.expected, client.isExampleServer())
-		})
-	}
 }
 
 func TestClientCreateDirectConnectionCancelledContext(t *testing.T) {

@@ -48,12 +48,12 @@ func TestUnlockUserForSAMAccountName_NonActiveDirectory(t *testing.T) {
 // a connection error instead of panicking when no LDAP server is
 // available.
 //
-// Server is ldap://test:389 so isExampleServerName() short-circuits
-// before any real network connection is attempted.
+// The server address refuses immediately, so the connection error is the
+// one under test rather than a dial timeout.
 func TestUnlockUser_NoConnection(t *testing.T) {
 	client := &LDAP{
 		config: &Config{
-			Server:            "ldap://test:389",
+			Server:            "ldap://127.0.0.1:1",
 			BaseDN:            "dc=example,dc=com",
 			IsActiveDirectory: true,
 		},
@@ -79,7 +79,7 @@ func TestUnlockUser_NoConnection(t *testing.T) {
 func TestUnlockUserForSAMAccountName_InvalidIdentifier(t *testing.T) {
 	client := &LDAP{
 		config: &Config{
-			Server:            "ldap://test:389",
+			Server:            "ldap://127.0.0.1:1",
 			BaseDN:            "dc=example,dc=com",
 			IsActiveDirectory: true,
 		},

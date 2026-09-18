@@ -23,11 +23,28 @@ jobs:
       enable-license-check: true
       enable-codecov: true
       enable-integration-tests: true
-      # CI measured 79.9% here (run 35223612934: "Total coverage: 79.9% (threshold
-      # 77%)"), so 77 was 2.9 points of silent slack. 79 holds the current level
-      # with a point of headroom. Enforced on the non-integration run only;
-      # integration coverage goes to Codecov under its own flag.
-      coverage-threshold: 79
+      # The threshold is enforced over `test-packages`, so that input decides the
+      # population it describes. It was ./..., which put examples/ and testutil/
+      # into the figure — the two directories codecov.yml has ignored since it
+      # was written. In this figure they inflate rather than deflate: measured on
+      # 6df052c, ./... gives 80.3% while the library alone gives 77.8%. So 79 was
+      # never the library's number, and the library sat a point and a half under
+      # the threshold that was supposed to be guarding it.
+      #
+      # It is the library's number now. This branch measures 78.3-78.4% across
+      # repeated -race runs — up from 77.8%, because the fabricated
+      # example-server data is gone and the tests exercise real paths instead.
+      # 78 is therefore a third of a point of headroom at the low end of that
+      # range, which is thin; raise the floor rather than widen it if a run
+      # lands under.
+      #
+      # examples/ stays compiled and linted, since go build and golangci-lint run
+      # over ./... regardless. Its three remaining smoke tests no longer run in
+      # this job; they cover example source, not library source, which is why
+      # they were never what this gate is for. Integration coverage continues to
+      # go to Codecov under its own flag.
+      test-packages: "."
+      coverage-threshold: 78
     permissions:
       contents: read
       security-events: write

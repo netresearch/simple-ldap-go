@@ -208,9 +208,10 @@ func TestCircuitBreakerError_Resilience(t *testing.T) {
 func TestLDAPCircuitBreakerIntegration(t *testing.T) {
 	t.Run("circuit breaker disabled by default", func(t *testing.T) {
 		config := &Config{
-			Server: "ldap://example.com",
-			Port:   389,
-			BaseDN: "dc=example,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://example.invalid",
+			Port:                389,
+			BaseDN:              "dc=example,dc=com",
 		}
 
 		client, err := New(*config, "user", "pass")
@@ -228,9 +229,10 @@ func TestLDAPCircuitBreakerIntegration(t *testing.T) {
 
 	t.Run("circuit breaker enabled via config", func(t *testing.T) {
 		config := &Config{
-			Server: "ldap://example.com",
-			Port:   389,
-			BaseDN: "dc=example,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://example.invalid",
+			Port:                389,
+			BaseDN:              "dc=example,dc=com",
 			Resilience: &ResilienceConfig{
 				EnableCircuitBreaker: true,
 				CircuitBreaker: &CircuitBreakerConfig{
@@ -253,9 +255,10 @@ func TestLDAPCircuitBreakerIntegration(t *testing.T) {
 
 	t.Run("circuit breaker protects connections", func(t *testing.T) {
 		config := &Config{
-			Server: "ldap://failing.server",
-			Port:   389,
-			BaseDN: "dc=example,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://failing.invalid",
+			Port:                389,
+			BaseDN:              "dc=example,dc=com",
 			Resilience: &ResilienceConfig{
 				EnableCircuitBreaker: true,
 				CircuitBreaker: &CircuitBreakerConfig{
@@ -301,7 +304,7 @@ func TestLDAPCircuitBreakerIntegration(t *testing.T) {
 func TestWithCircuitBreakerOption(t *testing.T) {
 	t.Run("with custom config", func(t *testing.T) {
 		config := &Config{
-			Server: "ldap://example.com",
+			Server: "ldap://example.invalid",
 			Port:   389,
 			BaseDN: "dc=example,dc=com",
 		}
@@ -324,7 +327,7 @@ func TestWithCircuitBreakerOption(t *testing.T) {
 
 	t.Run("with nil config uses defaults", func(t *testing.T) {
 		config := &Config{
-			Server: "ldap://example.com",
+			Server: "ldap://example.invalid",
 			Port:   389,
 			BaseDN: "dc=example,dc=com",
 		}

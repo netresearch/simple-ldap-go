@@ -14,11 +14,12 @@ import (
 // EnableBulkOps always was.
 
 func TestNewLeavesTheOptimizationFlagsAsTheCallerSetThem(t *testing.T) {
-	// An example server name keeps New from dialling; the flag is written at the
-	// top of New, before that distinction is made, so this reaches the defect.
+	// SkipConnectionCheck keeps New from dialling; the flag is written at the
+	// top of New, before the check, so this reaches the defect.
 	client, err := New(Config{
-		Server: "ldap://test.example.com:389",
-		BaseDN: "dc=example,dc=com",
+		Server:              "ldap://test.example.invalid:389",
+		BaseDN:              "dc=example,dc=com",
+		SkipConnectionCheck: true,
 	}, "admin", "pass")
 	require.NoError(t, err)
 
@@ -31,9 +32,10 @@ func TestNewLeavesTheOptimizationFlagsAsTheCallerSetThem(t *testing.T) {
 
 func TestNewKeepsAnExplicitlyEnabledFlag(t *testing.T) {
 	client, err := New(Config{
-		Server:              "ldap://test.example.com:389",
+		Server:              "ldap://test.example.invalid:389",
 		BaseDN:              "dc=example,dc=com",
 		EnableOptimizations: true,
+		SkipConnectionCheck: true,
 	}, "admin", "pass")
 	require.NoError(t, err)
 

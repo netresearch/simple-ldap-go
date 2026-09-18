@@ -21,7 +21,7 @@ import (
 func TestRegressionPoolConnPoolFieldName(t *testing.T) {
 	t.Run("ensure connPool field is used consistently", func(t *testing.T) {
 		config := &Config{
-			Server: "ldap://server.com",
+			Server: "ldap://server.invalid",
 			Port:   389,
 			BaseDN: "dc=test,dc=com",
 			Pool: &PoolConfig{
@@ -44,9 +44,10 @@ func TestRegressionPoolConnPoolFieldName(t *testing.T) {
 
 	t.Run("GetConnectionContext uses connPool not pool", func(t *testing.T) {
 		config := &Config{
-			Server: "ldap://test.com",
-			Port:   389,
-			BaseDN: "dc=test,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://test.invalid",
+			Port:                389,
+			BaseDN:              "dc=test,dc=com",
 		}
 
 		client, err := New(*config, "user", "pass")
@@ -74,34 +75,33 @@ func TestRegressionConnectionNotImplemented(t *testing.T) {
 		name       string
 		server     string
 		shouldFail bool
-		errorMsg   string
 	}{
+		// Every one of these now attempts a real connection. Two of them used to
+		// get the stub error instead, decided by their hostname (#246).
 		{
-			name:       "example.com returns proper error",
-			server:     "ldap://example.com",
+			name:       "example-like name attempts a real connection",
+			server:     "ldap://example.invalid",
 			shouldFail: true,
-			errorMsg:   "connection to example server not available",
 		},
 		{
-			name:       "localhost returns proper error",
+			name:       "localhost attempts a real connection",
 			server:     "ldap://localhost",
 			shouldFail: true,
-			errorMsg:   "connection to example server not available",
 		},
 		{
-			name:       "production server attempts real connection",
-			server:     "ldap://prod.server.com",
+			name:       "production server attempts a real connection",
+			server:     "ldap://prod.server.invalid",
 			shouldFail: true,
-			errorMsg:   "", // Will fail with network error, not stub
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			config := &Config{
-				Server: tc.server,
-				Port:   389,
-				BaseDN: "dc=test,dc=com",
+				SkipConnectionCheck: true,
+				Server:              tc.server,
+				Port:                389,
+				BaseDN:              "dc=test,dc=com",
 			}
 
 			client, err := New(*config, "user", "pass")
@@ -114,14 +114,11 @@ func TestRegressionConnectionNotImplemented(t *testing.T) {
 				assert.Error(t, err)
 				assert.Nil(t, conn)
 
-				// Never return stub error
+				// Never a stub: the dial has to have been attempted.
 				assert.NotContains(t, err.Error(), "not implemented")
 				assert.NotContains(t, err.Error(), "connection not implemented")
-
-				// Check for expected error if specified
-				if tc.errorMsg != "" {
-					assert.Contains(t, err.Error(), tc.errorMsg)
-				}
+				assert.Contains(t, err.Error(), "failed to dial LDAP server",
+					"the stub is gone, so a real dial must have been attempted")
 			}
 
 			if conn != nil {
@@ -135,9 +132,10 @@ func TestRegressionConnectionNotImplemented(t *testing.T) {
 func TestRegressionContextPropagation(t *testing.T) {
 	t.Run("context cancellation in GetConnectionContext", func(t *testing.T) {
 		config := &Config{
-			Server: "ldap://test.com",
-			Port:   389,
-			BaseDN: "dc=test,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://test.invalid",
+			Port:                389,
+			BaseDN:              "dc=test,dc=com",
 		}
 
 		client, err := New(*config, "user", "pass")
@@ -155,9 +153,10 @@ func TestRegressionContextPropagation(t *testing.T) {
 
 	t.Run("context timeout in GetConnectionContext", func(t *testing.T) {
 		config := &Config{
-			Server: "ldap://test.com",
-			Port:   389,
-			BaseDN: "dc=test,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://test.invalid",
+			Port:                389,
+			BaseDN:              "dc=test,dc=com",
 		}
 
 		client, err := New(*config, "user", "pass")
@@ -176,9 +175,10 @@ func TestRegressionContextPropagation(t *testing.T) {
 
 	t.Run("context propagation to pool", func(t *testing.T) {
 		config := &Config{
-			Server: "ldap://server.com",
-			Port:   389,
-			BaseDN: "dc=test,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://server.invalid",
+			Port:                389,
+			BaseDN:              "dc=test,dc=com",
 			Pool: &PoolConfig{
 				MaxConnections: 5,
 			},
@@ -203,9 +203,10 @@ func TestRegressionContextPropagation(t *testing.T) {
 func TestRegressionOptionsAPI(t *testing.T) {
 	t.Run("New accepts variadic options", func(t *testing.T) {
 		config := &Config{
-			Server: "ldap://test.com",
-			Port:   389,
-			BaseDN: "dc=test,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://test.invalid",
+			Port:                389,
+			BaseDN:              "dc=test,dc=com",
 		}
 
 		// This should compile - if it doesn't, the API is broken
@@ -219,9 +220,10 @@ func TestRegressionOptionsAPI(t *testing.T) {
 
 	t.Run("options are applied in order", func(t *testing.T) {
 		config := &Config{
-			Server: "ldap://test.com",
-			Port:   389,
-			BaseDN: "dc=test,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://test.invalid",
+			Port:                389,
+			BaseDN:              "dc=test,dc=com",
 		}
 
 		// Apply multiple timeout options - last one should win
@@ -304,9 +306,10 @@ func TestRegressionCircuitBreakerRaceCondition(t *testing.T) {
 func TestRegressionIteratorContextUsage(t *testing.T) {
 	t.Run("SearchIter uses GetConnectionProtectedContext", func(t *testing.T) {
 		config := &Config{
-			Server: "ldap://example.com",
-			Port:   389,
-			BaseDN: "dc=example,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://example.invalid",
+			Port:                389,
+			BaseDN:              "dc=example,dc=com",
 			Resilience: &ResilienceConfig{
 				EnableCircuitBreaker: true,
 				CircuitBreaker: &CircuitBreakerConfig{
@@ -347,9 +350,10 @@ func TestRegressionIteratorContextUsage(t *testing.T) {
 
 	t.Run("SearchPagedIter uses GetConnectionProtectedContext", func(t *testing.T) {
 		config := &Config{
-			Server: "ldap://example.com",
-			Port:   389,
-			BaseDN: "dc=example,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://example.invalid",
+			Port:                389,
+			BaseDN:              "dc=example,dc=com",
 		}
 
 		client, err := New(*config, "user", "pass")
@@ -389,9 +393,10 @@ func TestRegressionValidation(t *testing.T) {
 
 	t.Run("empty server validation", func(t *testing.T) {
 		config := &Config{
-			Server: "",
-			Port:   389,
-			BaseDN: "dc=test,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "",
+			Port:                389,
+			BaseDN:              "dc=test,dc=com",
 		}
 		client, err := New(*config, "user", "pass")
 		assert.Error(t, err)
@@ -401,9 +406,10 @@ func TestRegressionValidation(t *testing.T) {
 
 	t.Run("empty credentials validation", func(t *testing.T) {
 		config := &Config{
-			Server: "ldap://test.com",
-			Port:   389,
-			BaseDN: "dc=test,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://test.invalid",
+			Port:                389,
+			BaseDN:              "dc=test,dc=com",
 		}
 
 		// Empty username
@@ -438,9 +444,10 @@ func TestRegressionErrorMessages(t *testing.T) {
 
 	t.Run("connection errors are descriptive", func(t *testing.T) {
 		config := &Config{
-			Server: "ldap://example.com",
-			Port:   389,
-			BaseDN: "dc=example,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://example.invalid",
+			Port:                389,
+			BaseDN:              "dc=example,dc=com",
 		}
 
 		client, err := New(*config, "user", "pass")
@@ -451,17 +458,21 @@ func TestRegressionErrorMessages(t *testing.T) {
 		assert.Error(t, err)
 		assert.Nil(t, conn)
 
-		// Error should be descriptive
-		assert.Contains(t, err.Error(), "connection to example server not available")
+		// Descriptive means it names what failed, not a stub standing in for a
+		// connection nobody attempted (#246).
+		assert.Contains(t, err.Error(), "failed to dial LDAP server")
+		assert.Contains(t, err.Error(), "failed to dial LDAP server",
+			"the stub is gone, so a real dial must have been attempted")
 	})
 }
 
 // BenchmarkRegressionCircuitBreaker ensures circuit breaker doesn't introduce performance regression
 func BenchmarkRegressionCircuitBreaker(b *testing.B) {
 	config := &Config{
-		Server: "ldap://example.com",
-		Port:   389,
-		BaseDN: "dc=example,dc=com",
+		SkipConnectionCheck: true,
+		Server:              "ldap://example.invalid",
+		Port:                389,
+		BaseDN:              "dc=example,dc=com",
 		Resilience: &ResilienceConfig{
 			EnableCircuitBreaker: true,
 			CircuitBreaker: &CircuitBreakerConfig{
