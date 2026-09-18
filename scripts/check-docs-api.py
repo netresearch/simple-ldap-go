@@ -173,11 +173,26 @@ def balanced_span(text: str, start: int, closer: str) -> str | None:
     stepped over, so a bracket inside one does not shift the depth. Returns None
     on an unbalanced run (a snippet cut off mid-call), which is skipped rather
     than guessed at.
+
+    Comments are stepped over before quotes are considered. An apostrophe in
+    prose ("the pool's capacity") is not a rune literal, but it opens one as far
+    as skip_string is concerned, and everything up to the next apostrophe —
+    closing braces included — then disappears from the count. The literal being
+    read runs past its own end, swallows the next one, and the mismatch is
+    reported against a line nobody touched.
     """
     depth = 0
     i = start
     while i < len(text):
         char = text[i]
+        if text.startswith("//", i):
+            newline = text.find("\n", i)
+            i = len(text) if newline == -1 else newline + 1
+            continue
+        if text.startswith("/*", i):
+            end = text.find("*/", i + 2)
+            i = len(text) if end == -1 else end + 2
+            continue
         if char in "\"'`":
             i = skip_string(text, i)
             continue
@@ -255,17 +270,37 @@ def literal_body(text: str, open_brace: int) -> str | None:
 
 
 def top_level_keys(body: str) -> list[str]:
-    """Field keys at depth 0 of a literal body, skipping nested literals."""
+    """Field keys at depth 0 of a literal body, skipping nested literals.
+
+    Comments and string literals are stepped over for the same reason
+    balanced_span does it: a brace in prose is not a brace. `// } in a comment`
+    inside a literal otherwise drops the depth and every key after it goes
+    unchecked — which is a wrong field passing review, not a false alarm.
+    """
     depth = 0
-    segment = ""
-    for char in body:
+    segment = []
+    i = 0
+    while i < len(body):
+        if body.startswith("//", i):
+            newline = body.find("\n", i)
+            i = len(body) if newline == -1 else newline
+            continue
+        if body.startswith("/*", i):
+            end = body.find("*/", i + 2)
+            i = len(body) if end == -1 else end + 2
+            continue
+        char = body[i]
+        if char in "\"'`":
+            i = skip_string(body, i)
+            continue
         if char in "([{":
             depth += 1
         elif char in ")]}":
             depth -= 1
         if depth == 0:
-            segment += char
-    return [m.group(1) for m in LITERAL_KEY.finditer(segment)]
+            segment.append(char)
+        i += 1
+    return [m.group(1) for m in LITERAL_KEY.finditer("".join(segment))]
 
 
 def documents(repo: pathlib.Path) -> list[pathlib.Path]:

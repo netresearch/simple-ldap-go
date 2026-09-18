@@ -463,7 +463,11 @@ func MonitorPoolPerformance(client *LDAP) {
             stats := client.GetPoolStats()
 
             // Calculate utilization metrics
-            utilization := float64(stats.ActiveConnections) / float64(stats.TotalConnections) * 100
+            // ConnectionPoolRatio is active connections over MaxConnections.
+            // Dividing by TotalConnections answers a different question: a pool
+            // with two warm connections both in use reads 100% that way while
+            // eight of its ten slots are free.
+            utilization := stats.ConnectionPoolRatio * 100
             hitRatio := float64(stats.PoolHits) / float64(stats.PoolHits + stats.PoolMisses) * 100
 
             fmt.Printf("Pool Performance Report:\n")
@@ -512,12 +516,15 @@ func OptimizePoolSize(client *ldap.LDAP) {
                 continue
             }
 
-            // Calculate metrics
-            total := pool.ActiveConnections + pool.IdleConnections
-            if total == 0 {
+            // Against the pool's capacity, not against the connections that
+            // happen to exist. PerformanceStats.ConnectionPoolRatio is the same
+            // quantity, except that it saturates at 1 and this arithmetic does
+            // not: the pool can briefly report more active connections than its
+            // ceiling, and then this reads above 100%.
+            if pool.MaxConnections == 0 {
                 continue
             }
-            utilization := float64(pool.ActiveConnections) / float64(total) * 100
+            utilization := float64(pool.ActiveConnections) / float64(pool.MaxConnections) * 100
 
             // Adjust pool size based on utilization
             if utilization > 80 {
@@ -1558,7 +1565,7 @@ func DiagnoseHighResponseTimes(client *LDAP) {
 
         // Check connection pool
         poolStats := client.GetPoolStats()
-        utilization := float64(poolStats.ActiveConnections) / float64(poolStats.TotalConnections) * 100
+        utilization := poolStats.ConnectionPoolRatio * 100
         if utilization > 90 {
             fmt.Printf("  - High connection pool utilization (%.1f%%)\n", utilization)
             fmt.Printf("  - Consider increasing MaxConnections\n")
@@ -1694,13 +1701,13 @@ func GenerateOptimizationRecommendations(client *LDAP) {
             fmt.Sprintf("🔧 Increase cache TTL (current hit ratio: %.1f%%)", cacheStats.HitRatio))
     }
 
-    if cacheStats.MemoryUsageMB > 200 && !cacheStats.CompressionEnabled {
+    if cacheStats.MemoryUsageMB > 200 {
         recommendations = append(recommendations,
-            "🔧 Enable cache compression to reduce memory usage")
+            "🔧 Enable cache compression (CacheConfig.CompressionEnabled) to reduce memory usage")
     }
 
     // Connection pool optimizations
-    poolUtilization := float64(poolStats.ActiveConnections) / float64(poolStats.TotalConnections) * 100
+    poolUtilization := poolStats.ConnectionPoolRatio * 100
     if poolUtilization > 85 {
         recommendations = append(recommendations,
             fmt.Sprintf("🔧 Increase connection pool MaxConnections (utilization: %.1f%%)", poolUtilization))
@@ -1743,7 +1750,7 @@ func GenerateOptimizationRecommendations(client *LDAP) {
     }
 
     // Performance score
-    score := calculatePerformanceScore(perfStats, cacheStats, poolStats)
+    score := calculatePerformanceScore(&perfStats, cacheStats)
     fmt.Printf("\nOverall Performance Score: %d/100\n", score)
 
     if score >= 90 {
@@ -1757,7 +1764,7 @@ func GenerateOptimizationRecommendations(client *LDAP) {
     }
 }
 
-func calculatePerformanceScore(perfStats *PerformanceMetrics, cacheStats *CacheStats, poolStats *PoolStats) int {
+func calculatePerformanceScore(perfStats *PerformanceMetrics, cacheStats *CacheStats) int {
     score := 100
 
     // Deduct points for poor cache performance
