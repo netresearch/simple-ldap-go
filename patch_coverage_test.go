@@ -16,32 +16,10 @@ import (
 
 // --- client.go coverage ---
 
-func TestIsExampleServerName(t *testing.T) {
-	tests := []struct {
-		server   string
-		expected bool
-	}{
-		{"ldap://example.com:389", true},
-		{"ldap://localhost:389", true},
-		{"ldap://real-ldap.corp.net:389", false},
-		{"ldap://test:389", true},
-		{"ldap://test.example:389", true},
-		{"ldap://enterprise.com:389", true},
-		{"ldap://prod.server:389", true},
-		{"ldap://failing.server:389", true},
-		{"ldap://internal.mycompany.org:389", false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.server, func(t *testing.T) {
-			assert.Equal(t, tt.expected, isExampleServerName(tt.server))
-		})
-	}
-}
-
 func TestGetCacheStats(t *testing.T) {
 	t.Run("with nil cache", func(t *testing.T) {
 		client := &LDAP{
-			config: &Config{Server: "ldap://test:389"},
+			config: &Config{Server: "ldap://test.invalid:389"},
 			logger: slog.Default(),
 			cache:  nil,
 		}
@@ -58,7 +36,7 @@ func TestGetCacheStats(t *testing.T) {
 		require.NoError(t, err)
 
 		client := &LDAP{
-			config: &Config{Server: "ldap://test:389"},
+			config: &Config{Server: "ldap://test.invalid:389"},
 			logger: slog.Default(),
 			cache:  cache,
 		}
@@ -70,7 +48,7 @@ func TestGetCacheStats(t *testing.T) {
 func TestClearCache(t *testing.T) {
 	t.Run("with nil cache", func(t *testing.T) {
 		client := &LDAP{
-			config: &Config{Server: "ldap://test:389"},
+			config: &Config{Server: "ldap://test.invalid:389"},
 			logger: slog.Default(),
 			cache:  nil,
 		}
@@ -90,7 +68,7 @@ func TestClearCache(t *testing.T) {
 		_ = cache.Set("test", "value", time.Minute)
 
 		client := &LDAP{
-			config: &Config{Server: "ldap://test:389"},
+			config: &Config{Server: "ldap://test.invalid:389"},
 			logger: slog.Default(),
 			cache:  cache,
 		}
@@ -406,7 +384,7 @@ func TestTimeoutManagerGetTimeoutStats(t *testing.T) {
 func TestGetCircuitBreakerStats(t *testing.T) {
 	t.Run("with nil circuit breaker", func(t *testing.T) {
 		client := &LDAP{
-			config:         &Config{Server: "ldap://test:389"},
+			config:         &Config{Server: "ldap://test.invalid:389"},
 			logger:         slog.Default(),
 			circuitBreaker: nil,
 		}
@@ -417,7 +395,7 @@ func TestGetCircuitBreakerStats(t *testing.T) {
 	t.Run("with circuit breaker", func(t *testing.T) {
 		cb := NewCircuitBreaker("test", DefaultCircuitBreakerConfig(), slog.Default())
 		client := &LDAP{
-			config:         &Config{Server: "ldap://test:389"},
+			config:         &Config{Server: "ldap://test.invalid:389"},
 			logger:         slog.Default(),
 			circuitBreaker: cb,
 		}

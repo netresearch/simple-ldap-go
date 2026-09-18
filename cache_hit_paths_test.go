@@ -16,11 +16,14 @@ import (
 // return that happens before GetConnectionContext when the cache is populated.
 // =============================================================================
 
-func newExampleClientWithCache(t *testing.T) *LDAP {
+func newOfflineClientWithCache(t *testing.T) *LDAP {
 	t.Helper()
 	client, err := New(Config{
-		Server: "ldap://example.com:389",
+		Server: "ldap://example.invalid:389",
 		BaseDN: "dc=example,dc=com",
+		// These tests assert the cache short-circuit, which returns before any
+		// connection is needed. Nothing here can answer a dial.
+		SkipConnectionCheck: true,
 	}, "admin", "pass")
 	require.NoError(t, err)
 
@@ -35,7 +38,7 @@ func newExampleClientWithCache(t *testing.T) *LDAP {
 }
 
 func TestFindUserByDN_CacheHit(t *testing.T) {
-	client := newExampleClientWithCache(t)
+	client := newOfflineClientWithCache(t)
 	dn := "cn=cached,dc=example,dc=com"
 	sam := "cached"
 	cached := &User{
@@ -51,7 +54,7 @@ func TestFindUserByDN_CacheHit(t *testing.T) {
 }
 
 func TestFindUserByMail_CacheHit(t *testing.T) {
-	client := newExampleClientWithCache(t)
+	client := newOfflineClientWithCache(t)
 	mail := "cached@example.com"
 	sam := "cached"
 	cached := &User{
@@ -66,7 +69,7 @@ func TestFindUserByMail_CacheHit(t *testing.T) {
 }
 
 func TestFindUserBySAMAccountName_CacheHit(t *testing.T) {
-	client := newExampleClientWithCache(t)
+	client := newOfflineClientWithCache(t)
 	sam := "cached"
 	cached := &User{
 		Object:         Object{cn: "cached", dn: "cn=cached,dc=example,dc=com"},
@@ -80,7 +83,7 @@ func TestFindUserBySAMAccountName_CacheHit(t *testing.T) {
 }
 
 func TestFindGroupByDN_CacheHit(t *testing.T) {
-	client := newExampleClientWithCache(t)
+	client := newOfflineClientWithCache(t)
 	dn := "cn=g,dc=example,dc=com"
 	cached := &Group{
 		Object:  Object{cn: "g", dn: dn},
@@ -95,7 +98,7 @@ func TestFindGroupByDN_CacheHit(t *testing.T) {
 }
 
 func TestClearCache_Populated(t *testing.T) {
-	client := newExampleClientWithCache(t)
+	client := newOfflineClientWithCache(t)
 	require.NoError(t, client.cache.Set("any:key", 42, client.getCacheTTL()))
 	client.ClearCache()
 	_, found := client.cache.Get("any:key")
@@ -106,7 +109,7 @@ func TestClearCache_Populated(t *testing.T) {
 // cache-hit branch returns early. But we can check that cache ops respect
 // nil values.
 func TestFindUserByDN_CacheHitNoPanicOnWrongType(t *testing.T) {
-	client := newExampleClientWithCache(t)
+	client := newOfflineClientWithCache(t)
 	dn := "cn=x,dc=example,dc=com"
 	// Store a value that is NOT a *User at the cache slot — the look-up
 	// should fall through to the LDAP path (and fail at GetConnection).
@@ -117,7 +120,7 @@ func TestFindUserByDN_CacheHitNoPanicOnWrongType(t *testing.T) {
 
 func TestFindUserBySAMAccountName_UsesCache(t *testing.T) {
 	// Calling twice should hit cache second time.
-	client := newExampleClientWithCache(t)
+	client := newOfflineClientWithCache(t)
 	sam := "sticky"
 	cached := &User{
 		Object:         Object{cn: "sticky", dn: "cn=sticky,dc=example,dc=com"},

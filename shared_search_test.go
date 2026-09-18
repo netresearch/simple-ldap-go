@@ -42,7 +42,7 @@ func TestFindByDNContext(t *testing.T) {
 
 		client := &LDAP{
 			config: &Config{
-				Server: "ldap://test:389",
+				Server: "ldap://test.invalid:389",
 				BaseDN: "dc=example,dc=com",
 			},
 			logger:   slog.Default(),
@@ -70,7 +70,7 @@ func TestFindByDNContext(t *testing.T) {
 	t.Run("context cancellation", func(t *testing.T) {
 		client := &LDAP{
 			config: &Config{
-				Server: "ldap://test:389",
+				Server: "ldap://test.invalid:389",
 				BaseDN: "dc=example,dc=com",
 			},
 			logger: slog.Default(),
@@ -101,7 +101,7 @@ func TestFindByDNContext(t *testing.T) {
 
 		client := &LDAP{
 			config: &Config{
-				Server: "ldap://test:389",
+				Server: "ldap://test.invalid:389",
 				BaseDN: "dc=example,dc=com",
 			},
 			logger:   slog.Default(),
@@ -131,7 +131,7 @@ func TestFindByDNContext(t *testing.T) {
 
 		client := &LDAP{
 			config: &Config{
-				Server: "ldap://test:389",
+				Server: "ldap://test.invalid:389",
 				BaseDN: "dc=example,dc=com",
 			},
 			logger:   slog.Default(),
@@ -155,7 +155,7 @@ func TestFindByDNContext(t *testing.T) {
 	t.Run("connection error", func(t *testing.T) {
 		client := &LDAP{
 			config: &Config{
-				Server: "ldap://test:389",
+				Server: "ldap://test.invalid:389",
 				BaseDN: "dc=example,dc=com",
 			},
 			logger:   slog.Default(),
@@ -216,7 +216,7 @@ func TestFindByDNContextWithMockConnection(t *testing.T) {
 
 		client := &LDAP{
 			config: &Config{
-				Server: "ldap://test:389",
+				Server: "ldap://test.invalid:389",
 				BaseDN: "dc=example,dc=com",
 			},
 			logger: slog.Default(),
@@ -253,7 +253,7 @@ func TestFindByDNContextWithMockConnection(t *testing.T) {
 
 		client := &LDAP{
 			config: &Config{
-				Server: "ldap://test:389",
+				Server: "ldap://test.invalid:389",
 				BaseDN: "dc=example,dc=com",
 			},
 			logger: slog.Default(),
@@ -291,7 +291,7 @@ func BenchmarkFindByDNContext(b *testing.B) {
 
 	client := &LDAP{
 		config: &Config{
-			Server: "ldap://test:389",
+			Server: "ldap://test.invalid:389",
 			BaseDN: "dc=example,dc=com",
 		},
 		logger: slog.Default(),

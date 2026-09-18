@@ -164,7 +164,7 @@ func TestFormatErrorWithContext_NonLDAPError(t *testing.T) {
 }
 
 func TestFormatErrorWithContext_NoCode(t *testing.T) {
-	err := NewLDAPError("Op", "ldaps://test.com", errors.New("fail"))
+	err := NewLDAPError("Op", "ldaps://test.invalid", errors.New("fail"))
 	msg := FormatErrorWithContext(err)
 	assert.NotContains(t, msg, "LDAP code:")
 	assert.Contains(t, msg, "occurred at:")
@@ -173,7 +173,7 @@ func TestFormatErrorWithContext_NoCode(t *testing.T) {
 func TestFormatErrorWithContext_ZeroTimestamp(t *testing.T) {
 	err := &LDAPError{
 		Op:      "Op",
-		Server:  "ldaps://test.com",
+		Server:  "ldaps://test.invalid",
 		Err:     errors.New("fail"),
 		Context: make(map[string]any),
 	}
@@ -182,7 +182,7 @@ func TestFormatErrorWithContext_ZeroTimestamp(t *testing.T) {
 }
 
 func TestFormatErrorWithContext_EmptyContext(t *testing.T) {
-	err := NewLDAPError("Op", "ldaps://test.com", errors.New("fail")).
+	err := NewLDAPError("Op", "ldaps://test.invalid", errors.New("fail")).
 		WithCode(49)
 	msg := FormatErrorWithContext(err)
 	assert.Contains(t, msg, "LDAP code: 49")
@@ -190,7 +190,7 @@ func TestFormatErrorWithContext_EmptyContext(t *testing.T) {
 }
 
 func TestFormatErrorWithContext_SensitiveContextKeys(t *testing.T) {
-	err := NewLDAPError("Op", "ldaps://test.com", errors.New("fail")).
+	err := NewLDAPError("Op", "ldaps://test.invalid", errors.New("fail")).
 		WithContext("password", "supersecret123").
 		WithContext("token", "abc123token").
 		WithContext("safe_key", "visible_value")
@@ -406,7 +406,7 @@ func TestAuthenticationError(t *testing.T) {
 	})
 
 	t.Run("with LDAPError", func(t *testing.T) {
-		ldapErr := NewLDAPError("Auth", "ldaps://test.com", errors.New("invalid"))
+		ldapErr := NewLDAPError("Auth", "ldaps://test.invalid", errors.New("invalid"))
 		err := authenticationError("Auth", "user2", ldapErr)
 		assert.Contains(t, err.Error(), "authentication failed for user2")
 	})

@@ -396,8 +396,9 @@ func TestAuthErrorConditions(t *testing.T) {
 	t.Run("connection failure during auth", func(t *testing.T) {
 		// Create client with invalid server to test connection failure handling
 		invalidConfig := Config{
-			Server: "ldap://nonexistent.server:389",
-			BaseDN: tc.BaseDN,
+			SkipConnectionCheck: true,
+			Server:              "ldap://nonexistent.server:389",
+			BaseDN:              tc.BaseDN,
 		}
 
 		invalidClient, err := New(invalidConfig, tc.AdminUser, tc.AdminPass)

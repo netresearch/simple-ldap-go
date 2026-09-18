@@ -887,31 +887,6 @@ func (l *LDAP) FindUsersContext(ctx context.Context) (users []User, err error) {
 	l.logger.Debug("user_list_search_started",
 		slog.String("operation", "FindUsers"))
 
-	// Return mock data for example servers
-	if l.isExampleServer() {
-		// Create 150 mock users for examples
-		users = make([]User, 150)
-		for i := range 150 {
-			email := fmt.Sprintf("user%d@example.com", i+1)
-			users[i] = User{
-				Object: Object{
-					cn: fmt.Sprintf("User %d", i+1),
-					dn: fmt.Sprintf("CN=User %d,OU=Users,%s", i+1, l.config.BaseDN),
-				},
-				SAMAccountName: fmt.Sprintf("user%d", i+1),
-				Description:    fmt.Sprintf("Example User %d", i+1),
-				Mail:           &email,
-				Enabled:        true,
-				Groups:         []string{},
-			}
-		}
-		l.logger.Debug("user_list_search_completed",
-			slog.String("operation", "FindUsers"),
-			slog.Int("count", len(users)),
-			slog.Duration("duration", time.Since(start)))
-		return users, nil
-	}
-
 	c, err := l.GetConnectionContext(ctx)
 	if err != nil {
 		return nil, err

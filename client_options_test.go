@@ -28,7 +28,7 @@ func TestClientOptionsCreation(t *testing.T) {
 		{
 			name: "basic_client_success",
 			config: Config{
-				Server:            "ldaps://test.example.com:636",
+				Server:            "ldaps://test.example.invalid:636",
 				BaseDN:            "DC=test,DC=example,DC=com",
 				IsActiveDirectory: true,
 			},
@@ -40,7 +40,7 @@ func TestClientOptionsCreation(t *testing.T) {
 		{
 			name: "client_with_logger",
 			config: Config{
-				Server:            "ldaps://test.example.com:636",
+				Server:            "ldaps://test.example.invalid:636",
 				BaseDN:            "DC=test,DC=example,DC=com",
 				IsActiveDirectory: true,
 			},
@@ -54,7 +54,7 @@ func TestClientOptionsCreation(t *testing.T) {
 		{
 			name: "client_with_connection_pool",
 			config: Config{
-				Server:            "ldaps://test.example.com:636",
+				Server:            "ldaps://test.example.invalid:636",
 				BaseDN:            "DC=test,DC=example,DC=com",
 				IsActiveDirectory: true,
 			},
@@ -72,7 +72,7 @@ func TestClientOptionsCreation(t *testing.T) {
 		{
 			name: "client_with_cache",
 			config: Config{
-				Server:            "ldaps://test.example.com:636",
+				Server:            "ldaps://test.example.invalid:636",
 				BaseDN:            "DC=test,DC=example,DC=com",
 				IsActiveDirectory: true,
 			},
@@ -90,7 +90,7 @@ func TestClientOptionsCreation(t *testing.T) {
 		{
 			name: "client_with_all_options",
 			config: Config{
-				Server:            "ldaps://test.example.com:636",
+				Server:            "ldaps://test.example.invalid:636",
 				BaseDN:            "DC=test,DC=example,DC=com",
 				IsActiveDirectory: true,
 			},
@@ -150,10 +150,11 @@ func TestClientOptionsCreation(t *testing.T) {
 				}
 				assert.Nil(t, client)
 			} else {
-				// In a real test environment, this would succeed
-				// For unit tests, we expect connection to fail
+				// Against a real directory these succeed. Here there is none, so
+				// the dial fails — which is now what happens for every server
+				// name, rather than being decided by the hostname (#246).
 				if err != nil {
-					assert.Contains(t, err.Error(), "connection")
+					assert.Contains(t, err.Error(), "failed to dial LDAP server")
 				}
 			}
 		})
@@ -163,9 +164,10 @@ func TestClientOptionsCreation(t *testing.T) {
 // TestFactoryMethods tests the convenience factory methods using subtests.
 func TestFactoryMethods(t *testing.T) {
 	config := Config{
-		Server:            "ldaps://test.example.com:636",
-		BaseDN:            "DC=test,DC=example,DC=com",
-		IsActiveDirectory: true,
+		SkipConnectionCheck: true,
+		Server:              "ldaps://test.example.invalid:636",
+		BaseDN:              "DC=test,DC=example,DC=com",
+		IsActiveDirectory:   true,
 	}
 	username := "CN=test,CN=Users,DC=test,DC=example,DC=com"
 	password := "password123"
@@ -311,9 +313,10 @@ func TestConnectionOptions(t *testing.T) {
 // BenchmarkClientCreation benchmarks different client creation methods.
 func BenchmarkClientCreation(b *testing.B) {
 	config := Config{
-		Server:            "ldaps://test.example.com:636",
-		BaseDN:            "DC=test,DC=example,DC=com",
-		IsActiveDirectory: true,
+		SkipConnectionCheck: true,
+		Server:              "ldaps://test.example.invalid:636",
+		BaseDN:              "DC=test,DC=example,DC=com",
+		IsActiveDirectory:   true,
 	}
 	username := "CN=test,CN=Users,DC=test,DC=example,DC=com"
 	password := "password123"
@@ -418,7 +421,7 @@ type TestHelper struct {
 func NewTestHelper() *TestHelper {
 	return &TestHelper{
 		Config: Config{
-			Server:            "ldaps://test.example.com:636",
+			Server:            "ldaps://test.example.invalid:636",
 			BaseDN:            "DC=test,DC=example,DC=com",
 			IsActiveDirectory: true,
 		},

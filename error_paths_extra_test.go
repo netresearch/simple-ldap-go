@@ -17,9 +17,10 @@ import (
 
 func TestChangePassword_ADWithoutLDAPS(t *testing.T) {
 	client, err := New(Config{
-		Server:            "ldap://example.com:389",
-		BaseDN:            "dc=example,dc=com",
-		IsActiveDirectory: true,
+		SkipConnectionCheck: true,
+		Server:              "ldap://example.invalid:389",
+		BaseDN:              "dc=example,dc=com",
+		IsActiveDirectory:   true,
 	}, "admin", "pass")
 	require.NoError(t, err)
 
@@ -28,7 +29,7 @@ func TestChangePassword_ADWithoutLDAPS(t *testing.T) {
 }
 
 func TestChangePassword_InvalidSAM(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	// Empty sAMAccountName triggers validator.
 	err := client.ChangePasswordForSAMAccountName("", "old", "new")
 	assert.Error(t, err)
@@ -36,9 +37,10 @@ func TestChangePassword_InvalidSAM(t *testing.T) {
 
 func TestChangePassword_CancelledContext(t *testing.T) {
 	client, err := New(Config{
-		Server:            "ldaps://example.com:636",
-		BaseDN:            "dc=example,dc=com",
-		IsActiveDirectory: true,
+		SkipConnectionCheck: true,
+		Server:              "ldaps://example.invalid:636",
+		BaseDN:              "dc=example,dc=com",
+		IsActiveDirectory:   true,
 	}, "admin", "pass")
 	require.NoError(t, err)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -49,9 +51,10 @@ func TestChangePassword_CancelledContext(t *testing.T) {
 
 func TestChangePassword_ConnectionError(t *testing.T) {
 	client, err := New(Config{
-		Server:            "ldaps://example.com:636",
-		BaseDN:            "dc=example,dc=com",
-		IsActiveDirectory: true,
+		SkipConnectionCheck: true,
+		Server:              "ldaps://example.invalid:636",
+		BaseDN:              "dc=example,dc=com",
+		IsActiveDirectory:   true,
 	}, "admin", "pass")
 	require.NoError(t, err)
 	err = client.ChangePasswordForSAMAccountName("jdoe", "old", "new")
@@ -60,9 +63,10 @@ func TestChangePassword_ConnectionError(t *testing.T) {
 
 func TestResetPassword_ADWithoutLDAPS(t *testing.T) {
 	client, err := New(Config{
-		Server:            "ldap://example.com:389",
-		BaseDN:            "dc=example,dc=com",
-		IsActiveDirectory: true,
+		SkipConnectionCheck: true,
+		Server:              "ldap://example.invalid:389",
+		BaseDN:              "dc=example,dc=com",
+		IsActiveDirectory:   true,
 	}, "admin", "pass")
 	require.NoError(t, err)
 
@@ -71,16 +75,17 @@ func TestResetPassword_ADWithoutLDAPS(t *testing.T) {
 }
 
 func TestResetPassword_InvalidSAM(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	err := client.ResetPasswordForSAMAccountName("", "newpass")
 	assert.Error(t, err)
 }
 
 func TestResetPassword_CancelledContext(t *testing.T) {
 	client, err := New(Config{
-		Server:            "ldaps://example.com:636",
-		BaseDN:            "dc=example,dc=com",
-		IsActiveDirectory: true,
+		SkipConnectionCheck: true,
+		Server:              "ldaps://example.invalid:636",
+		BaseDN:              "dc=example,dc=com",
+		IsActiveDirectory:   true,
 	}, "admin", "pass")
 	require.NoError(t, err)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -91,9 +96,10 @@ func TestResetPassword_CancelledContext(t *testing.T) {
 
 func TestResetPassword_ConnectionError(t *testing.T) {
 	client, err := New(Config{
-		Server:            "ldaps://example.com:636",
-		BaseDN:            "dc=example,dc=com",
-		IsActiveDirectory: true,
+		SkipConnectionCheck: true,
+		Server:              "ldaps://example.invalid:636",
+		BaseDN:              "dc=example,dc=com",
+		IsActiveDirectory:   true,
 	}, "admin", "pass")
 	require.NoError(t, err)
 	err = client.ResetPasswordForSAMAccountName("jdoe", "newpass")
@@ -101,14 +107,14 @@ func TestResetPassword_ConnectionError(t *testing.T) {
 }
 
 func TestCheckPasswordForSAMAccountName_InvalidSAM(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	u, err := client.CheckPasswordForSAMAccountName("", "password")
 	assert.Error(t, err)
 	assert.Nil(t, u)
 }
 
 func TestCheckPasswordForSAMAccountName_CancelledContext(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	u, err := client.CheckPasswordForSAMAccountNameContext(ctx, "jdoe", "password")
@@ -121,7 +127,7 @@ func TestCheckPasswordForSAMAccountName_CancelledContext(t *testing.T) {
 // =============================================================================
 
 func TestSearchIter_YieldsConnectionError(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	req := ldap.NewSearchRequest(
 		"dc=example,dc=com", ldap.ScopeWholeSubtree, ldap.NeverDerefAliases,
 		0, 0, false, "(objectClass=*)", []string{"cn"}, nil,
@@ -136,7 +142,7 @@ func TestSearchIter_YieldsConnectionError(t *testing.T) {
 }
 
 func TestSearchIter_CancelledContext(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	req := ldap.NewSearchRequest(
 		"dc=example,dc=com", ldap.ScopeWholeSubtree, ldap.NeverDerefAliases,
 		0, 0, false, "(objectClass=*)", []string{"cn"}, nil,
@@ -153,7 +159,7 @@ func TestSearchIter_CancelledContext(t *testing.T) {
 }
 
 func TestSearchPagedIter_YieldsConnectionError(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	req := ldap.NewSearchRequest(
 		"dc=example,dc=com", ldap.ScopeWholeSubtree, ldap.NeverDerefAliases,
 		0, 0, false, "(objectClass=*)", []string{"cn"}, nil,
@@ -168,7 +174,7 @@ func TestSearchPagedIter_YieldsConnectionError(t *testing.T) {
 }
 
 func TestSearchPagedIter_CancelledContext(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	req := ldap.NewSearchRequest(
 		"dc=example,dc=com", ldap.ScopeWholeSubtree, ldap.NeverDerefAliases,
 		0, 0, false, "(objectClass=*)", []string{"cn"}, nil,
@@ -185,7 +191,7 @@ func TestSearchPagedIter_CancelledContext(t *testing.T) {
 }
 
 func TestGroupMembersIter_YieldsConnectionError(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	var gotErr error
 	for _, err := range client.GroupMembersIter(context.Background(), "cn=g,dc=example,dc=com") {
 		if err != nil {
@@ -200,33 +206,33 @@ func TestGroupMembersIter_YieldsConnectionError(t *testing.T) {
 // =============================================================================
 
 func TestGenericSearch_ConnectionError(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	users, err := Search[*User](context.Background(), client, "(objectClass=user)", "")
 	assert.Error(t, err)
 	assert.Nil(t, users)
 }
 
 func TestGenericSearch_WithCustomBaseDN(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	_, err := Search[*User](context.Background(), client, "(objectClass=user)", "ou=users,dc=example,dc=com")
 	assert.Error(t, err)
 }
 
 func TestGenericFindByDN_ConnectionError(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	u, err := FindByDN[*User](context.Background(), client, "cn=x,dc=example,dc=com")
 	assert.Error(t, err)
 	assert.Nil(t, u)
 }
 
 func TestGenericDeleteByDN_ConnectionError(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	err := DeleteByDN(context.Background(), client, "cn=x,dc=example,dc=com")
 	assert.Error(t, err)
 }
 
 func TestGenericCreate_TypeWithoutCreatable(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	// *User doesn't implement ToAddRequest/Validate, so Create must return the
 	// "does not implement" error.
 	u := &User{}
@@ -236,7 +242,7 @@ func TestGenericCreate_TypeWithoutCreatable(t *testing.T) {
 }
 
 func TestGenericModify_TypeWithoutModifiable(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	u := &User{}
 	err := Modify(context.Background(), client, u, map[string][]string{"description": {"d"}})
 	assert.Error(t, err)
@@ -247,7 +253,7 @@ func TestGenericModify_TypeWithoutModifiable(t *testing.T) {
 // =============================================================================
 
 func TestReleaseConnection_NilConnection(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	err := client.ReleaseConnection(nil)
 	assert.NoError(t, err)
 }
@@ -257,14 +263,14 @@ func TestReleaseConnection_NilConnection(t *testing.T) {
 // =============================================================================
 
 func TestFindComputerBySAMAccountName_ConnectionError(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	c, err := client.FindComputerBySAMAccountName("WS01")
 	assert.Error(t, err)
 	assert.Nil(t, c)
 }
 
 func TestFindComputerBySAMAccountName_CancelledContext(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	c, err := client.FindComputerBySAMAccountNameContext(ctx, "WS01")
@@ -277,14 +283,14 @@ func TestFindComputerBySAMAccountName_CancelledContext(t *testing.T) {
 // =============================================================================
 
 func TestFindUserBySAMAccountName_ConnectionError(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	u, err := client.FindUserBySAMAccountName("jdoe")
 	assert.Error(t, err)
 	assert.Nil(t, u)
 }
 
 func TestFindUserBySAMAccountName_CancelledContext(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	u, err := client.FindUserBySAMAccountNameContext(ctx, "jdoe")
@@ -293,7 +299,7 @@ func TestFindUserBySAMAccountName_CancelledContext(t *testing.T) {
 }
 
 func TestFindUserBySAMAccountName_InvalidSAM(t *testing.T) {
-	client := newExampleClient(t)
+	client := newOfflineClient(t)
 	u, err := client.FindUserBySAMAccountName("")
 	assert.Error(t, err)
 	assert.Nil(t, u)

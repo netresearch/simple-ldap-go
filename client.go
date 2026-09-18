@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"strings"
 	"sync"
 	"time"
 
@@ -59,6 +58,22 @@ type Config struct {
 	Logger      *slog.Logger
 	DialOptions []ldap.DialOpt
 
+	// SkipConnectionCheck stops New from dialling the server to verify it is
+	// reachable. The client is returned without that round trip, and the first
+	// real operation is what finds out whether the directory answers.
+	//
+	// It is meant for tests that construct a client without a directory, and
+	// for callers who want initialization not to block on the network. It does
+	// not affect anything else: the cache, the connection pool and the
+	// performance monitor are governed by their own flags, and pool warm-up by
+	// Pool.MinConnections.
+	//
+	// Until v1.18.0 this was decided by the hostname instead — any server whose
+	// name contained "localhost", "example.", "test.com" and a dozen other
+	// substrings silently skipped the check along with the cache, the pool and
+	// the metrics.
+	SkipConnectionCheck bool
+
 	// Optimization flags for enabling enhanced features
 	EnableOptimizations bool // Enable all optimizations (caching, performance monitoring, bulk operations)
 	EnableCache         bool // Enable caching separately (overrides EnableOptimizations for cache)
@@ -78,16 +93,10 @@ func New(config Config, username, password string, opts ...Option) (*LDAP, error
 		logger = config.Logger
 	}
 
-	// Check if this is an example server
-	isExample := isExampleServerName(config.Server)
-
-	if !isExample {
-		// Log initialization only for real servers
-		logger.Info("ldap_client_initializing",
-			slog.String("server", config.Server),
-			slog.String("base_dn", config.BaseDN),
-			slog.Bool("is_active_directory", config.IsActiveDirectory))
-	}
+	logger.Info("ldap_client_initializing",
+		slog.String("server", config.Server),
+		slog.String("base_dn", config.BaseDN),
+		slog.Bool("is_active_directory", config.IsActiveDirectory))
 
 	if config.Server == "" {
 		err := fmt.Errorf("server URL cannot be empty")
@@ -152,7 +161,7 @@ func New(config Config, username, password string, opts ...Option) (*LDAP, error
 	// honoured, a caller who set none gets neither — and nothing fails to tell
 	// them. This record is the signal for an operator upgrading across that
 	// change; it is gated on a real server like the other initialization logs.
-	if !config.EnableCache && !config.EnableMetrics && !config.EnableOptimizations && !isExample {
+	if !config.EnableCache && !config.EnableMetrics && !config.EnableOptimizations {
 		logger.Info("optimizations_disabled",
 			slog.String("server", config.Server),
 			slog.String("hint", "no cache and no metrics: set EnableCache, EnableMetrics or EnableOptimizations to enable them"))
@@ -161,7 +170,7 @@ func New(config Config, username, password string, opts ...Option) (*LDAP, error
 	// Initialize cache if enabled (skip for example servers).
 	// config.Cache may have been set by the caller or by a WithCache option
 	// applied above; client.config is &config, so both land in the same struct.
-	if (config.EnableCache || config.EnableOptimizations) && !isExample {
+	if config.EnableCache || config.EnableOptimizations {
 		cacheConfig := cacheConfigFor(config)
 		cache, err := NewLRUCache(cacheConfig, logger)
 		if err != nil {
@@ -191,7 +200,7 @@ func New(config Config, username, password string, opts ...Option) (*LDAP, error
 	}
 
 	// Initialize connection pool if configured
-	if config.Pool != nil && !isExample {
+	if config.Pool != nil {
 		// NewConnectionPool fills its defaults into the config it is given, so it
 		// gets a copy. The log below reads that copy, which is what the pool runs
 		// with; config.Pool still holds what the caller wrote.
@@ -216,7 +225,7 @@ func New(config Config, username, password string, opts ...Option) (*LDAP, error
 	}
 
 	// Initialize performance monitor if metrics are enabled
-	if (config.EnableMetrics || config.EnableOptimizations) && !isExample {
+	if config.EnableMetrics || config.EnableOptimizations {
 		perfConfig := performanceConfigFor(config)
 
 		client.perfMonitor = NewPerformanceMonitor(perfConfig, logger)
@@ -235,8 +244,8 @@ func New(config Config, username, password string, opts ...Option) (*LDAP, error
 			slog.Float64("sample_rate", perfConfig.SampleRate))
 	}
 
-	// Test connection (skip for example servers)
-	if !isExample {
+	// Verify the server answers, unless the caller asked not to.
+	if !config.SkipConnectionCheck {
 		conn, err := client.GetConnection()
 		if err == nil {
 			// The check took a connection out of the pool; without this it stays
@@ -257,11 +266,9 @@ func New(config Config, username, password string, opts ...Option) (*LDAP, error
 		}
 	}
 
-	if !isExample {
-		logger.Info("ldap_client_initialized_successfully",
-			slog.String("server", config.Server),
-			slog.Duration("duration", time.Since(start)))
-	}
+	logger.Info("ldap_client_initialized_successfully",
+		slog.String("server", config.Server),
+		slog.Duration("duration", time.Since(start)))
 
 	return client, nil
 }
@@ -312,33 +319,6 @@ func poolConfigFor(poolConfig *PoolConfig) *PoolConfig {
 	}
 	copied := *poolConfig
 	return &copied
-}
-
-// isExampleServerName checks if a server name is an example/test server
-func isExampleServerName(server string) bool {
-	serverLower := strings.ToLower(server)
-	return strings.Contains(serverLower, "example.") ||
-		strings.Contains(serverLower, "localhost") ||
-		strings.Contains(serverLower, "enterprise.com") ||
-		strings.Contains(serverLower, ".server.com") ||
-		strings.Contains(serverLower, "test.com") ||
-		strings.Contains(serverLower, "test.example") ||
-		strings.Contains(serverLower, "://test:") ||
-		strings.HasSuffix(serverLower, ".server") ||
-		strings.Contains(serverLower, "failing.server") ||
-		strings.Contains(serverLower, "test.server") ||
-		strings.Contains(serverLower, "slow.server") ||
-		strings.Contains(serverLower, "recovering.server") ||
-		strings.Contains(serverLower, "server.com") ||
-		strings.Contains(serverLower, "prod.server") ||
-		strings.Contains(serverLower, "production.server") ||
-		strings.Contains(serverLower, "unreachable.server") ||
-		strings.Contains(serverLower, "real.server")
-}
-
-// isExampleServer checks if this is an example/test server
-func (l *LDAP) isExampleServer() bool {
-	return isExampleServerName(l.config.Server)
 }
 
 // GetConnection returns a new LDAP connection
@@ -440,29 +420,6 @@ func (l *LDAP) GetCircuitBreakerStats() map[string]any {
 // This method provides detailed insights into the performance characteristics of LDAP operations,
 // including timing percentiles, cache hit ratios, and slow query detection.
 func (l *LDAP) GetPerformanceStats() PerformanceStats {
-	// Return mock stats for example servers
-	if l.isExampleServer() {
-		// Check if pooling is configured
-		if l.config.Pool == nil {
-			// No pooling configured - return stats indicating direct connections
-			return PerformanceStats{
-				ActiveConnections: 0,
-				IdleConnections:   0,
-				TotalConnections:  0,
-				PoolHits:          0,
-				PoolMisses:        0,
-			}
-		}
-		// Pooling is configured - return pool activity stats
-		return PerformanceStats{
-			ActiveConnections: 0,
-			IdleConnections:   5,
-			TotalConnections:  5,
-			PoolHits:          1,
-			PoolMisses:        1,
-		}
-	}
-
 	// A pool without a performance monitor is an ordinary configuration:
 	// Config.Pool is read on its own and does not imply EnableMetrics. Reporting
 	// zeros there would answer "no connections" for a pool that has them, which
@@ -782,11 +739,6 @@ func (l *LDAP) dialAndBind(ctx context.Context, bindDN, bindPassword string) (*l
 	l.logger.Debug("ldap_connection_establishing",
 		slog.String("server", l.config.Server),
 		slog.String("base_dn", l.config.BaseDN))
-
-	// For example/test servers, return a stub error to avoid actual network calls
-	if l.isExampleServer() {
-		return nil, fmt.Errorf("connection to example server not available")
-	}
 
 	// Prepare dial options
 	dialOpts := make([]ldap.DialOpt, 0)

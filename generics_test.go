@@ -255,7 +255,7 @@ func TestSearchGenericFunction(t *testing.T) {
 	t.Run("search fails with incompatible type", func(t *testing.T) {
 		client := &LDAP{
 			config: &Config{
-				Server: "ldap://test:389",
+				Server: "ldap://test.invalid:389",
 				BaseDN: "dc=example,dc=com",
 			},
 			connPool: nil,
@@ -292,7 +292,7 @@ func TestCreateGenericFunction(t *testing.T) {
 	t.Run("create fails with incompatible type", func(t *testing.T) {
 		client := &LDAP{
 			config: &Config{
-				Server: "ldap://test:389",
+				Server: "ldap://test.invalid:389",
 				BaseDN: "dc=example,dc=com",
 			},
 			connPool: nil,
@@ -313,7 +313,7 @@ func TestCreateGenericFunction(t *testing.T) {
 	t.Run("create fails validation", func(t *testing.T) {
 		client := &LDAP{
 			config: &Config{
-				Server: "ldap://test:389",
+				Server: "ldap://test.invalid:389",
 				BaseDN: "dc=example,dc=com",
 			},
 			connPool: nil,
@@ -339,7 +339,7 @@ func TestModifyGenericFunction(t *testing.T) {
 	t.Run("modify fails with incompatible type", func(t *testing.T) {
 		client := &LDAP{
 			config: &Config{
-				Server: "ldap://test:389",
+				Server: "ldap://test.invalid:389",
 				BaseDN: "dc=example,dc=com",
 			},
 			connPool: nil,
@@ -360,7 +360,7 @@ func TestModifyGenericFunction(t *testing.T) {
 	t.Run("modify fails with non-modifiable attribute", func(t *testing.T) {
 		client := &LDAP{
 			config: &Config{
-				Server: "ldap://test:389",
+				Server: "ldap://test.invalid:389",
 				BaseDN: "dc=example,dc=com",
 			},
 			connPool: nil,
@@ -421,7 +421,7 @@ func TestFindByDNGenericFunction(t *testing.T) {
 	t.Run("find by DN fails with incompatible type", func(t *testing.T) {
 		client := &LDAP{
 			config: &Config{
-				Server: "ldap://test:389",
+				Server: "ldap://test.invalid:389",
 				BaseDN: "dc=example,dc=com",
 			},
 			connPool: nil,
@@ -490,7 +490,7 @@ func TestBatchOperation(t *testing.T) {
 	t.Run("batch process with unknown operation", func(t *testing.T) {
 		client := &LDAP{
 			config: &Config{
-				Server: "ldap://test:389",
+				Server: "ldap://test.invalid:389",
 				BaseDN: "dc=example,dc=com",
 			},
 			connPool: nil,
@@ -538,7 +538,7 @@ func TestOperationPipeline(t *testing.T) {
 	t.Run("pipeline creation", func(t *testing.T) {
 		client := &LDAP{
 			config: &Config{
-				Server: "ldap://test:389",
+				Server: "ldap://test.invalid:389",
 				BaseDN: "dc=example,dc=com",
 			},
 			connPool: nil,
@@ -555,7 +555,7 @@ func TestOperationPipeline(t *testing.T) {
 	t.Run("pipeline with create operation interface validation", func(t *testing.T) {
 		client := &LDAP{
 			config: &Config{
-				Server: "ldap://test:389",
+				Server: "ldap://test.invalid:389",
 				BaseDN: "dc=example,dc=com",
 			},
 			connPool: nil,
@@ -582,7 +582,7 @@ func TestOperationPipeline(t *testing.T) {
 	t.Run("pipeline with modify operation validation", func(t *testing.T) {
 		client := &LDAP{
 			config: &Config{
-				Server: "ldap://test:389",
+				Server: "ldap://test.invalid:389",
 				BaseDN: "dc=example,dc=com",
 			},
 			connPool: nil,
@@ -609,7 +609,7 @@ func TestOperationPipeline(t *testing.T) {
 	t.Run("pipeline with delete operation validation", func(t *testing.T) {
 		client := &LDAP{
 			config: &Config{
-				Server: "ldap://test:389",
+				Server: "ldap://test.invalid:389",
 				BaseDN: "dc=example,dc=com",
 			},
 			connPool: nil,
@@ -633,7 +633,7 @@ func TestOperationPipeline(t *testing.T) {
 	t.Run("pipeline error handling logic", func(t *testing.T) {
 		client := &LDAP{
 			config: &Config{
-				Server: "ldap://test:389",
+				Server: "ldap://test.invalid:389",
 				BaseDN: "dc=example,dc=com",
 			},
 			connPool: nil,
@@ -663,7 +663,7 @@ func TestOperationPipeline(t *testing.T) {
 	t.Run("successful pipeline execution", func(t *testing.T) {
 		client := &LDAP{
 			config: &Config{
-				Server: "ldap://test:389",
+				Server: "ldap://test.invalid:389",
 				BaseDN: "dc=example,dc=com",
 			},
 			connPool: nil,
@@ -783,7 +783,7 @@ func TestPipelineChaining(t *testing.T) {
 	t.Run("method chaining returns same pipeline", func(t *testing.T) {
 		client := &LDAP{
 			config: &Config{
-				Server: "ldap://test:389",
+				Server: "ldap://test.invalid:389",
 				BaseDN: "dc=example,dc=com",
 			},
 			connPool: nil,
@@ -805,7 +805,7 @@ func TestPipelineChaining(t *testing.T) {
 	t.Run("fluent chaining syntax validation", func(t *testing.T) {
 		client := &LDAP{
 			config: &Config{
-				Server: "ldap://test:389",
+				Server: "ldap://test.invalid:389",
 				BaseDN: "dc=example,dc=com",
 			},
 			connPool: nil,

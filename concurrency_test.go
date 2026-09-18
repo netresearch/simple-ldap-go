@@ -32,7 +32,7 @@ func TestDefaultWorkerPoolConfig(t *testing.T) {
 // TestWorkerPoolCreation tests worker pool creation
 func TestWorkerPoolCreation(t *testing.T) {
 	client := &LDAP{
-		config: &Config{Server: "ldap://test:389"},
+		config: &Config{Server: "ldap://test.invalid:389"},
 		logger: slog.Default(),
 	}
 
@@ -85,7 +85,7 @@ func TestWorkerPoolCreation(t *testing.T) {
 // TestWorkerPoolSubmitAndResults tests work submission and result collection
 func TestWorkerPoolSubmitAndResults(t *testing.T) {
 	client := &LDAP{
-		config: &Config{Server: "ldap://test:389"},
+		config: &Config{Server: "ldap://test.invalid:389"},
 		logger: slog.Default(),
 	}
 
@@ -245,7 +245,7 @@ func TestWorkerPoolSubmitAndResults(t *testing.T) {
 // TestWorkerPoolConcurrency tests concurrent operations
 func TestWorkerPoolConcurrency(t *testing.T) {
 	client := &LDAP{
-		config: &Config{Server: "ldap://test:389"},
+		config: &Config{Server: "ldap://test.invalid:389"},
 		logger: slog.Default(),
 	}
 
@@ -313,7 +313,7 @@ func TestWorkerPoolConcurrency(t *testing.T) {
 // TestWorkerPoolTimeout tests timeout behavior
 func TestWorkerPoolTimeout(t *testing.T) {
 	client := &LDAP{
-		config: &Config{Server: "ldap://test:389"},
+		config: &Config{Server: "ldap://test.invalid:389"},
 		logger: slog.Default(),
 	}
 
@@ -356,7 +356,7 @@ func TestWorkerPoolTimeout(t *testing.T) {
 // TestWorkerPoolClose tests pool shutdown
 func TestWorkerPoolClose(t *testing.T) {
 	client := &LDAP{
-		config: &Config{Server: "ldap://test:389"},
+		config: &Config{Server: "ldap://test.invalid:389"},
 		logger: slog.Default(),
 	}
 
@@ -400,7 +400,7 @@ func TestWorkerPoolClose(t *testing.T) {
 // TestWorkerPoolStats tests statistics collection
 func TestWorkerPoolStats(t *testing.T) {
 	client := &LDAP{
-		config: &Config{Server: "ldap://test:389"},
+		config: &Config{Server: "ldap://test.invalid:389"},
 		logger: slog.Default(),
 	}
 
@@ -460,7 +460,7 @@ func TestWorkerPoolStats(t *testing.T) {
 // TestWorkerPoolTypes tests with different generic types
 func TestWorkerPoolTypes(t *testing.T) {
 	client := &LDAP{
-		config: &Config{Server: "ldap://test:389"},
+		config: &Config{Server: "ldap://test.invalid:389"},
 		logger: slog.Default(),
 	}
 
@@ -530,7 +530,7 @@ func TestWorkerPoolTypes(t *testing.T) {
 // BenchmarkWorkerPool benchmarks worker pool performance
 func BenchmarkWorkerPool(b *testing.B) {
 	client := &LDAP{
-		config: &Config{Server: "ldap://test:389"},
+		config: &Config{Server: "ldap://test.invalid:389"},
 		logger: slog.Default(),
 	}
 
@@ -636,7 +636,7 @@ func BenchmarkWorkerPool(b *testing.B) {
 // TestWorkerPoolEdgeCases tests edge cases and error conditions
 func TestWorkerPoolEdgeCases(t *testing.T) {
 	client := &LDAP{
-		config: &Config{Server: "ldap://test:389"},
+		config: &Config{Server: "ldap://test.invalid:389"},
 		logger: slog.Default(),
 	}
 
@@ -1268,7 +1268,7 @@ func TestFanOutClose(t *testing.T) {
 
 func TestBatchProcessorCreation(t *testing.T) {
 	client := &LDAP{
-		config: &Config{Server: "ldap://test:389"},
+		config: &Config{Server: "ldap://test.invalid:389"},
 		logger: slog.Default(),
 	}
 
@@ -1287,7 +1287,7 @@ func TestBatchProcessorCreation(t *testing.T) {
 
 func TestBatchProcessorAdd(t *testing.T) {
 	client := &LDAP{
-		config: &Config{Server: "ldap://test:389"},
+		config: &Config{Server: "ldap://test.invalid:389"},
 		logger: slog.Default(),
 	}
 
@@ -1351,7 +1351,7 @@ func TestBatchProcessorAdd(t *testing.T) {
 
 func TestBatchProcessorClose(t *testing.T) {
 	client := &LDAP{
-		config: &Config{Server: "ldap://test:389"},
+		config: &Config{Server: "ldap://test.invalid:389"},
 		logger: slog.Default(),
 	}
 
@@ -1398,7 +1398,7 @@ func TestBatchProcessorClose(t *testing.T) {
 
 func TestBatchProcessorErrorHandling(t *testing.T) {
 	client := &LDAP{
-		config: &Config{Server: "ldap://test:389"},
+		config: &Config{Server: "ldap://test.invalid:389"},
 		logger: slog.Default(),
 	}
 
@@ -1419,7 +1419,7 @@ func TestBatchProcessorErrorHandling(t *testing.T) {
 
 func TestBatchProcessorFlushEmptyBatch(t *testing.T) {
 	client := &LDAP{
-		config: &Config{Server: "ldap://test:389"},
+		config: &Config{Server: "ldap://test.invalid:389"},
 		logger: slog.Default(),
 	}
 
@@ -1632,7 +1632,7 @@ func TestSemaphoreWithSemaphore(t *testing.T) {
 
 func TestNewConcurrentOperations(t *testing.T) {
 	client := &LDAP{
-		config: &Config{Server: "ldap://test:389"},
+		config: &Config{Server: "ldap://test.invalid:389"},
 		logger: slog.Default(),
 	}
 
@@ -1683,7 +1683,7 @@ func TestWorkerPoolStatsStruct(t *testing.T) {
 
 func TestWorkerPoolSubmitAfterContextDeadline(t *testing.T) {
 	client := &LDAP{
-		config: &Config{Server: "ldap://test:389"},
+		config: &Config{Server: "ldap://test.invalid:389"},
 		logger: slog.Default(),
 	}
 
@@ -1749,7 +1749,7 @@ func TestWorkerPoolConfigFields(t *testing.T) {
 
 func TestWorkerPoolFailFast(t *testing.T) {
 	client := &LDAP{
-		config: &Config{Server: "ldap://test:389"},
+		config: &Config{Server: "ldap://test.invalid:389"},
 		logger: slog.Default(),
 	}
 
@@ -1785,7 +1785,7 @@ func TestWorkerPoolFailFast(t *testing.T) {
 
 func TestWorkerPoolContextDoneDuringWork(t *testing.T) {
 	client := &LDAP{
-		config: &Config{Server: "ldap://test:389"},
+		config: &Config{Server: "ldap://test.invalid:389"},
 		logger: slog.Default(),
 	}
 
@@ -1818,7 +1818,7 @@ func TestWorkerPoolContextDoneDuringWork(t *testing.T) {
 
 func TestWorkerPoolResultChannelFull(t *testing.T) {
 	client := &LDAP{
-		config: &Config{Server: "ldap://test:389"},
+		config: &Config{Server: "ldap://test.invalid:389"},
 		logger: slog.Default(),
 	}
 
@@ -1862,7 +1862,7 @@ func TestWorkerPoolResultChannelFull(t *testing.T) {
 
 func TestWorkerPoolErrorMetrics(t *testing.T) {
 	client := &LDAP{
-		config: &Config{Server: "ldap://test:389"},
+		config: &Config{Server: "ldap://test.invalid:389"},
 		logger: slog.Default(),
 	}
 

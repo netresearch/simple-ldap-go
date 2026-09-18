@@ -116,23 +116,30 @@ func TestNew(t *testing.T) {
 }
 
 func TestCacheInitialization(t *testing.T) {
-	t.Run("example servers never get cache", func(t *testing.T) {
-		// Use localhost which is treated as an example server
-		exampleConfig := Config{
+	t.Run("a localhost client gets the cache it asks for", func(t *testing.T) {
+		// This subtest used to assert the opposite. Until v1.18.0 any server
+		// name containing "localhost" was taken for an example server, and the
+		// cache, the pool and the metrics were all silently skipped for it —
+		// which is every locally running OpenLDAP and every port-forwarded
+		// directory (#246). The hostname decides nothing now.
+		localConfig := Config{
 			Server:              "ldap://localhost:389",
 			BaseDN:              "dc=example,dc=com",
 			EnableCache:         true,
 			EnableOptimizations: true,
+			SkipConnectionCheck: true,
 		}
 
-		client, err := New(exampleConfig, "user", "pass")
-		assert.NoError(t, err)
-		assert.NotNil(t, client)
-		assert.Nil(t, client.cache, "cache should never be initialized for example servers")
+		client, err := New(localConfig, "user", "pass")
+		require.NoError(t, err)
+		require.NotNil(t, client)
+		assert.NotNil(t, client.cache, "EnableCache was set, so a cache must be built")
+		assert.NotNil(t, client.perfMonitor, "EnableOptimizations was set, so metrics must be on")
+		t.Cleanup(func() { _ = client.Close() })
 	})
 
-	// For real server tests, we need an integration test since non-example servers
-	// require actual connection validation
+	// The rest needs a real directory: New verifies the connection unless the
+	// caller sets SkipConnectionCheck.
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
@@ -296,7 +303,7 @@ func TestConfigValidation(t *testing.T) {
 		{
 			name: "Active Directory config",
 			config: Config{
-				Server:            "ldaps://ad.example.com:636",
+				Server:            "ldaps://ad.example.invalid:636",
 				BaseDN:            "DC=example,DC=com",
 				IsActiveDirectory: true,
 			},
@@ -400,9 +407,10 @@ func BenchmarkGetConnection(b *testing.B) {
 func TestGetConnectionContext(t *testing.T) {
 	t.Run("with pool - successful connection", func(t *testing.T) {
 		config := &Config{
-			Server: "ldap://test.example.com",
-			Port:   389,
-			BaseDN: "dc=test,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://test.example.invalid",
+			Port:                389,
+			BaseDN:              "dc=test,dc=com",
 			Pool: &PoolConfig{
 				MaxConnections: 5,
 				MinConnections: 2,
@@ -413,15 +421,16 @@ func TestGetConnectionContext(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, client)
 
-		// Since test.example.com is an example server, pool won't be initialized
+		// The pool is built from Config.Pool; the server name does not decide it.
 		assert.Nil(t, client.connPool)
 	})
 
 	t.Run("without pool - direct connection", func(t *testing.T) {
 		config := &Config{
-			Server: "ldap://example.com",
-			Port:   389,
-			BaseDN: "dc=example,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://example.invalid",
+			Port:                389,
+			BaseDN:              "dc=example,dc=com",
 		}
 
 		client, err := New(*config, "testuser", "testpass")
@@ -429,19 +438,21 @@ func TestGetConnectionContext(t *testing.T) {
 		require.NotNil(t, client)
 		assert.Nil(t, client.connPool)
 
-		// Attempt connection (will fail for example server)
+		// Attempt connection (the address is unreachable, so this fails)
 		ctx := context.Background()
 		conn, err := client.GetConnectionContext(ctx)
 		assert.Error(t, err)
 		assert.Nil(t, conn)
-		assert.Contains(t, err.Error(), "connection to example server not available")
+		assert.NotContains(t, err.Error(), "connection to example server not available",
+			"the stub error is gone; what comes back must be a real dial failure")
 	})
 
 	t.Run("context cancellation before connection", func(t *testing.T) {
 		config := &Config{
-			Server: "ldap://example.com",
-			Port:   389,
-			BaseDN: "dc=example,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://example.invalid",
+			Port:                389,
+			BaseDN:              "dc=example,dc=com",
 		}
 
 		client, err := New(*config, "testuser", "testpass")
@@ -459,9 +470,10 @@ func TestGetConnectionContext(t *testing.T) {
 
 	t.Run("context timeout", func(t *testing.T) {
 		config := &Config{
-			Server: "ldap://example.com",
-			Port:   389,
-			BaseDN: "dc=example,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://example.invalid",
+			Port:                389,
+			BaseDN:              "dc=example,dc=com",
 		}
 
 		client, err := New(*config, "testuser", "testpass")
@@ -487,11 +499,12 @@ func TestGetConnectionContext(t *testing.T) {
 
 // TestCreateDirectConnection tests the createDirectConnection method
 func TestCreateDirectConnection(t *testing.T) {
-	t.Run("example server returns error", func(t *testing.T) {
+	t.Run("an unreachable server returns a dial error", func(t *testing.T) {
 		config := &Config{
-			Server: "ldap://example.com",
-			Port:   389,
-			BaseDN: "dc=example,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://example.invalid",
+			Port:                389,
+			BaseDN:              "dc=example,dc=com",
 		}
 
 		client, err := New(*config, "testuser", "testpass")
@@ -501,14 +514,16 @@ func TestCreateDirectConnection(t *testing.T) {
 		conn, err := client.createDirectConnection(ctx)
 		assert.Error(t, err)
 		assert.Nil(t, conn)
-		assert.Contains(t, err.Error(), "connection to example server not available")
+		assert.NotContains(t, err.Error(), "connection to example server not available",
+			"the stub error is gone; what comes back must be a real dial failure")
 	})
 
 	t.Run("localhost server", func(t *testing.T) {
 		config := &Config{
-			Server: "ldap://localhost:389",
-			Port:   389,
-			BaseDN: "dc=local,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://localhost:389",
+			Port:                389,
+			BaseDN:              "dc=local,dc=com",
 		}
 
 		client, err := New(*config, "testuser", "testpass")
@@ -516,16 +531,18 @@ func TestCreateDirectConnection(t *testing.T) {
 
 		ctx := context.Background()
 		conn, err := client.createDirectConnection(ctx)
-		assert.Error(t, err) // Will fail as it's an example server
+		assert.Error(t, err) // the address is unreachable
 		assert.Nil(t, conn)
-		assert.Contains(t, err.Error(), "connection to example server not available")
+		assert.NotContains(t, err.Error(), "connection to example server not available",
+			"the stub error is gone; what comes back must be a real dial failure")
 	})
 
 	t.Run("context cancellation during dial", func(t *testing.T) {
 		config := &Config{
-			Server: "ldap://test.server.com:389", // Test server - won't actually connect
-			Port:   389,
-			BaseDN: "dc=test,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://test.server.invalid:389", // Test server - won't actually connect
+			Port:                389,
+			BaseDN:              "dc=test,dc=com",
 		}
 
 		client, err := New(*config, "testuser", "testpass")
@@ -544,9 +561,10 @@ func TestCreateDirectConnection(t *testing.T) {
 
 	t.Run("dial options are applied", func(t *testing.T) {
 		config := &Config{
-			Server: "ldap://test.server.com:389",
-			Port:   389,
-			BaseDN: "dc=test,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://test.server.invalid:389",
+			Port:                389,
+			BaseDN:              "dc=test,dc=com",
 			DialOptions: []ldap.DialOpt{
 				ldap.DialWithTLSConfig(nil), // Add a dial option
 			},
@@ -563,9 +581,10 @@ func TestCreateDirectConnection(t *testing.T) {
 func TestGetConnectionProtected(t *testing.T) {
 	t.Run("without circuit breaker uses regular connection", func(t *testing.T) {
 		config := &Config{
-			Server: "ldap://example.com",
-			Port:   389,
-			BaseDN: "dc=example,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://example.invalid",
+			Port:                389,
+			BaseDN:              "dc=example,dc=com",
 		}
 
 		client, err := New(*config, "testuser", "testpass")
@@ -575,15 +594,17 @@ func TestGetConnectionProtected(t *testing.T) {
 		conn, err := client.GetConnectionProtected()
 		assert.Error(t, err)
 		assert.Nil(t, conn)
-		assert.Contains(t, err.Error(), "connection to example server not available")
+		assert.NotContains(t, err.Error(), "connection to example server not available",
+			"the stub error is gone; what comes back must be a real dial failure")
 		assert.NotContains(t, err.Error(), "circuit breaker")
 	})
 
 	t.Run("with circuit breaker handles failures", func(t *testing.T) {
 		config := &Config{
-			Server: "ldap://failing.server",
-			Port:   389,
-			BaseDN: "dc=example,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://failing.server",
+			Port:                389,
+			BaseDN:              "dc=example,dc=com",
 			Resilience: &ResilienceConfig{
 				EnableCircuitBreaker: true,
 				CircuitBreaker: &CircuitBreakerConfig{
@@ -617,9 +638,10 @@ func TestGetConnectionProtected(t *testing.T) {
 func TestConnectionFieldName(t *testing.T) {
 	t.Run("connPool field is correctly used", func(t *testing.T) {
 		config := &Config{
-			Server: "ldap://test.com",
-			Port:   389,
-			BaseDN: "dc=test,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://test.invalid",
+			Port:                389,
+			BaseDN:              "dc=test,dc=com",
 		}
 
 		client, err := New(*config, "testuser", "testpass")
@@ -629,7 +651,7 @@ func TestConnectionFieldName(t *testing.T) {
 		// This ensures we're using connPool, not pool
 		assert.Nil(t, client.connPool) // Field should exist even if nil
 
-		// If we had a pool config for non-example server, it would be set
+		// With a pool config it would be set, whatever the server is called
 		config2 := &Config{
 			Server: "ldap://real.server.com",
 			Port:   389,
@@ -650,45 +672,46 @@ func TestConnectionFieldName(t *testing.T) {
 	})
 }
 
-// TestConnectionNeverReturnsNotImplemented ensures we never return the stub error
-func TestConnectionNeverReturnsNotImplemented(t *testing.T) {
+// TestConnectionNeverReturnsAStubError ensures the dial path really dials.
+// Until v1.18.0 a server whose name matched a substring list got a stub error
+// instead of a connection attempt, and this test's predecessor asserted that
+// stub for half of its cases. Both stub texts must now be absent: what comes
+// back is whatever the network says.
+func TestConnectionNeverReturnsAStubError(t *testing.T) {
 	testCases := []struct {
 		name   string
 		server string
 	}{
-		{"example.com", "ldap://example.com"},
-		{"localhost", "ldap://localhost"},
-		{"test.server", "ldap://test.server"},
-		{"enterprise.com", "ldap://enterprise.com"},
-		{"failing.server", "ldap://failing.server"},
+		// Three names the matcher used to claim, and one it never did. Each
+		// either refuses immediately or does not resolve (RFC 6761 .invalid),
+		// so no case here waits out a dial timeout.
+		{"loopback, refused", "ldap://127.0.0.1:1"},
+		{"example-like name", "ldap://ldap.example.invalid:389"},
+		{"test-like name", "ldap://test.server.invalid:389"},
+		{"ordinary name", "ldap://directory.corp.invalid:389"},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			config := &Config{
+			config := Config{
 				Server: tc.server,
 				Port:   389,
 				BaseDN: "dc=test,dc=com",
+				// New would otherwise dial here and fail; this test drives the
+				// dial through GetConnectionContext so it can read the error.
+				SkipConnectionCheck: true,
 			}
 
-			client, err := New(*config, "user", "pass")
+			client, err := New(config, "user", "pass")
 			require.NoError(t, err)
 
-			ctx := context.Background()
-			conn, err := client.GetConnectionContext(ctx)
-
-			if err != nil {
-				// Should never contain "not implemented"
-				assert.NotContains(t, err.Error(), "not implemented",
-					"Connection should never return 'not implemented' stub error")
-				// Should return proper error for example servers
-				if client.isExampleServer() {
-					assert.Contains(t, err.Error(), "connection to example server not available")
-				}
-			}
+			conn, err := client.GetConnectionContext(context.Background())
 			if conn != nil {
 				_ = conn.Close()
 			}
+			require.Error(t, err, "none of these addresses can serve LDAP")
+			assert.NotContains(t, err.Error(), "not implemented")
+			assert.NotContains(t, err.Error(), "connection to example server not available")
 		})
 	}
 }
@@ -697,9 +720,10 @@ func TestConnectionNeverReturnsNotImplemented(t *testing.T) {
 func TestConnectionWithOptions(t *testing.T) {
 	t.Run("with logger option", func(t *testing.T) {
 		config := &Config{
-			Server: "ldap://example.com",
-			Port:   389,
-			BaseDN: "dc=example,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://example.invalid",
+			Port:                389,
+			BaseDN:              "dc=example,dc=com",
 		}
 
 		customLogger := slog.Default().With("test", "true")
@@ -710,9 +734,10 @@ func TestConnectionWithOptions(t *testing.T) {
 
 	t.Run("with timeout option", func(t *testing.T) {
 		config := &Config{
-			Server: "ldap://example.com",
-			Port:   389,
-			BaseDN: "dc=example,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://example.invalid",
+			Port:                389,
+			BaseDN:              "dc=example,dc=com",
 		}
 
 		client, err := New(*config, "user", "pass",
@@ -723,9 +748,10 @@ func TestConnectionWithOptions(t *testing.T) {
 
 	t.Run("with circuit breaker option", func(t *testing.T) {
 		config := &Config{
-			Server: "ldap://example.com",
-			Port:   389,
-			BaseDN: "dc=example,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://example.invalid",
+			Port:                389,
+			BaseDN:              "dc=example,dc=com",
 		}
 
 		cbConfig := &CircuitBreakerConfig{
@@ -744,9 +770,10 @@ func TestConnectionErrorHandling(t *testing.T) {
 
 	t.Run("empty server", func(t *testing.T) {
 		config := &Config{
-			Server: "",
-			Port:   389,
-			BaseDN: "dc=test,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "",
+			Port:                389,
+			BaseDN:              "dc=test,dc=com",
 		}
 		client, err := New(*config, "user", "pass")
 		assert.Error(t, err)
@@ -756,9 +783,10 @@ func TestConnectionErrorHandling(t *testing.T) {
 
 	t.Run("empty base DN", func(t *testing.T) {
 		config := &Config{
-			Server: "ldap://example.com",
-			Port:   389,
-			BaseDN: "",
+			SkipConnectionCheck: true,
+			Server:              "ldap://example.invalid",
+			Port:                389,
+			BaseDN:              "",
 		}
 		client, err := New(*config, "user", "pass")
 		assert.Error(t, err)
@@ -768,9 +796,10 @@ func TestConnectionErrorHandling(t *testing.T) {
 
 	t.Run("empty username", func(t *testing.T) {
 		config := &Config{
-			Server: "ldap://example.com",
-			Port:   389,
-			BaseDN: "dc=test,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://example.invalid",
+			Port:                389,
+			BaseDN:              "dc=test,dc=com",
 		}
 		client, err := New(*config, "", "pass")
 		assert.Error(t, err)
@@ -780,9 +809,10 @@ func TestConnectionErrorHandling(t *testing.T) {
 
 	t.Run("empty password", func(t *testing.T) {
 		config := &Config{
-			Server: "ldap://example.com",
-			Port:   389,
-			BaseDN: "dc=test,dc=com",
+			SkipConnectionCheck: true,
+			Server:              "ldap://example.invalid",
+			Port:                389,
+			BaseDN:              "dc=test,dc=com",
 		}
 		client, err := New(*config, "user", "")
 		assert.Error(t, err)
@@ -794,9 +824,10 @@ func TestConnectionErrorHandling(t *testing.T) {
 // TestConnectionConcurrency tests concurrent connection attempts
 func TestConnectionConcurrency(t *testing.T) {
 	config := &Config{
-		Server: "ldap://example.com",
-		Port:   389,
-		BaseDN: "dc=example,dc=com",
+		SkipConnectionCheck: true,
+		Server:              "ldap://example.invalid",
+		Port:                389,
+		BaseDN:              "dc=example,dc=com",
 	}
 
 	client, err := New(*config, "user", "pass")
@@ -820,18 +851,20 @@ func TestConnectionConcurrency(t *testing.T) {
 	// Collect results
 	for range numGoroutines {
 		err := <-errChan
-		// Should get consistent error for example server
+		// Should get a consistent dial error
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "connection to example server not available")
+		assert.NotContains(t, err.Error(), "connection to example server not available",
+			"the stub error is gone; what comes back must be a real dial failure")
 	}
 }
 
 // BenchmarkGetConnectionPerformance benchmarks connection performance
 func BenchmarkGetConnectionPerformance(b *testing.B) {
 	config := &Config{
-		Server: "ldap://example.com",
-		Port:   389,
-		BaseDN: "dc=example,dc=com",
+		SkipConnectionCheck: true,
+		Server:              "ldap://example.invalid",
+		Port:                389,
+		BaseDN:              "dc=example,dc=com",
 	}
 
 	client, err := New(*config, "user", "pass")
