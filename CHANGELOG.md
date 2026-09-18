@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Deprecated
+
+- **`Config.Port` is not read, and says so now.** Nothing in the library has ever consulted it: the port comes from the `Server` URL, and the only port handling in the package parses it back out of that URL. A `Config` with `Server: "ldap://host:389"` and `Port: 636` connects on 389, and one with `Server: "ldap://host"` and `Port: 636` connects on 389 too, because that is go-ldap's default for the scheme ([#251](https://github.com/netresearch/simple-ldap-go/issues/251)).
+
+  The field carries a `Deprecated:` marker and `Server` gains the documentation it never had. Nothing changes at runtime; this is the field admitting what it does. Put the port in `Server`. Removal needs its own decision and is tracked in the issue.
+
+  `docs/RESILIENCE.md` showed `Server: "ldap://ldap.example.com"` beside `Port: 389` at three sites — the exact shape that looks configured and is not. They carry the port in the URL now.
+
+
 ### Changed
 
 - **BEHAVIOUR: the hostname no longer decides whether a client is real.** `New` matched `Config.Server` against a substring list — `localhost`, `example.`, `test.com`, `enterprise.com`, `server.com`, `.server` and nine more — and for a match it skipped the cache, the connection pool, the performance monitor and the connection check, and returned a client without ever dialling. `GetPerformanceStats` returned fabricated figures for those names (`IdleConnections: 5`, `TotalConnections: 5`, `PoolHits: 1`, `PoolMisses: 1`), `GetConnection` returned a stub error instead of connecting, and `FindUsers` returned **150 invented users**. All of it is gone ([#246](https://github.com/netresearch/simple-ldap-go/issues/246)).

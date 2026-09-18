@@ -67,8 +67,7 @@ import (
 
 // Method 1: Via Config struct
 config := &ldap.Config{
-    Server: "ldap://ldap.example.com",
-    Port:   389,
+    Server: "ldap://ldap.example.com:389",
     BaseDN: "dc=example,dc=com",
     Resilience: &ldap.ResilienceConfig{
         EnableCircuitBreaker: true,
@@ -88,8 +87,7 @@ client, err := ldap.New(config, "username", "password")
 ```go
 // Method 2: Using WithCircuitBreaker option
 config := &ldap.Config{
-    Server: "ldap://ldap.example.com",
-    Port:   389,
+    Server: "ldap://ldap.example.com:389",
     BaseDN: "dc=example,dc=com",
 }
 
@@ -196,8 +194,7 @@ if stats != nil {
 ```go
 // Configure for high-traffic scenarios
 config := &ldap.Config{
-    Server: "ldap://ldap.example.com",
-    Port:   389,
+    Server: "ldap://ldap.example.com:389",
     BaseDN: "dc=example,dc=com",
     Resilience: &ldap.ResilienceConfig{
         EnableCircuitBreaker: true,
