@@ -524,9 +524,13 @@ func TestCreateDirectConnection(t *testing.T) {
 	})
 
 	t.Run("localhost server", func(t *testing.T) {
+		// The hostname is the point of this subtest — "localhost" used to be
+		// matched and short-circuited — but port 1 rather than 389, because a
+		// developer running a local directory would otherwise have this dial
+		// succeed and the subtest assert the wrong thing.
 		config := &Config{
 			SkipConnectionCheck: true,
-			Server:              "ldap://localhost:389",
+			Server:              "ldap://localhost:1",
 			Port:                389,
 			BaseDN:              "dc=local,dc=com",
 		}
