@@ -150,10 +150,11 @@ func New(config Config, username, password string, opts ...Option) (*LDAP, error
 	// still hit slog.Default() because `logger` was captured before options ran.
 	logger = client.logger
 
-	// Initialize cache if enabled (skip for example servers)
+	// Initialize cache if enabled (skip for example servers).
+	// config.Cache may have been set by the caller or by a WithCache option
+	// applied above; client.config is &config, so both land in the same struct.
 	if (config.EnableCache || config.EnableOptimizations) && !isExample {
-		cacheConfig := DefaultCacheConfig()
-		cacheConfig.Enabled = true
+		cacheConfig := cacheConfigFor(config)
 		cache, err := NewLRUCache(cacheConfig, logger)
 		if err != nil {
 			logger.Warn("cache_initialization_failed",
@@ -183,7 +184,11 @@ func New(config Config, username, password string, opts ...Option) (*LDAP, error
 
 	// Initialize connection pool if configured
 	if config.Pool != nil && !isExample {
-		pool, err := NewConnectionPool(config.Pool, config, username, password, logger)
+		// NewConnectionPool fills its defaults into the config it is given, so it
+		// gets a copy. The log below reads that copy, which is what the pool runs
+		// with; config.Pool still holds what the caller wrote.
+		poolConfig := poolConfigFor(config.Pool)
+		pool, err := NewConnectionPool(poolConfig, config, username, password, logger)
 		if err != nil {
 			logger.Error("connection_pool_initialization_failed",
 				slog.String("server", config.Server),
@@ -197,18 +202,14 @@ func New(config Config, username, password string, opts ...Option) (*LDAP, error
 			client.connPool = pool
 			logger.Info("connection_pool_initialized",
 				slog.String("server", config.Server),
-				slog.Int("max_connections", config.Pool.MaxConnections),
-				slog.Int("min_connections", config.Pool.MinConnections))
+				slog.Int("max_connections", poolConfig.MaxConnections),
+				slog.Int("min_connections", poolConfig.MinConnections))
 		}
 	}
 
 	// Initialize performance monitor if metrics are enabled
 	if (config.EnableMetrics || config.EnableOptimizations) && !isExample {
-		perfConfig := config.Performance
-		if perfConfig == nil {
-			perfConfig = DefaultPerformanceConfig()
-		}
-		perfConfig.Enabled = true
+		perfConfig := performanceConfigFor(config)
 
 		client.perfMonitor = NewPerformanceMonitor(perfConfig, logger)
 
@@ -245,6 +246,54 @@ func New(config Config, username, password string, opts ...Option) (*LDAP, error
 	}
 
 	return client, nil
+}
+
+// cacheConfigFor resolves the cache configuration the client builds its cache
+// from: the one the caller supplied through Config.Cache, WithCache or
+// ConfigBuilder.WithCache, or the defaults when none was.
+//
+// The result is always a copy. NewLRUCache writes its defaults into the config
+// it is handed, so passing the caller's struct through would rewrite the fields
+// they left at zero and flip Enabled underneath them.
+//
+// Enabled is set here rather than read: activation is governed by
+// Config.EnableCache and Config.EnableOptimizations, so reaching this function
+// already means a cache was asked for.
+func cacheConfigFor(config Config) *CacheConfig {
+	cacheConfig := DefaultCacheConfig()
+	if config.Cache != nil {
+		copied := *config.Cache
+		cacheConfig = &copied
+	}
+	cacheConfig.Enabled = true
+	return cacheConfig
+}
+
+// performanceConfigFor resolves the performance monitor's configuration the
+// same way as cacheConfigFor: from the caller's Config.Performance when it is
+// set, from the defaults otherwise, and always as a copy, because the client
+// enables monitoring on the result and that write must not land in the caller's
+// struct.
+func performanceConfigFor(config Config) *PerformanceConfig {
+	perfConfig := DefaultPerformanceConfig()
+	if config.Performance != nil {
+		copied := *config.Performance
+		perfConfig = &copied
+	}
+	perfConfig.Enabled = true
+	return perfConfig
+}
+
+// poolConfigFor copies the caller's pool configuration. NewConnectionPool
+// writes its defaults into whatever it is handed, so a caller who set only
+// MaxConnections would find the remaining fields filled in behind their back.
+// A nil config means no pool and is passed through unchanged.
+func poolConfigFor(poolConfig *PoolConfig) *PoolConfig {
+	if poolConfig == nil {
+		return nil
+	}
+	copied := *poolConfig
+	return &copied
 }
 
 // isExampleServerName checks if a server name is an example/test server
