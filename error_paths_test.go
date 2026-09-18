@@ -417,14 +417,13 @@ func TestFindComputerByDN_CancelledContext(t *testing.T) {
 func TestFindComputers_ConnectionError(t *testing.T) {
 	client := newOfflineClient(t)
 	computers, err := client.FindComputers()
-	// Implementation returns a connection error; nothing is fabricated.
-	// Either way, it must not panic and the result must be coherent.
-	if err != nil {
-		assert.Nil(t, computers)
-	} else {
-		// nil-safe; just iterate defensively
-		_ = computers
-	}
+
+	// The assertion used to sit under `if err != nil`, with an empty else, so
+	// a (nil, nil) return — the shape #246 was about — kept it green. There is
+	// no directory here, so the dial must fail and say so.
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to dial LDAP server")
+	assert.Nil(t, computers)
 }
 
 // =============================================================================

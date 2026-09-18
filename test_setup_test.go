@@ -69,7 +69,8 @@ func SetupTestContainer(t *testing.T) *TestContainer {
 	mappedPort, err := genericContainer.MappedPort(ctx, "389/tcp")
 	require.NoError(t, err)
 
-	// Use the IP address directly to avoid isExampleServer() matching "localhost"
+	// The IP address rather than "localhost": until #246 a name containing
+	// "localhost" had its cache, pool, metrics and connection check skipped.
 	if host == "localhost" {
 		host = "127.0.0.1"
 	}

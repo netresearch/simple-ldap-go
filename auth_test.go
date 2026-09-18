@@ -394,11 +394,12 @@ func TestAuthErrorConditions(t *testing.T) {
 	client := tc.GetLDAPClient(t)
 
 	t.Run("connection failure during auth", func(t *testing.T) {
-		// Create client with invalid server to test connection failure handling
+		// No SkipConnectionCheck here on purpose: this subtest exists to prove
+		// that New fails when the server cannot be reached, so the dial is the
+		// thing under test.
 		invalidConfig := Config{
-			SkipConnectionCheck: true,
-			Server:              "ldap://nonexistent.server:389",
-			BaseDN:              tc.BaseDN,
+			Server: "ldap://nonexistent.invalid:389",
+			BaseDN: tc.BaseDN,
 		}
 
 		invalidClient, err := New(invalidConfig, tc.AdminUser, tc.AdminPass)

@@ -14,7 +14,7 @@ Example applications demonstrating library usage patterns for authentication, us
 - Typecheck one example: `go build -v ./examples/<name>`
 - Format a file: `gofmt -w examples/<name>/<file>.go`
 - Run example: `go run ./examples/<name>`
-- Test them: every example has a `_test.go` beside it; `go test ./examples/...`
+- Test them: `go test ./examples/...`. Three of the eight have a `_test.go` beside them — the ones whose `main()` reports errors and returns. The rest call `log.Fatalf` on a failed `ldap.New`, so they need a directory and cannot be smoke-tested offline (#246).
 
 ## Code style & conventions
 - Examples should be self-contained and runnable

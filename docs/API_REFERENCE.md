@@ -24,6 +24,10 @@ func New(config Config, username, password string, opts ...Option) (*LDAP, error
 ```
 Creates a standard LDAP client with the provided configuration and credentials.
 
+`New` dials the server before returning, so it fails when the directory is unreachable. Set `config.SkipConnectionCheck` to skip that round trip and get a client back without it — intended for tests that have no directory, and for callers who do not want initialization to block on the network. It gates the dial and nothing else: the cache, the pool and the performance monitor follow their own flags below, and pool warm-up follows `Pool.MinConnections`.
+
+Until v1.18.0 this was decided by the server's name instead: a host containing `example.`, `localhost`, `test.com` or one of a dozen similar substrings had the dial skipped along with the cache, the pool and the metrics, and `FindUsers` returned fabricated data for it.
+
 The LDAP client automatically enables optimizations based on the configuration:
 - Connection pooling when `config.Pool != nil` (`client.go`)
 - Caching when `config.EnableCache` or `config.EnableOptimizations` is true (`client.go`). Both default to false, so a client caches only when asked to.

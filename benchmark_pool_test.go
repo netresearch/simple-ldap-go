@@ -140,10 +140,9 @@ func BenchmarkLDAPOperationsPooled(b *testing.B) {
 	for opName, operation := range operations {
 		b.Run(fmt.Sprintf("%s_Pooled", opName), func(b *testing.B) {
 			config := Config{
-				SkipConnectionCheck: true,
-				Server:              server,
-				BaseDN:              baseDN,
-				Logger:              slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})),
+				Server: server,
+				BaseDN: baseDN,
+				Logger: slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})),
 				Pool: &PoolConfig{
 					MaxConnections: 10,
 					MinConnections: 3,
@@ -175,10 +174,9 @@ func BenchmarkLDAPOperationsPooled(b *testing.B) {
 
 		b.Run(fmt.Sprintf("%s_Direct", opName), func(b *testing.B) {
 			config := Config{
-				SkipConnectionCheck: true,
-				Server:              server,
-				BaseDN:              baseDN,
-				Logger:              slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})),
+				Server: server,
+				BaseDN: baseDN,
+				Logger: slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})),
 				// Pool: nil - direct connections
 			}
 
@@ -217,10 +215,9 @@ func BenchmarkConcurrentLoad(b *testing.B) {
 	for _, concurrency := range concurrencyLevels {
 		b.Run(fmt.Sprintf("Pooled_Concurrency_%d", concurrency), func(b *testing.B) {
 			config := Config{
-				SkipConnectionCheck: true,
-				Server:              server,
-				BaseDN:              baseDN,
-				Logger:              slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})),
+				Server: server,
+				BaseDN: baseDN,
+				Logger: slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})),
 				Pool: &PoolConfig{
 					MaxConnections: concurrency + 5, // Slightly more than concurrency
 					MinConnections: min(3, concurrency),
@@ -266,10 +263,9 @@ func BenchmarkConcurrentLoad(b *testing.B) {
 		if concurrency <= 20 { // Only test direct for lower concurrency to avoid overwhelming server
 			b.Run(fmt.Sprintf("Direct_Concurrency_%d", concurrency), func(b *testing.B) {
 				config := Config{
-					SkipConnectionCheck: true,
-					Server:              server,
-					BaseDN:              baseDN,
-					Logger:              slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})),
+					Server: server,
+					BaseDN: baseDN,
+					Logger: slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})),
 					// Pool: nil - direct connections
 				}
 
@@ -355,11 +351,10 @@ func BenchmarkPoolEfficiency(b *testing.B) {
 	for name, scenario := range scenarios {
 		b.Run(name, func(b *testing.B) {
 			config := Config{
-				SkipConnectionCheck: true,
-				Server:              server,
-				BaseDN:              baseDN,
-				Logger:              slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})),
-				Pool:                scenario.poolConfig,
+				Server: server,
+				BaseDN: baseDN,
+				Logger: slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})),
+				Pool:   scenario.poolConfig,
 			}
 
 			client, err := New(config, bindDN, bindPassword)

@@ -413,16 +413,21 @@ func TestGetConnectionContext(t *testing.T) {
 			BaseDN:              "dc=test,dc=com",
 			Pool: &PoolConfig{
 				MaxConnections: 5,
-				MinConnections: 2,
+				// MinConnections: 0 — warming would dial, and there is nothing
+				// here to answer. With a positive minimum NewConnectionPool
+				// fails and New continues without a pool, which is a different
+				// thing from the pool not being built.
+				MinConnections: 0,
 			},
 		}
 
 		client, err := New(*config, "testuser", "testpass")
 		require.NoError(t, err)
 		require.NotNil(t, client)
+		t.Cleanup(func() { _ = client.Close() })
 
-		// The pool is built from Config.Pool; the server name does not decide it.
-		assert.Nil(t, client.connPool)
+		// Config.Pool is what builds it; the server name does not decide (#246).
+		assert.NotNil(t, client.connPool)
 	})
 
 	t.Run("without pool - direct connection", func(t *testing.T) {
@@ -443,8 +448,8 @@ func TestGetConnectionContext(t *testing.T) {
 		conn, err := client.GetConnectionContext(ctx)
 		assert.Error(t, err)
 		assert.Nil(t, conn)
-		assert.NotContains(t, err.Error(), "connection to example server not available",
-			"the stub error is gone; what comes back must be a real dial failure")
+		assert.Contains(t, err.Error(), "failed to dial LDAP server",
+			"the stub is gone, so a real dial must have been attempted")
 	})
 
 	t.Run("context cancellation before connection", func(t *testing.T) {
@@ -514,8 +519,8 @@ func TestCreateDirectConnection(t *testing.T) {
 		conn, err := client.createDirectConnection(ctx)
 		assert.Error(t, err)
 		assert.Nil(t, conn)
-		assert.NotContains(t, err.Error(), "connection to example server not available",
-			"the stub error is gone; what comes back must be a real dial failure")
+		assert.Contains(t, err.Error(), "failed to dial LDAP server",
+			"the stub is gone, so a real dial must have been attempted")
 	})
 
 	t.Run("localhost server", func(t *testing.T) {
@@ -533,8 +538,8 @@ func TestCreateDirectConnection(t *testing.T) {
 		conn, err := client.createDirectConnection(ctx)
 		assert.Error(t, err) // the address is unreachable
 		assert.Nil(t, conn)
-		assert.NotContains(t, err.Error(), "connection to example server not available",
-			"the stub error is gone; what comes back must be a real dial failure")
+		assert.Contains(t, err.Error(), "failed to dial LDAP server",
+			"the stub is gone, so a real dial must have been attempted")
 	})
 
 	t.Run("context cancellation during dial", func(t *testing.T) {
@@ -594,8 +599,8 @@ func TestGetConnectionProtected(t *testing.T) {
 		conn, err := client.GetConnectionProtected()
 		assert.Error(t, err)
 		assert.Nil(t, conn)
-		assert.NotContains(t, err.Error(), "connection to example server not available",
-			"the stub error is gone; what comes back must be a real dial failure")
+		assert.Contains(t, err.Error(), "failed to dial LDAP server",
+			"the stub is gone, so a real dial must have been attempted")
 		assert.NotContains(t, err.Error(), "circuit breaker")
 	})
 
@@ -711,7 +716,8 @@ func TestConnectionNeverReturnsAStubError(t *testing.T) {
 			}
 			require.Error(t, err, "none of these addresses can serve LDAP")
 			assert.NotContains(t, err.Error(), "not implemented")
-			assert.NotContains(t, err.Error(), "connection to example server not available")
+			assert.Contains(t, err.Error(), "failed to dial LDAP server",
+				"the stub is gone, so a real dial must have been attempted")
 		})
 	}
 }
@@ -853,8 +859,8 @@ func TestConnectionConcurrency(t *testing.T) {
 		err := <-errChan
 		// Should get a consistent dial error
 		assert.Error(t, err)
-		assert.NotContains(t, err.Error(), "connection to example server not available",
-			"the stub error is gone; what comes back must be a real dial failure")
+		assert.Contains(t, err.Error(), "failed to dial LDAP server",
+			"the stub is gone, so a real dial must have been attempted")
 	}
 }
 

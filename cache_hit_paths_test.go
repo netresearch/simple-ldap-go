@@ -115,7 +115,7 @@ func TestFindUserByDN_CacheHitNoPanicOnWrongType(t *testing.T) {
 	// should fall through to the LDAP path (and fail at GetConnection).
 	require.NoError(t, client.cache.Set("user:dn:"+dn, "not a user", client.getCacheTTL()))
 	_, err := client.FindUserByDN(dn)
-	assert.Error(t, err) // falls through to LDAP, which errors against example server
+	assert.Error(t, err) // falls through to LDAP, which cannot reach the address
 }
 
 func TestFindUserBySAMAccountName_UsesCache(t *testing.T) {

@@ -160,14 +160,14 @@ func New(config Config, username, password string, opts ...Option) (*LDAP, error
 	// were on for every client whatever the caller wrote. Now that the flags are
 	// honoured, a caller who set none gets neither — and nothing fails to tell
 	// them. This record is the signal for an operator upgrading across that
-	// change; it is gated on a real server like the other initialization logs.
+	// change.
 	if !config.EnableCache && !config.EnableMetrics && !config.EnableOptimizations {
 		logger.Info("optimizations_disabled",
 			slog.String("server", config.Server),
 			slog.String("hint", "no cache and no metrics: set EnableCache, EnableMetrics or EnableOptimizations to enable them"))
 	}
 
-	// Initialize cache if enabled (skip for example servers).
+	// Initialize cache if enabled.
 	// config.Cache may have been set by the caller or by a WithCache option
 	// applied above; client.config is &config, so both land in the same struct.
 	if config.EnableCache || config.EnableOptimizations {

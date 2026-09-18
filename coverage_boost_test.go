@@ -97,7 +97,7 @@ func TestClientNewValidationErrors(t *testing.T) {
 	}
 }
 
-func TestClientWithCredentialsExampleServer(t *testing.T) {
+func TestClientWithCredentialsKeepsTheConfig(t *testing.T) {
 	client, err := New(Config{
 		SkipConnectionCheck: true,
 		Server:              "ldap://example.invalid",
@@ -105,7 +105,8 @@ func TestClientWithCredentialsExampleServer(t *testing.T) {
 	}, "admin", "adminpass")
 	require.NoError(t, err)
 
-	// WithCredentials on example server should succeed (no real connection)
+	// WithCredentials calls New again with the same Config, so
+	// SkipConnectionCheck propagates and no connection is attempted.
 	newClient, err := client.WithCredentials("cn=newuser,dc=example,dc=com", "newpass")
 	require.NoError(t, err)
 	require.NotNil(t, newClient)
@@ -226,7 +227,7 @@ func TestClientGetPerformanceStatsWithoutAReachableServer(t *testing.T) {
 		assert.Equal(t, int64(0), stats.PoolHits)
 	})
 
-	t.Run("non-example server without perfMonitor", func(t *testing.T) {
+	t.Run("no perfMonitor and no pool reports zeros", func(t *testing.T) {
 		client := &LDAP{
 			config:      &Config{Server: "ldap://real-ldap.corp.invalid:389", BaseDN: "dc=corp,dc=net"},
 			logger:      slog.Default(),
@@ -365,7 +366,8 @@ func TestClientBulkFindWithBatchSize(t *testing.T) {
 	}, "user", "pass")
 	require.NoError(t, err)
 
-	// This will fail to find users (example server) but exercises the concurrency code
+	// The lookups fail against an unreachable address; what this exercises is
+	// the concurrency code around them.
 	names := []string{"user1", "user2", "user3"}
 	result, err := client.BulkFindUsersBySAMAccountName(context.Background(), names, &BulkSearchOptions{
 		BatchSize:       2,
@@ -373,7 +375,7 @@ func TestClientBulkFindWithBatchSize(t *testing.T) {
 	})
 	// With ContinueOnError, we get partial results
 	assert.NotNil(t, result)
-	// Errors from example server lookups
+	// Errors from the failed lookups
 	assert.Error(t, err)
 }
 
@@ -387,7 +389,7 @@ func TestClientBulkFindWithoutContinueOnError(t *testing.T) {
 
 	names := []string{"user1"}
 	result, err := client.BulkFindUsersBySAMAccountName(context.Background(), names, nil)
-	// Without ContinueOnError, should still get errors for example server
+	// Without ContinueOnError, the failed lookups still surface
 	assert.NotNil(t, result)
 	assert.Error(t, err)
 }
@@ -833,8 +835,8 @@ func TestIteratorSearchIterConnectionError(t *testing.T) {
 		}
 	}
 	assert.Error(t, iterErr)
-	assert.NotContains(t, iterErr.Error(), "connection to example server not available",
-		"the stub error is gone; what comes back must be a real dial failure")
+	assert.Contains(t, iterErr.Error(), "failed to dial LDAP server",
+		"the stub is gone, so a real dial must have been attempted")
 }
 
 func TestIteratorSearchPagedIterConnectionError(t *testing.T) {
@@ -863,8 +865,8 @@ func TestIteratorSearchPagedIterConnectionError(t *testing.T) {
 		}
 	}
 	assert.Error(t, iterErr)
-	assert.NotContains(t, iterErr.Error(), "connection to example server not available",
-		"the stub error is gone; what comes back must be a real dial failure")
+	assert.Contains(t, iterErr.Error(), "failed to dial LDAP server",
+		"the stub is gone, so a real dial must have been attempted")
 }
 
 func TestIteratorGroupMembersIterConnectionError(t *testing.T) {
@@ -884,8 +886,8 @@ func TestIteratorGroupMembersIterConnectionError(t *testing.T) {
 		}
 	}
 	assert.Error(t, iterErr)
-	assert.NotContains(t, iterErr.Error(), "connection to example server not available",
-		"the stub error is gone; what comes back must be a real dial failure")
+	assert.Contains(t, iterErr.Error(), "failed to dial LDAP server",
+		"the stub is gone, so a real dial must have been attempted")
 }
 
 func TestIteratorWithCancelledContext(t *testing.T) {
@@ -1329,7 +1331,7 @@ func TestClientGetConnectionContextWithConnPool(t *testing.T) {
 
 	ctx := context.Background()
 	conn, err := client.GetConnectionContext(ctx)
-	assert.Error(t, err) // example server
+	assert.Error(t, err) // the address is unreachable
 	assert.Nil(t, conn)
 }
 

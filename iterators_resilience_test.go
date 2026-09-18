@@ -46,8 +46,8 @@ func TestIteratorsWithCircuitBreaker(t *testing.T) {
 
 		assert.Error(t, iterErr)
 		assert.NotContains(t, iterErr.Error(), "circuit breaker")
-		assert.NotContains(t, iterErr.Error(), "connection to example server not available",
-			"the stub error is gone; what comes back must be a real dial failure")
+		assert.Contains(t, iterErr.Error(), "failed to dial LDAP server",
+			"the stub is gone, so a real dial must have been attempted")
 	})
 
 	t.Run("SearchIter with circuit breaker fast failure", func(t *testing.T) {

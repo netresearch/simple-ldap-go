@@ -117,7 +117,8 @@ func TestRegressionConnectionNotImplemented(t *testing.T) {
 				// Never a stub: the dial has to have been attempted.
 				assert.NotContains(t, err.Error(), "not implemented")
 				assert.NotContains(t, err.Error(), "connection not implemented")
-				assert.NotContains(t, err.Error(), "connection to example server not available")
+				assert.Contains(t, err.Error(), "failed to dial LDAP server",
+					"the stub is gone, so a real dial must have been attempted")
 			}
 
 			if conn != nil {
@@ -460,7 +461,8 @@ func TestRegressionErrorMessages(t *testing.T) {
 		// Descriptive means it names what failed, not a stub standing in for a
 		// connection nobody attempted (#246).
 		assert.Contains(t, err.Error(), "failed to dial LDAP server")
-		assert.NotContains(t, err.Error(), "connection to example server not available")
+		assert.Contains(t, err.Error(), "failed to dial LDAP server",
+			"the stub is gone, so a real dial must have been attempted")
 	})
 }
 
