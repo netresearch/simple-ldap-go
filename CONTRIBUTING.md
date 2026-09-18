@@ -228,7 +228,7 @@ make test-unit
 # Integration tests (requires Docker)
 make test-integration
 
-# All tests
+# All tests: unit + integration (requires Docker, ~15 minutes)
 make test-all
 
 # With coverage
@@ -307,7 +307,7 @@ func TestClient_Integration(t *testing.T) {
    make qa
    ```
 
-2. **Run tests**:
+2. **Run tests**. `test-all` runs the unit tier and the integration tier, so it needs a Docker daemon and takes around fifteen minutes. Without Docker, `make test-fast` covers the unit tier alone:
 
    ```bash
    make test-all
@@ -321,7 +321,7 @@ func TestClient_Integration(t *testing.T) {
 ### PR Checklist
 
 - [ ] Code follows project style guidelines
-- [ ] All tests pass (`make test-all`)
+- [ ] All tests pass (`make test-all` — unit + integration, requires Docker)
 - [ ] Test coverage maintained or improved
 - [ ] Documentation updated (if applicable)
 - [ ] Commit messages follow Conventional Commits format
