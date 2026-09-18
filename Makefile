@@ -6,13 +6,19 @@
 # the oldest entry must match the `go` directive in go.mod. Consumed by test-compat.
 GO_VERSIONS := 1.26 1.27
 TIMEOUT_UNIT := 10s
-TIMEOUT_INTEGRATION := 300s
 TIMEOUT_ALL := 300s
+# Every tagged pass reads this: test-integration, test-integration-parallel,
+# test-all's second pass and test-ci's local branch. Each starts one OpenLDAP
+# container per integration test function — 664s locally, 628s in CI — and
+# 1200s leaves room for a cold image pull, where a timeout reads as a hang
+# rather than as a budget. TIMEOUT_ALL stays at 300s: the targets reading it
+# start no containers, and tripling their hang budget to suit this one would
+# turn a five-minute wait for a deadlock into a fifteen-minute one.
+TIMEOUT_ALL_INTEGRATION := 1200s
 PARALLEL := 4
 
 # Test patterns
 UNIT_PATTERN := -run="^Test.*[^(Integration|Benchmark)]$$"
-INTEGRATION_PATTERN := -run="Test.*Integration"
 BENCHMARK_PATTERN := -run="Benchmark"
 
 # Build flags
@@ -33,19 +39,33 @@ test-unit: ## Run all unit tests
 	@echo "Running unit tests..."
 	go test $(TEST_FLAGS) -timeout=$(TIMEOUT_UNIT) -parallel=$(PARALLEL) $(UNIT_PATTERN) ./...
 
+# The build tag is the selector. Pairing it with -run="Test.*Integration" as
+# this target used to also drop 14 of the 42 integration test functions, whose
+# names do not contain "Integration" — TestBulkOperations, TestCacheInvalidation,
+# TestNewBuildsTheCacheFromTheSuppliedConfig and eleven more. The tagged build also
+# carries the test files that declare no build constraint — 101 tests, about
+# ten seconds — which is the cost of selecting by tag.
 test-integration: ## Run integration tests (requires Docker)
 	@echo "Running integration tests..."
-	@echo "⚠️  Warning: This will start Docker containers and may take 1-2 minutes"
-	go test $(TEST_FLAGS) -tags=integration -timeout=$(TIMEOUT_INTEGRATION) $(INTEGRATION_PATTERN) ./...
+	@echo "⚠️  Warning: This will start Docker containers and may take several minutes"
+	go test $(TEST_FLAGS) -tags=integration -timeout=$(TIMEOUT_ALL_INTEGRATION) ./...
 
 test-integration-parallel: ## Run integration tests with optimized parallelization
 	@echo "Running optimized integration tests..."
-	@echo "⚠️  Using shared containers for faster execution"
-	go test $(TEST_FLAGS) -tags=integration -timeout=$(TIMEOUT_INTEGRATION) -parallel=2 -coverprofile=coverage-integration.out $(INTEGRATION_PATTERN) ./...
+	@echo "⚠️  One OpenLDAP container per integration test function; this takes several minutes"
+	go test $(TEST_FLAGS) -tags=integration -timeout=$(TIMEOUT_ALL_INTEGRATION) -parallel=2 -coverprofile=coverage-integration.out ./...
 
-test-all: ## Run all tests (unit + integration)
-	@echo "Running all tests..."
+# Two passes, because no single invocation covers everything. Without the tag
+# the integration tier is not compiled at all — which is what this target used
+# to do while its help text promised both tiers. With the tag the example
+# packages drop out instead: every examples/*_test.go is `//go:build
+# !integration`. So: untagged for the unit tier and the examples, tagged for
+# the unit tier and the integration tier.
+test-all: ## Run all tests (unit + integration; requires Docker)
+	@echo "Running all tests (unit + integration)..."
+	@echo "⚠️  Warning: This will start Docker containers and may take several minutes"
 	go test $(TEST_FLAGS) -timeout=$(TIMEOUT_ALL) -parallel=$(PARALLEL) ./...
+	go test $(TEST_FLAGS) -tags=integration -timeout=$(TIMEOUT_ALL_INTEGRATION) -parallel=2 ./...
 
 test-parallel: ## Run tests with maximum parallelization
 	@echo "Running tests with optimized parallelization..."
@@ -109,7 +129,7 @@ test-ci: ## Run tests optimized for CI environment
 	go test $(TEST_FLAGS) -short -timeout=60s -parallel=4 ./...
 	@if [ "$$CI" != "true" ]; then \
 		echo "Running integration tests..."; \
-		go test $(TEST_FLAGS) -timeout=120s -parallel=2 $(INTEGRATION_PATTERN) ./...; \
+		go test $(TEST_FLAGS) -tags=integration -timeout=$(TIMEOUT_ALL_INTEGRATION) -parallel=2 ./...; \
 	fi
 
 # Development targets
@@ -175,7 +195,7 @@ mod-tidy: ## Tidy go modules
 
 qa: build vet lint fmt mod-tidy ## Run quality assurance checks
 
-qa-full: qa test-all ## Run full quality assurance including all tests
+qa-full: qa test-all ## Run full quality assurance including all tests (requires Docker)
 
 # Clean up
 
@@ -191,12 +211,12 @@ test-quick: ## Quick test run (< 30 seconds)
 	@echo "Running quick tests..."
 	go test -short -timeout=30s -parallel=8 ./...
 
-test-medium: ## Medium test run (< 2 minutes)
+test-medium: ## Unit tier plus the full integration tier (requires Docker, ~12 minutes)
 	@echo "Running medium test suite..."
 	@$(MAKE) test-fast
 	@$(MAKE) test-integration-parallel
 
-test-comprehensive: ## Comprehensive test run (< 5 minutes)
+test-comprehensive: ## Comprehensive test run, unit + integration (requires Docker, ~15 minutes)
 	@echo "Running comprehensive test suite..."
 	@$(MAKE) qa
 	@$(MAKE) test-all
