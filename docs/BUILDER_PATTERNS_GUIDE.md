@@ -277,10 +277,24 @@ config, err := ldap.NewConfigBuilder().
     Build()
 ```
 
-Set an enable flag alongside it: `WithCache` supplies the cache's settings,
-and `Config.EnableCache` or `Config.EnableOptimizations` is what asks for a
-cache at all. The settings themselves are honoured in full - the client copies
-the struct and builds the cache from it.
+That block configures a cache; it does not yet produce one. Two things have to
+be true for the client to build it:
+
+```go
+config.EnableCache = true // or EnableOptimizations
+
+// …and the server must not look like a test server. New treats a host
+// containing "example.", "localhost", "test.com" and a handful of similar
+// names as one, and skips the cache, the pool, the metrics and the connection
+// check for it - so the address in the snippet above builds nothing.
+config.Server = "ldaps://ldap.corp.internal:636"
+
+client, err := ldap.New(*config, bindDN, password)
+```
+
+`WithCache` supplies the settings, the flag asks for the cache, and the address
+decides whether any of it is built. The settings themselves are honoured in
+full: the client copies the struct and builds the cache from it.
 
 #### Security and timeouts
 

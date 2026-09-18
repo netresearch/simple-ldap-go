@@ -37,6 +37,7 @@ func TestNewLogsThatCachingIsOffWhenNoFlagIsSet(t *testing.T) {
 	defer func() { _ = client.Close() }()
 
 	assert.Nil(t, client.cache, "a cache was built although no flag asked for one")
+	assert.Nil(t, client.perfMonitor, "a performance monitor was built although no flag asked for one")
 
 	var found map[string]any
 	for _, line := range strings.Split(strings.TrimSpace(buf.String()), "\n") {
@@ -74,4 +75,45 @@ func TestNewDoesNotLogTheHintWhenAFlagIsSet(t *testing.T) {
 
 	assert.NotContains(t, buf.String(), "optimizations_disabled",
 		"the hint fired although the caller enabled caching")
+}
+
+func TestNewBuildsOnlyWhatTheFlagAsksFor(t *testing.T) {
+	tc := SetupTestContainer(t)
+	defer tc.Close(t)
+
+	t.Run("EnableMetrics builds the monitor and no cache", func(t *testing.T) {
+		config := tc.Config
+		config.EnableMetrics = true
+
+		client, err := New(config, tc.AdminUser, tc.AdminPass)
+		require.NoError(t, err)
+		defer func() { _ = client.Close() }()
+
+		assert.NotNil(t, client.perfMonitor, "EnableMetrics was set but no monitor was built")
+		assert.Nil(t, client.cache, "a cache was built although only EnableMetrics was set")
+	})
+
+	t.Run("EnableCache builds the cache and no monitor", func(t *testing.T) {
+		config := tc.Config
+		config.EnableCache = true
+
+		client, err := New(config, tc.AdminUser, tc.AdminPass)
+		require.NoError(t, err)
+		defer func() { _ = client.Close() }()
+
+		assert.NotNil(t, client.cache, "EnableCache was set but no cache was built")
+		assert.Nil(t, client.perfMonitor, "a monitor was built although only EnableCache was set")
+	})
+
+	t.Run("EnableOptimizations builds both", func(t *testing.T) {
+		config := tc.Config
+		config.EnableOptimizations = true
+
+		client, err := New(config, tc.AdminUser, tc.AdminPass)
+		require.NoError(t, err)
+		defer func() { _ = client.Close() }()
+
+		assert.NotNil(t, client.cache)
+		assert.NotNil(t, client.perfMonitor)
+	})
 }
