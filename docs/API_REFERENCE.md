@@ -26,7 +26,7 @@ Creates a standard LDAP client with the provided configuration and credentials.
 
 The LDAP client automatically enables optimizations based on the configuration:
 - Connection pooling when `config.Pool != nil` (`client.go`)
-- Caching when `config.EnableCache` or `config.EnableOptimizations` is true (`client.go`)
+- Caching when `config.EnableCache` or `config.EnableOptimizations` is true (`client.go`) — and `New` sets `EnableOptimizations` itself, so this is always true
 - Circuit breaker when `config.Resilience.EnableCircuitBreaker` is true (`client.go`)
 
 ### Connection Methods

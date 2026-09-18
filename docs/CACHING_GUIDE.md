@@ -862,9 +862,15 @@ supply through `Config.Cache`, `WithCache` or `ConfigBuilder.WithCache`, and
 falls back to `DefaultCacheConfig()` only when you supply none. The struct you
 pass is copied, so the client does not write its defaults back into it.
 
-`Enabled` is the one field the client sets itself: reaching cache construction
-already means caching was asked for, through `Config.EnableCache` or
-`Config.EnableOptimizations`.
+`Enabled` is the one field the client sets itself, because reaching cache
+construction already means a cache is being built.
+
+Note what that means for the two flags: `New` sets `Config.EnableOptimizations`
+before it applies any option, and the cache is built when either that or
+`Config.EnableCache` is set. A client built through `New` therefore always
+caches, and setting `EnableCache: false` does not turn it off - see
+[#243](https://github.com/netresearch/simple-ldap-go/issues/243). The example
+below sets the flag to say what it wants, not because it is required.
 
 ### Basic Configuration
 

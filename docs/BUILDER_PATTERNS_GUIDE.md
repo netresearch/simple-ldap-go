@@ -277,9 +277,10 @@ config, err := ldap.NewConfigBuilder().
     Build()
 ```
 
-One thing this does not do: it does not set `Config.EnableCache`. The client
-activates caching on `EnableCache` or `EnableOptimizations` (`client.go`), so set
-one of them alongside. The configuration itself is honoured in full - the client
+No enable flag is needed alongside it. `New` sets `Config.EnableOptimizations`
+itself before it applies any option (`client.go`), and the cache is built when
+either that or `EnableCache` is set - so a client built through `New` caches
+whatever the caller does. The configuration is honoured in full: the client
 copies it and builds the cache from it.
 
 #### Security and timeouts
