@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [v1.18.0] - 2026-09-18
 
 ### Deprecated
 
@@ -34,6 +34,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   `EnableBulkOps` is unaffected: it was always read on its own and always opt-in.
 
+- `New` no longer writes into the configuration structs it is handed. It enabled monitoring on the caller's `PerformanceConfig`, and `NewConnectionPool` fills its defaults into whatever `PoolConfig` it receives, so a caller who set only `MaxConnections` found the remaining fields filled in behind their back. Both are copied now, as `Config.Cache` is.
+
 ### Fixed
 
 - **`GetPoolStats` reported no connections for every real server.** `PerformanceMetrics` declares ten flat pool fields — `PoolHits`, `PoolMisses`, `TotalConnections`, `ConnectionsCreated`, `ConnectionsClosed`, `ActiveConnections`, `IdleConnections`, `HealthChecksPassed`, `HealthChecksFailed` and `ConnectionPoolRatio` — and none of them was ever assigned outside the example-server mock branch. `PerformanceMonitor.GetStats` filled the nested `PoolStats` from the pool and left the ten at zero, and they are serialized, so any JSON a caller exposed read as "zero connections" rather than "not reported". A readiness probe built on `GetPoolStats().TotalConnections > 0` — [netresearch/ldap-manager](https://github.com/netresearch/ldap-manager)'s is — could therefore never become ready, and answered 503 permanently ([#247](https://github.com/netresearch/simple-ldap-go/issues/247)).
@@ -54,10 +56,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`New` ignored `Config.Cache`.** The cache was built from `DefaultCacheConfig()` and the supplied configuration was read in exactly one place, `users.go`, for `TTL` alone — so `MaxSize`, `MaxMemoryMB`, `NegativeCacheTTL`, `RefreshInterval`, `RefreshOnAccess`, `CompressionEnabled` and `CompressionThreshold` had no effect whatever the caller set, with no error and no log line saying so. A client asking for `MaxSize: 100000` ran at the default 1000. It also took `NewCachedClient`'s `maxSize` argument with it — that constructor wraps `maxSize` and `ttl` in a `CacheConfig` and passes it through `WithCache`, and only the `ttl` half survived, because `getCacheTTL` in `users.go` reads it back. `NewHighPerformanceClient` lost its cache sizing the same way ([#240](https://github.com/netresearch/simple-ldap-go/issues/240)).
 
   Callers who have been setting these fields will see the cache they configured: memory use follows `MaxSize` and `MaxMemoryMB` rather than the 1000-entry, 64 MB default.
-
-### Changed
-
-- `New` no longer writes into the configuration structs it is handed. It enabled monitoring on the caller's `PerformanceConfig`, and `NewConnectionPool` fills its defaults into whatever `PoolConfig` it receives, so a caller who set only `MaxConnections` found the remaining fields filled in behind their back. Both are copied now, as `Config.Cache` is.
 
 ---
 
