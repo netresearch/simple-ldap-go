@@ -173,11 +173,26 @@ def balanced_span(text: str, start: int, closer: str) -> str | None:
     stepped over, so a bracket inside one does not shift the depth. Returns None
     on an unbalanced run (a snippet cut off mid-call), which is skipped rather
     than guessed at.
+
+    Comments are stepped over before quotes are considered. An apostrophe in
+    prose ("the pool's capacity") is not a rune literal, but it opens one as far
+    as skip_string is concerned, and everything up to the next apostrophe —
+    closing braces included — then disappears from the count. The literal being
+    read runs past its own end, swallows the next one, and the mismatch is
+    reported against a line nobody touched.
     """
     depth = 0
     i = start
     while i < len(text):
         char = text[i]
+        if text.startswith("//", i):
+            newline = text.find("\n", i)
+            i = len(text) if newline == -1 else newline + 1
+            continue
+        if text.startswith("/*", i):
+            end = text.find("*/", i + 2)
+            i = len(text) if end == -1 else end + 2
+            continue
         if char in "\"'`":
             i = skip_string(text, i)
             continue
