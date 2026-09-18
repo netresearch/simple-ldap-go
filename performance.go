@@ -112,13 +112,17 @@ type PerformanceMetrics struct {
 	// Cache statistics
 	CacheHitRatio float64 `json:"cache_hit_ratio"`
 
-	// Backward compatibility fields for direct pool access
+	// Flat pool figures, for callers that read them without descending into
+	// PoolStats. They carry the same snapshot and are zero when no pool is
+	// configured; PoolStats is nil in that case, which is how a caller tells
+	// "no pool" from "a pool reporting nothing".
 	PoolHits           int64 `json:"pool_hits"`
 	PoolMisses         int64 `json:"pool_misses"`
 	TotalConnections   int   `json:"total_connections"`
 	ConnectionsCreated int64 `json:"connections_created"`
 
-	// Additional fields for example compatibility
+	// ConnectionPoolRatio is active connections over PoolConfig.MaxConnections,
+	// in [0,1], and 0 when the ceiling is unknown.
 	ActiveConnections   int               `json:"active_connections"`
 	IdleConnections     int               `json:"idle_connections"`
 	HealthChecksPassed  int64             `json:"health_checks_passed"`
@@ -342,22 +346,7 @@ func (pm *PerformanceMonitor) GetStats() *PerformanceMetrics {
 	maps.Copy(stats.ErrorsByType, pm.metrics.ErrorsByType)
 
 	// Add pool stats if available
-	if pm.pool != nil {
-		poolStats := pm.pool.Stats()
-		stats.PoolStats = &ConnectionPoolStats{
-			MaxConnections:    0, // Not available in PoolStats, would need config
-			MinConnections:    0, // Not available in PoolStats, would need config
-			ActiveConnections: int(poolStats.ActiveConnections),
-			IdleConnections:   int(poolStats.IdleConnections),
-			TotalRequests:     0, // Not available in PoolStats
-			PoolHits:          poolStats.PoolHits,
-			PoolMisses:        poolStats.PoolMisses,
-			AvgWaitTime:       0, // Not available in PoolStats
-			MaxWaitTime:       0, // Not available in PoolStats
-			FailedConnections: 0, // Not available in PoolStats
-			TimeoutsCount:     0, // Not available in PoolStats
-		}
-	}
+	applyPoolStats(stats, pm.pool)
 
 	// Copy recent response times if requested
 	if len(pm.responseTimes) > 0 {
@@ -366,6 +355,70 @@ func (pm *PerformanceMonitor) GetStats() *PerformanceMetrics {
 	}
 
 	return stats
+}
+
+// applyPoolStats fills the pool figures in stats from a live pool: the nested
+// PoolStats snapshot and the flat fields beside it.
+//
+// The flat fields (PoolHits, TotalConnections, ActiveConnections and the rest)
+// were declared but never assigned for a real server, so every caller reading
+// them saw a zero that was indistinguishable from an idle directory. A
+// downstream readiness probe built on TotalConnections > 0 could therefore
+// never become ready (#247).
+//
+// A nil pool leaves stats untouched: no pool configured is not the same as a
+// pool reporting nothing, and PoolStats stays nil so the JSON omits it.
+//
+// Five ConnectionPoolStats fields — TotalRequests, AvgWaitTime, MaxWaitTime,
+// FailedConnections and TimeoutsCount — have no source in PoolStats and keep
+// their zero values; the pool does not count them.
+func applyPoolStats(stats *PerformanceMetrics, pool *ConnectionPool) {
+	if stats == nil || pool == nil {
+		return
+	}
+
+	poolStats := pool.Stats()
+
+	maxConnections, minConnections := 0, 0
+	if pool.config != nil {
+		maxConnections = pool.config.MaxConnections
+		minConnections = pool.config.MinConnections
+	}
+
+	stats.PoolStats = &ConnectionPoolStats{
+		MaxConnections:    maxConnections,
+		MinConnections:    minConnections,
+		ActiveConnections: int(poolStats.ActiveConnections),
+		IdleConnections:   int(poolStats.IdleConnections),
+		TotalRequests:     0, // The pool keeps no request counter.
+		PoolHits:          poolStats.PoolHits,
+		PoolMisses:        poolStats.PoolMisses,
+		AvgWaitTime:       0, // The pool keeps no wait timing.
+		MaxWaitTime:       0, // The pool keeps no wait timing.
+		FailedConnections: 0, // The pool keeps no failure counter.
+		TimeoutsCount:     0, // The pool keeps no timeout counter.
+	}
+
+	stats.PoolHits = poolStats.PoolHits
+	stats.PoolMisses = poolStats.PoolMisses
+	stats.TotalConnections = int(poolStats.TotalConnections)
+	stats.ConnectionsCreated = poolStats.ConnectionsCreated
+	stats.ConnectionsClosed = poolStats.ConnectionsClosed
+	stats.ActiveConnections = int(poolStats.ActiveConnections)
+	stats.IdleConnections = int(poolStats.IdleConnections)
+	stats.HealthChecksPassed = poolStats.HealthChecksPassed
+	stats.HealthChecksFailed = poolStats.HealthChecksFailed
+	stats.ConnectionPoolRatio = poolUtilisation(int(poolStats.ActiveConnections), maxConnections)
+}
+
+// poolUtilisation is the fraction of the pool's capacity currently checked out:
+// active connections over MaxConnections, in [0,1]. It is 0 when the ceiling is
+// unknown, so a caller cannot read a ratio off an undefined denominator.
+func poolUtilisation(active, maxConnections int) float64 {
+	if maxConnections <= 0 {
+		return 0
+	}
+	return float64(active) / float64(maxConnections)
 }
 
 // GetOperationHistory returns detailed operation history

@@ -237,7 +237,17 @@ func New(config Config, username, password string, opts ...Option) (*LDAP, error
 
 	// Test connection (skip for example servers)
 	if !isExample {
-		_, err := client.GetConnection()
+		conn, err := client.GetConnection()
+		if err == nil {
+			// The check took a connection out of the pool; without this it stays
+			// checked out for the life of the client, so ActiveConnections never
+			// falls back to zero and one slot of MaxConnections is gone.
+			if releaseErr := client.ReleaseConnection(conn); releaseErr != nil {
+				logger.Warn("initial_connection_release_failed",
+					slog.String("server", config.Server),
+					slog.String("error", releaseErr.Error()))
+			}
+		}
 		if err != nil {
 			logger.Error("ldap_client_initialization_failed",
 				slog.String("server", config.Server),
@@ -453,13 +463,21 @@ func (l *LDAP) GetPerformanceStats() PerformanceStats {
 		}
 	}
 
+	// A pool without a performance monitor is an ordinary configuration:
+	// Config.Pool is read on its own and does not imply EnableMetrics. Reporting
+	// zeros there would answer "no connections" for a pool that has them, which
+	// is the shape #247 is about, so the pool is read directly.
 	if l.perfMonitor == nil {
-		return PerformanceStats{}
+		stats := PerformanceStats{}
+		applyPoolStats(&stats, l.connPool)
+		return stats
 	}
 
 	stats := l.perfMonitor.GetStats()
 	if stats == nil {
-		return PerformanceStats{}
+		fallback := PerformanceStats{}
+		applyPoolStats(&fallback, l.connPool)
+		return fallback
 	}
 
 	return *stats
