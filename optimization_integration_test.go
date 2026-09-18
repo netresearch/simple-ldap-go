@@ -17,15 +17,16 @@ func TestCacheIntegration(t *testing.T) {
 	tc := SetupTestContainer(t)
 	defer tc.Close(t)
 
-	t.Run("cache enabled by default via EnableOptimizations", func(t *testing.T) {
+	t.Run("no cache when no flag asks for one", func(t *testing.T) {
 		client, err := New(tc.Config, tc.AdminUser, tc.AdminPass)
 		require.NoError(t, err)
 		defer client.Close()
 
-		// Cache is enabled by default because New() sets EnableOptimizations = true
-		assert.NotNil(t, client.cache, "cache should be initialized by default via EnableOptimizations")
+		// Until v1.17.0 New set EnableOptimizations itself and this assertion read
+		// NotNil. The flags are opt-in now (#243), so a caller who sets none gets
+		// no cache — and the client still works, uncached.
+		assert.Nil(t, client.cache, "a cache was built although no flag asked for one")
 
-		// Perform operations - should work with cache
 		user, err := client.FindUserByDN(fmt.Sprintf("uid=jdoe,%s", tc.UsersOU))
 		require.NoError(t, err)
 		assert.NotNil(t, user)
