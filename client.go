@@ -34,8 +34,20 @@ type LDAP struct {
 
 // Config contains the configuration for LDAP connections
 type Config struct {
-	Server            string
-	Port              int
+	// Server is the LDAP URL to connect to, including the port:
+	// "ldaps://dc01.corp.example:636". When it carries no port, go-ldap's
+	// default for the scheme applies — 389 for ldap://, 636 for ldaps://.
+	Server string
+
+	// Port is not read. The port comes from Server, and has since before this
+	// field existed; nothing in the library consults Port, so setting it has
+	// never had any effect. A Config with Server "ldap://host:389" and
+	// Port 636 connects on 389.
+	//
+	// Deprecated: put the port in Server. This field will be removed; see
+	// https://github.com/netresearch/simple-ldap-go/issues/251.
+	Port int
+
 	BaseDN            string
 	IsActiveDirectory bool
 
