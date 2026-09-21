@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.18.1] - 2026-09-21
+
+### Fixed
+
+- **`ConnectionPool.Put` read a connection after handing it back.** It sent the connection on the pool's channel and then read `lastUsed` and `usageCount` for its debug log; once the send completes, a concurrent `Get` can own the connection and write both fields, so the read raced both writes. It surfaced as soon as a caller used the pool from several goroutines — [netresearch/ldap-manager](https://github.com/netresearch/ldap-manager)'s cache warm-up runs three searches at once, and its `-race` E2E suite failed intermittently from the moment it started setting `Config.Pool`. `Put` now takes both values before the send. The existing concurrency test could not have caught it: it returned connections with `conn.Close()`, which bypasses `Put`, and its build tag kept it out of both CI tiers; an integration test now returns them through `Put` ([#254](https://github.com/netresearch/simple-ldap-go/pull/254)).
+
 ## [v1.18.0] - 2026-09-18
 
 ### Deprecated
