@@ -1,5 +1,4 @@
 //go:build integration
-// +build integration
 
 package ldap
 
@@ -74,7 +73,7 @@ func TestIntegrationConnectionPool(t *testing.T) {
 		numGoroutines := 20
 		errChan := make(chan error, numGoroutines)
 
-		for i := 0; i < numGoroutines; i++ {
+		for range numGoroutines {
 			go func() {
 				conn, err := client.GetConnection()
 				if err != nil {
@@ -89,7 +88,7 @@ func TestIntegrationConnectionPool(t *testing.T) {
 		}
 
 		// Collect results
-		for i := 0; i < numGoroutines; i++ {
+		for range numGoroutines {
 			err := <-errChan
 			assert.NoError(t, err)
 		}
@@ -384,7 +383,7 @@ func TestIntegrationPerformance(t *testing.T) {
 		)
 
 		// Warm up
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			for range client.SearchIter(ctx, searchRequest) {
 				// Just iterate
 			}
@@ -393,7 +392,7 @@ func TestIntegrationPerformance(t *testing.T) {
 		// Measure performance
 		iterations := 10
 		start := time.Now()
-		for i := 0; i < iterations; i++ {
+		for range iterations {
 			count := 0
 			for range client.SearchIter(ctx, searchRequest) {
 				count++
