@@ -1,5 +1,4 @@
 //go:build integration
-// +build integration
 
 package ldap
 
@@ -112,7 +111,7 @@ func (tc *TestContainer) populateTestData(t *testing.T) {
 	var conn *ldap.Conn
 	var err error
 
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		conn, err = ldap.DialURL(tc.Config.Server)
 		if err == nil {
 			break

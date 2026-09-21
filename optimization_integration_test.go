@@ -273,7 +273,7 @@ func TestBulkOperations(t *testing.T) {
 
 		// Create multiple users in bulk
 		userDNs := []string{}
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			userDN := fmt.Sprintf("uid=bulkuser%d,%s", i, tc.UsersOU)
 			userDNs = append(userDNs, userDN)
 
@@ -607,7 +607,7 @@ func TestCacheKeyTracking(t *testing.T) {
 
 		// Goroutine 1: Repeatedly lookup by DN
 		go func() {
-			for i := 0; i < 10; i++ {
+			for range 10 {
 				client.FindUserByDN(userDN)
 				time.Sleep(5 * time.Millisecond)
 			}
@@ -616,7 +616,7 @@ func TestCacheKeyTracking(t *testing.T) {
 
 		// Goroutine 2: Repeatedly lookup by mail
 		go func() {
-			for i := 0; i < 10; i++ {
+			for range 10 {
 				client.FindUserByMail("concurrent@example.com")
 				time.Sleep(5 * time.Millisecond)
 			}
@@ -625,7 +625,7 @@ func TestCacheKeyTracking(t *testing.T) {
 
 		// Goroutine 3: Invalidate cache periodically
 		go func() {
-			for i := 0; i < 3; i++ {
+			for range 3 {
 				time.Sleep(15 * time.Millisecond)
 				client.cache.InvalidateByPrimaryKey(userDN)
 			}
@@ -633,7 +633,7 @@ func TestCacheKeyTracking(t *testing.T) {
 		}()
 
 		// Wait for all goroutines
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			<-done
 		}
 

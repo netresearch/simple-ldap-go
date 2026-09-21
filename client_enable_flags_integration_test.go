@@ -1,5 +1,4 @@
 //go:build integration
-// +build integration
 
 package ldap
 
@@ -40,7 +39,7 @@ func TestNewLogsThatCachingIsOffWhenNoFlagIsSet(t *testing.T) {
 	assert.Nil(t, client.perfMonitor, "a performance monitor was built although no flag asked for one")
 
 	var found map[string]any
-	for _, line := range strings.Split(strings.TrimSpace(buf.String()), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSpace(buf.String()), "\n") {
 		if line == "" {
 			continue
 		}

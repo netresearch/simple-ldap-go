@@ -113,8 +113,8 @@ func TestBulkOperationsPerformance(t *testing.T) {
 				CN:             "Bulk User 1",
 				FirstName:      "Bulk1",
 				LastName:       "User1",
-				Email:          ptr("bulk1@example.com"),
-				SAMAccountName: ptr("bulkuser1"),
+				Email:          new("bulk1@example.com"),
+				SAMAccountName: new("bulkuser1"),
 				ObjectClasses: []string{
 					"top",
 					"person",
@@ -126,8 +126,8 @@ func TestBulkOperationsPerformance(t *testing.T) {
 				CN:             "Bulk User 2",
 				FirstName:      "Bulk2",
 				LastName:       "User2",
-				Email:          ptr("bulk2@example.com"),
-				SAMAccountName: ptr("bulkuser2"),
+				Email:          new("bulk2@example.com"),
+				SAMAccountName: new("bulkuser2"),
 				ObjectClasses: []string{
 					"top",
 					"person",
@@ -139,8 +139,8 @@ func TestBulkOperationsPerformance(t *testing.T) {
 				CN:             "Bulk User 3",
 				FirstName:      "Bulk3",
 				LastName:       "User3",
-				Email:          ptr("bulk3@example.com"),
-				SAMAccountName: ptr("bulkuser3"),
+				Email:          new("bulk3@example.com"),
+				SAMAccountName: new("bulkuser3"),
 				ObjectClasses: []string{
 					"top",
 					"person",
@@ -240,9 +240,4 @@ func TestBulkOperationsPerformance(t *testing.T) {
 func BenchmarkBulkVsSequential(b *testing.B) {
 	// This would require a test container setup
 	b.Skip("Skipping benchmark that requires LDAP container")
-}
-
-// Helper function to create string pointer
-func ptr(s string) *string {
-	return &s
 }
