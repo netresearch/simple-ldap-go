@@ -349,8 +349,7 @@ func TestWithCircuitBreakerOption(t *testing.T) {
 func BenchmarkCircuitBreakerClosed(b *testing.B) {
 	cb := NewCircuitBreaker("bench", DefaultCircuitBreakerConfig(), slog.Default())
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = cb.Execute(func() error {
 			return nil
 		})
@@ -369,8 +368,7 @@ func BenchmarkCircuitBreakerOpen(b *testing.B) {
 		return errors.New("fail")
 	})
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = cb.Execute(func() error {
 			return nil
 		})

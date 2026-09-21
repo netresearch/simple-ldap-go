@@ -330,7 +330,7 @@ func BenchmarkClientCreation(b *testing.B) {
 
 	b.Run("NewBasicClient", func(b *testing.B) {
 		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			client, err := NewBasicClient(config, username, password)
 			if err == nil {
 				_ = client.Close()
@@ -343,7 +343,7 @@ func BenchmarkClientCreation(b *testing.B) {
 		options := []Option{
 			WithLogger(slog.New(slog.NewTextHandler(os.Stdout, nil))),
 		}
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			client, err := New(config, username, password, options...)
 			if err == nil {
 				_ = client.Close()
@@ -353,7 +353,7 @@ func BenchmarkClientCreation(b *testing.B) {
 
 	b.Run("NewHighPerformanceClient", func(b *testing.B) {
 		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			client, err := NewHighPerformanceClient(config, username, password)
 			if err == nil {
 				_ = client.Close()

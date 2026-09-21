@@ -435,8 +435,7 @@ func BenchmarkFindComputerBySAMAccountName(b *testing.B) {
 
 	client := tc.GetLDAPClient(&testing.T{})
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := client.FindComputerBySAMAccountName("WORKSTATION01$")
 		// Expect error in test environment
 		if err != ErrComputerNotFound {
@@ -460,8 +459,7 @@ func BenchmarkFindComputers(b *testing.B) {
 
 	client := tc.GetLDAPClient(&testing.T{})
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		computers, err := client.FindComputers()
 		if err != nil {
 			b.Logf("Expected error in test environment: %v", err)

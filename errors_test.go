@@ -405,13 +405,13 @@ func BenchmarkErrorCreation(b *testing.B) {
 	baseErr := errors.New("test error")
 
 	b.Run("SimpleError", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_ = fmt.Errorf("operation failed: %w", baseErr)
 		}
 	})
 
 	b.Run("EnhancedError", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_ = NewLDAPError("TestOp", "ldaps://test.invalid", baseErr).
 				WithDN("CN=test,DC=example,DC=com").
 				WithContext("key", "value")
@@ -423,8 +423,7 @@ func BenchmarkErrorCreation(b *testing.B) {
 func BenchmarkErrorClassification(b *testing.B) {
 	err := ErrInvalidCredentials
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = IsAuthenticationError(err)
 	}
 }

@@ -1157,8 +1157,7 @@ func BenchmarkPoolInitialization(b *testing.B) {
 		},
 	}
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		client, err := New(*config, "user", "pass")
 		if err != nil {
 			b.Fatal(err)
@@ -1365,8 +1364,7 @@ func BenchmarkConnectionPool_GetWithCredentials(b *testing.B) {
 	ctx := context.Background()
 
 	b.Run("SingleUser", func(b *testing.B) {
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			conn, err := pool.GetWithCredentials(ctx, user, password)
 			if err != nil {
 				b.Fatalf("GetWithCredentials failed: %v", err)
@@ -1379,8 +1377,7 @@ func BenchmarkConnectionPool_GetWithCredentials(b *testing.B) {
 	})
 
 	b.Run("Baseline_Get", func(b *testing.B) {
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			conn, err := pool.Get(ctx)
 			if err != nil {
 				b.Fatalf("Get failed: %v", err)

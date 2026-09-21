@@ -533,8 +533,7 @@ func BenchmarkFindUserBySAMAccountName(b *testing.B) {
 	client := tc.GetLDAPClient(&testing.T{})
 	testData := tc.GetTestData()
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := client.FindUserBySAMAccountName(testData.ValidUserUID)
 		if err != nil {
 			b.Fatal(err)
@@ -557,8 +556,7 @@ func BenchmarkFindUsers(b *testing.B) {
 
 	client := tc.GetLDAPClient(&testing.T{})
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := client.FindUsers()
 		if err != nil {
 			b.Fatal(err)

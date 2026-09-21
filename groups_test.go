@@ -415,8 +415,7 @@ func BenchmarkFindGroupByDN(b *testing.B) {
 	client := tc.GetLDAPClient(&testing.T{})
 	testData := tc.GetTestData()
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := client.FindGroupByDN(testData.ValidGroupDN)
 		if err != nil {
 			b.Fatal(err)
@@ -439,8 +438,7 @@ func BenchmarkFindGroups(b *testing.B) {
 
 	client := tc.GetLDAPClient(&testing.T{})
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := client.FindGroups()
 		if err != nil {
 			b.Fatal(err)
