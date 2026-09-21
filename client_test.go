@@ -372,7 +372,6 @@ func BenchmarkNewConnection(b *testing.B) {
 	tc := SetupTestContainer(&testing.T{})
 	defer tc.Close(&testing.T{})
 
-	b.ResetTimer()
 	for b.Loop() {
 		client, err := New(tc.Config, tc.AdminUser, tc.AdminPass)
 		if err != nil {
@@ -391,7 +390,6 @@ func BenchmarkGetConnection(b *testing.B) {
 
 	client := tc.GetLDAPClient(&testing.T{})
 
-	b.ResetTimer()
 	for b.Loop() {
 		conn, err := client.GetConnection()
 		if err != nil {

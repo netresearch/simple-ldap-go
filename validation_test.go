@@ -722,7 +722,6 @@ func BenchmarkValidator_ValidateDNSyntax(b *testing.B) {
 	validator := NewValidator(DefaultValidationConfig())
 	dn := "CN=John Doe,OU=Users,OU=IT Department,DC=example,DC=com"
 
-	b.ResetTimer()
 	for b.Loop() {
 		validator.ValidateDNSyntax(dn)
 	}
@@ -732,7 +731,6 @@ func BenchmarkValidator_ValidateFilter(b *testing.B) {
 	validator := NewValidator(DefaultValidationConfig())
 	filter := "(&(objectClass=user)(sAMAccountName=john.doe)(!(userAccountControl=514)))"
 
-	b.ResetTimer()
 	for b.Loop() {
 		validator.ValidateFilter(filter)
 	}
@@ -741,7 +739,6 @@ func BenchmarkValidator_ValidateFilter(b *testing.B) {
 func BenchmarkValidator_ValidateAttribute(b *testing.B) {
 	validator := NewValidator(DefaultValidationConfig())
 
-	b.ResetTimer()
 	for b.Loop() {
 		validator.ValidateAttribute("mail", "john.doe@example.com")
 	}
@@ -750,7 +747,6 @@ func BenchmarkValidator_ValidateAttribute(b *testing.B) {
 func BenchmarkValidator_ValidateCredentials(b *testing.B) {
 	validator := NewValidator(DefaultValidationConfig())
 
-	b.ResetTimer()
 	for b.Loop() {
 		validator.ValidateCredentials("john.doe", "SecurePassword123")
 	}
@@ -760,7 +756,6 @@ func BenchmarkPasswordAnalysis(b *testing.B) {
 	validator := NewValidator(DefaultValidationConfig())
 	password := "SecureP@ssw0rd!123"
 
-	b.ResetTimer()
 	for b.Loop() {
 		validator.analyzePassword(password)
 	}

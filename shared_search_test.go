@@ -310,7 +310,6 @@ func BenchmarkFindByDNContext(b *testing.B) {
 
 	ctx := context.Background()
 
-	b.ResetTimer()
 	for b.Loop() {
 		_, _ = client.findByDNContext(ctx, "cn=admin,ou=users,dc=example,dc=com", params)
 	}

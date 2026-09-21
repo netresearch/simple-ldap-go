@@ -765,7 +765,6 @@ func BenchmarkGenericOperations(b *testing.B) {
 	b.Run("Reflection overhead", func(b *testing.B) {
 		var obj *MockSearchableLDAPObject
 
-		b.ResetTimer()
 		for b.Loop() {
 			objType := reflect.TypeOf(obj)
 			if objType != nil && objType.Kind() == reflect.Pointer {
