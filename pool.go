@@ -287,17 +287,23 @@ func (p *ConnectionPool) Put(conn *ldap.Conn) error {
 	}
 
 	pooledConn.inUse = false
-	pooledConn.lastUsed = time.Now()
+	lastUsed := time.Now()
+	pooledConn.lastUsed = lastUsed
 
 	// Check if connection is still healthy before returning to pool
 	if p.isConnectionHealthy(pooledConn) {
+		// Read what the log needs before the send. Once pooledConn is on
+		// p.available another goroutine's Get may own it and write lastUsed
+		// and usageCount, so touching it after the send is a data race.
+		usageCount := atomic.LoadInt64(&pooledConn.usageCount)
+
 		select {
 		case p.available <- pooledConn:
 			atomic.AddInt32(&p.stats.ActiveConnections, -1)
 			atomic.AddInt32(&p.stats.IdleConnections, 1)
 			p.logger.Debug("connection_returned_to_pool",
-				slog.Time("last_used", pooledConn.lastUsed),
-				slog.Int64("usage_count", pooledConn.usageCount))
+				slog.Time("last_used", lastUsed),
+				slog.Int64("usage_count", usageCount))
 			return nil
 		default:
 			// Pool is full, close the connection
