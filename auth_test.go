@@ -481,8 +481,7 @@ func BenchmarkCheckPasswordForSAMAccountName(b *testing.B) {
 	client := tc.GetLDAPClient(&testing.T{})
 	testData := tc.GetTestData()
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := client.CheckPasswordForSAMAccountName(testData.ValidUserUID, testData.ValidUserPassword)
 		if err != nil {
 			b.Fatal(err)
@@ -506,8 +505,7 @@ func BenchmarkCheckPasswordForDN(b *testing.B) {
 	client := tc.GetLDAPClient(&testing.T{})
 	testData := tc.GetTestData()
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := client.CheckPasswordForDN(testData.ValidUserDN, testData.ValidUserPassword)
 		if err != nil {
 			b.Fatal(err)

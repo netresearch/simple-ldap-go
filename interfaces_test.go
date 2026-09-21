@@ -496,8 +496,7 @@ func BenchmarkInterfaceReflection(b *testing.B) {
 		var client *LDAP
 		userReaderInterface := (*UserReader)(nil)
 
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_ = reflect.TypeOf(client).Implements(reflect.TypeOf(userReaderInterface).Elem())
 		}
 	})
@@ -505,8 +504,7 @@ func BenchmarkInterfaceReflection(b *testing.B) {
 	b.Run("method enumeration", func(b *testing.B) {
 		userManagerType := reflect.TypeFor[UserManager]()
 
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			for method := range userManagerType.Methods() {
 				_ = method
 			}

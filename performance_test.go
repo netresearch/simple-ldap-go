@@ -340,13 +340,14 @@ func BenchmarkCacheSet(b *testing.B) {
 	}
 	defer func() { _ = cache.Close() }()
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	i := 0
+	for b.Loop() {
 		key := fmt.Sprintf("bench:set:%d", i%1000) // Reuse keys to test updates
 		value := fmt.Sprintf("value:%d", i)
 		if err := cache.Set(key, value, time.Hour); err != nil {
 			b.Errorf("Failed to set cache value: %v", err)
 		}
+		i++
 	}
 }
 
@@ -370,10 +371,11 @@ func BenchmarkCacheGet(b *testing.B) {
 		}
 	}
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	i := 0
+	for b.Loop() {
 		key := fmt.Sprintf("bench:get:%d", i%1000)
 		cache.Get(key)
+		i++
 	}
 }
 
@@ -388,8 +390,8 @@ func BenchmarkCacheMixed(b *testing.B) {
 	}
 	defer func() { _ = cache.Close() }()
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	i := 0
+	for b.Loop() {
 		key := fmt.Sprintf("bench:mixed:%d", i%1000)
 
 		// 70% reads, 30% writes (typical read-heavy workload)
@@ -401,6 +403,7 @@ func BenchmarkCacheMixed(b *testing.B) {
 				b.Errorf("Failed to set cache value: %v", err)
 			}
 		}
+		i++
 	}
 }
 
@@ -411,8 +414,8 @@ func BenchmarkPerformanceMonitor(b *testing.B) {
 
 	ctx := context.Background()
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	i := 0
+	for b.Loop() {
 		operation := fmt.Sprintf("BenchOperation%d", i%5) // 5 different operation types
 		duration := time.Duration(i%100) * time.Microsecond
 		cacheHit := i%3 == 0 // ~33% cache hit rate
@@ -426,6 +429,7 @@ func BenchmarkPerformanceMonitor(b *testing.B) {
 		}
 
 		monitor.RecordOperation(ctx, operation, duration, cacheHit, err, resultCount)
+		i++
 	}
 }
 
@@ -438,11 +442,12 @@ func BenchmarkCacheKeyGeneration(b *testing.B) {
 		"subtree",
 	}
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	i := 0
+	for b.Loop() {
 		operation := fmt.Sprintf("operation%d", i%10)
 		params := components[:i%len(components)+1] // Use variable number of params
 		_ = GenerateCacheKey(operation, params...)
+		i++
 	}
 }
 

@@ -359,8 +359,7 @@ func TestUtilsDocumentationExamples(t *testing.T) {
 func BenchmarkParseObjectEnabled(b *testing.B) {
 	testValue := "514" // Disabled normal account
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := parseObjectEnabled(testValue)
 		if err != nil {
 			b.Fatal(err)
@@ -371,15 +370,13 @@ func BenchmarkParseObjectEnabled(b *testing.B) {
 func BenchmarkConvertAccountExpires(b *testing.B) {
 	expirationDate := time.Date(2025, 12, 31, 23, 59, 59, 0, time.UTC)
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = convertAccountExpires(&expirationDate)
 	}
 }
 
 func BenchmarkConvertAccountExpiresNil(b *testing.B) {
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = convertAccountExpires(nil)
 	}
 }

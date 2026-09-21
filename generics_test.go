@@ -723,8 +723,7 @@ func BenchmarkGenericOperations(b *testing.B) {
 			},
 		}
 
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			// Just test the validation and request creation part
 			_ = obj.Validate()
 			_, _ = obj.ToAddRequest()
@@ -740,8 +739,7 @@ func BenchmarkGenericOperations(b *testing.B) {
 		}
 		changes := map[string][]string{"cn": {"new name"}}
 
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			// Just test the validation and request creation part
 			_ = obj.GetModifiableAttributes()
 			_, _ = obj.ToModifyRequest(changes)
@@ -754,8 +752,7 @@ func BenchmarkGenericOperations(b *testing.B) {
 			cn: "test",
 		}
 
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			// Test type assertion overhead
 			_, ok := any(obj).(interface {
 				ToAddRequest() (*ldap.AddRequest, error)
@@ -768,7 +765,6 @@ func BenchmarkGenericOperations(b *testing.B) {
 	b.Run("Reflection overhead", func(b *testing.B) {
 		var obj *MockSearchableLDAPObject
 
-		b.ResetTimer()
 		for b.Loop() {
 			objType := reflect.TypeOf(obj)
 			if objType != nil && objType.Kind() == reflect.Pointer {

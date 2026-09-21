@@ -80,8 +80,7 @@ func BenchmarkValidateIPAddress(b *testing.B) {
 		"256.256.256.256",
 	}
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		for _, ip := range ips {
 			_ = ValidateIPAddress(ip)
 		}
@@ -97,8 +96,7 @@ func BenchmarkValidateEmailFormat(b *testing.B) {
 		"@example.com",
 	}
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		for _, email := range emails {
 			_ = ValidateEmailFormat(email)
 		}

@@ -388,7 +388,7 @@ func TestBuilderErrorAccumulation(t *testing.T) {
 // BenchmarkUserBuilder benchmarks user building
 func BenchmarkUserBuilder(b *testing.B) {
 	b.Run("minimal user", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_, _ = NewUserBuilder().
 				WithCN("John Doe").
 				WithSAMAccountName("jdoe").
@@ -397,7 +397,7 @@ func BenchmarkUserBuilder(b *testing.B) {
 	})
 
 	b.Run("full user", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_, _ = NewUserBuilder().
 				WithCN("John Doe").
 				WithSAMAccountName("jdoe").

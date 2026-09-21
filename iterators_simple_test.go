@@ -101,13 +101,13 @@ func BenchmarkIteratorCreation(b *testing.B) {
 	)
 
 	b.Run("SearchIter", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_ = client.SearchIter(ctx, searchRequest)
 		}
 	})
 
 	b.Run("SearchPagedIter", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_ = client.SearchPagedIter(ctx, searchRequest, 100)
 		}
 	})

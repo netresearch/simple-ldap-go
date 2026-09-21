@@ -538,8 +538,7 @@ func TestUACFlagCombinations(t *testing.T) {
 func BenchmarkUACFromUint32(b *testing.B) {
 	value := uint32(0x10200) // Normal account with no password expiration
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = UACFromUint32(value)
 	}
 }
@@ -551,8 +550,7 @@ func BenchmarkUACUint32(b *testing.B) {
 		SmartCardRequired:    true,
 	}
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = uac.Uint32()
 	}
 }
@@ -565,8 +563,7 @@ func BenchmarkUACString(b *testing.B) {
 		AccountDisabled:      true,
 	}
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = uac.String()
 	}
 }

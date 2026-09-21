@@ -363,8 +363,7 @@ func TestSamAccountTypeInSwitch(t *testing.T) {
 func BenchmarkSamAccountTypeString(b *testing.B) {
 	samType := SamUserObject
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = samType.String()
 	}
 }
@@ -372,8 +371,7 @@ func BenchmarkSamAccountTypeString(b *testing.B) {
 func BenchmarkSamAccountTypeComparison(b *testing.B) {
 	samType := SamUserObject
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = samType == SamUserObject
 	}
 }
@@ -381,8 +379,7 @@ func BenchmarkSamAccountTypeComparison(b *testing.B) {
 func BenchmarkSamAccountTypeSwitch(b *testing.B) {
 	samType := SamUserObject
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		var result string
 		switch samType {
 		case SamUserObject:
