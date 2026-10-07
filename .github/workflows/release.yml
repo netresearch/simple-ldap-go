@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Tag to (re)release (e.g. v1.16.0); defaults to the triggering ref"
+        description: "Tag to (re)release (e.g. v0.16.0); defaults to the triggering ref"
         required: false
         type: string
         default: ""
