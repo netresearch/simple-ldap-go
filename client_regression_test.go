@@ -257,7 +257,7 @@ func TestRegressionCircuitBreakerRaceCondition(t *testing.T) {
 
 		// Collect results
 		for range 10 {
-			<-errChan
+			assert.Error(t, <-errChan)
 		}
 
 		// State should be consistently OPEN
