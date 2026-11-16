@@ -287,6 +287,7 @@ func demonstrateConfigurationExamples() {
 	highPerfConfig.EnableCache = true
 	highPerfConfig.EnableMetrics = true
 	highPerfConfig.EnableBulkOps = true
+	printConfigFlags(highPerfConfig)
 
 	// Would create with:
 	// client, _ := ldap.New(highPerfConfig, username, password,
@@ -304,6 +305,7 @@ func demonstrateConfigurationExamples() {
 
 	lowMemoryConfig := baseConfig
 	lowMemoryConfig.EnableCache = true // Selective optimization
+	printConfigFlags(lowMemoryConfig)
 
 	// Would create with:
 	// client, _ := ldap.New(lowMemoryConfig, username, password,
@@ -321,6 +323,7 @@ func demonstrateConfigurationExamples() {
 
 	writeHeavyConfig := baseConfig
 	writeHeavyConfig.EnableBulkOps = true // Only bulk operations
+	printConfigFlags(writeHeavyConfig)
 
 	// Would create with:
 	// client, _ := ldap.New(writeHeavyConfig, username, password,
@@ -340,4 +343,10 @@ func demonstrateConfigurationExamples() {
 	fmt.Println("   - ldap.NewCachedClient()       → With caching")
 	fmt.Println("   - ldap.NewPooledClient()       → With connection pooling")
 	fmt.Println("   - ldap.NewHighPerformanceClient() → All optimizations")
+}
+
+// printConfigFlags shows which optional features a Config turns on.
+func printConfigFlags(cfg ldap.Config) {
+	fmt.Printf("   Flags: optimizations=%t cache=%t metrics=%t bulk=%t\n",
+		cfg.EnableOptimizations, cfg.EnableCache, cfg.EnableMetrics, cfg.EnableBulkOps)
 }
