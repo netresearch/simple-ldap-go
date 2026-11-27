@@ -29,19 +29,31 @@ type TestContainer struct {
 	ctx         context.Context
 }
 
+// openLDAPImage is the image every integration test container runs. Renovate
+// tracks it through the regex customManager in renovate.json, which matches
+// this one place.
+const openLDAPImage = "osixia/openldap:2.6.15"
+
 // SetupTestContainer creates and configures an OpenLDAP container for testing
 func SetupTestContainer(t *testing.T) *TestContainer {
 	ctx := context.Background()
 
 	// Create container using generic container approach for better control
 	req := testcontainers.ContainerRequest{
-		Image:        "osixia/openldap:1.5.0",
+		Image:        openLDAPImage,
 		ExposedPorts: []string{"389/tcp", "636/tcp"},
+		// osixia/openldap 2.x reads only OPENLDAP_* variables. slapd listens on
+		// 3890/6360 unless OPENLDAP_URLS says otherwise. The *_PASSWORD_HASHED
+		// variables become userPassword values as given: a plain value is
+		// stored and compared as cleartext, which is what a throwaway test
+		// directory wants. The root DN is cn=admin,<suffix>; the cn=config
+		// root DN is cn=admin,cn=config.
 		Env: map[string]string{
-			"LDAP_ORGANISATION":    "Example Org",
-			"LDAP_DOMAIN":          "example.org",
-			"LDAP_ADMIN_PASSWORD":  "admin123",
-			"LDAP_CONFIG_PASSWORD": "config123",
+			"OPENLDAP_URLS":                                  "ldap://:389 ldaps://:636 ldapi:///",
+			"OPENLDAP_BOOTSTRAP_ORGANIZATION":                "Example Org",
+			"OPENLDAP_BOOTSTRAP_SUFFIX":                      "dc=example,dc=org",
+			"OPENLDAP_BOOTSTRAP_DATA_ROOT_PASSWORD_HASHED":   "admin123",
+			"OPENLDAP_BOOTSTRAP_CONFIG_ROOT_PASSWORD_HASHED": "config123",
 		},
 		WaitingFor: wait.ForAll(
 			wait.ForLog("slapd starting").WithStartupTimeout(120*time.Second).WithPollInterval(2*time.Second),

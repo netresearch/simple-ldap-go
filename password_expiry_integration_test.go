@@ -19,7 +19,9 @@ const ppolicyMaxAge = 90 * 24 * time.Hour
 //
 // The overlay is what produces pwdChangedTime; without it OpenLDAP records
 // nothing about password age and PasswordExpiryFor can only answer "unknown".
-// osixia/openldap ships the module but does not enable the overlay.
+// osixia/openldap ships the module but neither loads it nor enables the
+// overlay. Since OpenLDAP 2.5 the ppolicy schema is built into the module, so
+// the module must be loaded before a pwdPolicy entry can be added.
 func enablePpolicy(t *testing.T, tc *TestContainer, policyDN string) {
 	t.Helper()
 
@@ -28,12 +30,12 @@ func enablePpolicy(t *testing.T, tc *TestContainer, policyDN string) {
 	defer func() { _ = cfgConn.Close() }()
 	require.NoError(t, cfgConn.Bind("cn=admin,cn=config", "config123"), "bind cn=config")
 
-	// The module may already be loaded; only the overlay is guaranteed absent.
+	// cn=module{0} is the image's module list (back_mdb, argon2); ppolicy is
+	// not in it. The image installs modules as .so files without libtool .la
+	// archives, so the name carries the .so suffix.
 	modAdd := ldap.NewModifyRequest("cn=module{0},cn=config", nil)
-	modAdd.Add("olcModuleLoad", []string{"ppolicy.la"})
-	if err := cfgConn.Modify(modAdd); err != nil {
-		t.Logf("loading ppolicy module reported %v (already loaded is fine)", err)
-	}
+	modAdd.Add("olcModuleLoad", []string{"ppolicy.so"})
+	require.NoError(t, cfgConn.Modify(modAdd), "load ppolicy module")
 
 	overlay := ldap.NewAddRequest("olcOverlay=ppolicy,olcDatabase={1}mdb,cn=config", nil)
 	overlay.Attribute("objectClass", []string{"olcOverlayConfig", "olcPPolicyConfig"})
@@ -98,8 +100,10 @@ func ppolicyFixture(t *testing.T, tc *TestContainer, maxAge time.Duration) (*LDA
 	defer func() { _ = adminConn.Close() }()
 	require.NoError(t, adminConn.Bind(tc.AdminUser, tc.AdminPass), "bind admin")
 
-	createPasswordPolicy(t, adminConn, policyDN, maxAge)
+	// enablePpolicy first: loading the ppolicy module is what defines the
+	// pwdPolicy object class the policy entry needs.
 	enablePpolicy(t, tc, policyDN)
+	createPasswordPolicy(t, adminConn, policyDN, maxAge)
 
 	data := tc.GetTestData()
 	changePasswordAsUser(t, tc, data.ValidUserDN, data.ValidUserPassword, "FreshPassword123!")
