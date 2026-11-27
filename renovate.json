@@ -7,5 +7,18 @@
   ],
   "automerge": true,
   "automergeType": "pr",
-  "platformAutomerge": true
+  "platformAutomerge": true,
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "The integration tests start osixia/openldap by image name from Go code (openLDAPImage in test_setup_test.go). Track the tag there.",
+      "managerFilePatterns": [
+        "/(^|/)[^/]+_test\\.go$/"
+      ],
+      "matchStrings": [
+        "\"(?<depName>osixia/openldap):(?<currentValue>[^\"@\\s]+)\""
+      ],
+      "datasourceTemplate": "docker"
+    }
+  ]
 }
